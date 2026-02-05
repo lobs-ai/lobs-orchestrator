@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass
@@ -9,7 +8,7 @@ class AgentConfig:
     description: str
 
 
-AGENTS: Dict[str, AgentConfig] = {
+AGENTS: dict[str, AgentConfig] = {
     "task-runner": AgentConfig(
         name="task-runner",
         model="claude-3-5-sonnet",

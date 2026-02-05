@@ -18,43 +18,59 @@ class Orchestrator:
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
 
-    def run_once(self):
-        # 1. Process pending control operations (exactly one writer pattern)
+    def process_control(self) -> None:
+        """Process pending control operations."""
         self.control.process_ops()
 
-        # 2. Check active workers and release locks
+    def process_workers(self) -> None:
+        """Check active workers and handle their lifecycle."""
         self.worker_manager.check_workers()
 
-        # 3. Periodic reconciliation (Self-healing)
+    def process_reconciliation(self, project_ids: list[str]) -> None:
+        """Periodic self-healing pass."""
         now = time.time()
         if now - self.last_reconcile > self.reconcile_interval:
             logger.info("Starting periodic reconciliation...")
-            from .config import BASE_DIR
-            projects = [d.name for d in BASE_DIR.iterdir() if d.is_dir() and (d / ".git").exists()]
-            self.reconciler.reconcile(projects)
+            self.reconciler.reconcile(project_ids)
             self.last_reconcile = now
 
-        # 4. Scan for new work
-        facts = self.scanner.scan()
-
-        # 5. Decision logic
-        # Handle explicit worker requests from dashboard
-        if facts["pending_request"]:
+    def process_requests(self, pending_request: bool) -> None:
+        """Handle explicit worker requests from the dashboard."""
+        if pending_request:
             logger.info("Worker request detected from dashboard. Prioritizing.")
-            # We could use this to trigger a scan or bypass some throttle
             try:
                 from .config import CONTROL_REPO_PATH
-                (CONTROL_REPO_PATH / "state" / "worker-request.json").unlink()
-                logger.info("Consumed worker-request.json")
-            except FileNotFoundError:
-                pass
+                request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
+                if request_file.exists():
+                    request_file.unlink()
+                    logger.info("Consumed worker-request.json")
+            except Exception as e:
+                logger.error(f"Failed to consume worker-request: {e}")
 
+    def run_once(self) -> None:
+        # 1. Process control state (exactly one writer pattern)
+        self.process_control()
+
+        # 2. Check active workers
+        self.process_workers()
+
+        # 3. Scan for new work and facts
+        facts = self.scanner.scan()
+        projects = facts["projects"]
+        project_ids = [p["id"] for p in projects if not p.get("archived", False)]
+
+        # 4. Periodic reconciliation
+        self.process_reconciliation(project_ids)
+
+        # 5. Handle dashboard requests
+        self.process_requests(facts["pending_request"])
+
+        # 6. Task Assignment
         eligible_tasks = facts["eligible_tasks"]
         for task in eligible_tasks:
             project_id = task.get("projectId")
-            if not project_id or project_id == "default":
-                # Try to infer project or skip
-                logger.warning(f"Task {task['id']} has no projectId. Skipping.")
+            if not project_id or project_id not in project_ids:
+                logger.warning(f"Task {task['id']} has invalid or unregistered projectId '{project_id}'. Skipping.")
                 continue
 
             task_id = task["id"]
@@ -76,8 +92,8 @@ class Orchestrator:
                     }
                 )
 
-                # Only spawn one worker per loop to keep it simple and avoid race conditions
-                break
+                # Continue to next task to potentially spawn more workers for other projects
+                continue
 
     def loop(self):
         logger.info("Orchestrator loop started.")

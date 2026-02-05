@@ -1,8 +1,7 @@
-import os
 import json
 from pathlib import Path
-from typing import List, Dict, Any
-from .config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH
+from typing import Any
+from .config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH, ORCHESTRATOR_REPO_PATH
 
 
 class Prompter:
@@ -12,7 +11,7 @@ class Prompter:
     """
 
     @staticmethod
-    def build_task_prompt(task: Dict[str, Any], project_id: str) -> str:
+    def build_task_prompt(task: dict[str, Any], project_id: str) -> str:
         project_path = BASE_DIR / project_id
 
         # 1. Product Context

@@ -1,11 +1,10 @@
 import json
-import os
 import subprocess
 import time
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 from .config import CONTROL_REPO_PATH, TASKS_FILE
 
 logger = logging.getLogger(__name__)
@@ -23,7 +22,7 @@ class ControlManager:
         self.ops_dir = CONTROL_OPS_DIR
         self.ops_dir.mkdir(parents=True, exist_ok=True)
 
-    def pull(self):
+    def pull(self) -> None:
         try:
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -34,23 +33,25 @@ class ControlManager:
         except subprocess.CalledProcessError as e:
             logger.error(f"Git pull failed: {e.stderr.decode()}")
 
-    def push(self, message: str):
+    def push(self, message: str) -> None:
         try:
-            subprocess.run(
-                ["git", "add", "."],
-                cwd=CONTROL_REPO_PATH,
-                check=True,
-                capture_output=True,
-            )
             # Check if there are changes to commit
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
                 cwd=CONTROL_REPO_PATH,
                 check=True,
                 capture_output=True,
-            ).stdout.decode()
+            ).stdout.decode().strip()
+            
             if not status:
                 return
+
+            subprocess.run(
+                ["git", "add", "."],
+                cwd=CONTROL_REPO_PATH,
+                check=True,
+                capture_output=True,
+            )
 
             subprocess.run(
                 ["git", "commit", "-m", message],
@@ -64,7 +65,7 @@ class ControlManager:
         except subprocess.CalledProcessError as e:
             logger.error(f"Git push failed: {e.stderr.decode()}")
 
-    def process_ops(self):
+    def process_ops(self) -> None:
         ops_files = sorted(self.ops_dir.glob("*.json"))
         if not ops_files:
             return
@@ -90,7 +91,7 @@ class ControlManager:
             # Commit and push control state updates
             self.push(f"lobs: apply {len(applied_ops)} control ops")
 
-    def apply_op(self, op: Dict[str, Any]):
+    def apply_op(self, op: dict[str, Any]) -> None:
         op_type = op.get("type")
         if op_type == "update_task":
             self._update_task(op["task_id"], op["updates"])
@@ -99,7 +100,7 @@ class ControlManager:
         else:
             logger.warning(f"Unknown op type: {op_type}")
 
-    def _update_task(self, task_id: str, updates: Dict[str, Any]):
+    def _update_task(self, task_id: str, updates: dict[str, Any]) -> None:
         from .config import TASKS_DIR, TASKS_FILE
 
         # 1. Update individual task file (Preferred)
@@ -139,7 +140,7 @@ class ControlManager:
                     f.write("\n")
                 logger.info(f"Updated legacy tasks file {TASKS_FILE}")
 
-    def _update_worker_status(self, updates: Dict[str, Any]):
+    def _update_worker_status(self, updates: dict[str, Any]) -> None:
         from .config import WORKER_STATUS_JSON
 
         if not WORKER_STATUS_JSON.exists():
@@ -153,7 +154,7 @@ class ControlManager:
             json.dump(status, f, indent=2)
 
     @staticmethod
-    def request_op(op: Dict[str, Any]):
+    def request_op(op: dict[str, Any]) -> None:
         """
         Static method for other components to request an operation.
         """

@@ -1,8 +1,8 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
-from .config import TASKS_JSON, CONTROL_REPO_PATH
+from typing import Any
+from .config import CONTROL_REPO_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -16,17 +16,30 @@ class Scanner:
     def __init__(self):
         self.request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
 
-    def scan(self) -> Dict[str, Any]:
+    def scan(self) -> dict[str, Any]:
         facts = {
             "pending_request": self.check_pending_request(),
             "eligible_tasks": self.get_eligible_tasks(),
+            "projects": self.get_projects(),
         }
         return facts
 
     def check_pending_request(self) -> bool:
         return self.request_file.exists()
 
-    def get_eligible_tasks(self) -> List[Dict[str, Any]]:
+    def get_projects(self) -> list[dict[str, Any]]:
+        from .config import PROJECTS_FILE
+        if not PROJECTS_FILE.exists():
+            return []
+        try:
+            with open(PROJECTS_FILE, "r") as f:
+                data = json.load(f)
+                return data.get("projects", [])
+        except Exception as e:
+            logger.error(f"Failed to read projects file: {e}")
+            return []
+
+    def get_eligible_tasks(self) -> list[dict[str, Any]]:
         from .config import TASKS_DIR, TASKS_FILE
 
         tasks = []

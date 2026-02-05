@@ -16,6 +16,7 @@ WORKER_HISTORY_JSON = CONTROL_REPO_PATH / "state" / "worker-history.json"
 WORKER_EVENTS_JSONL = CONTROL_REPO_PATH / "state" / "worker-events.jsonl"
 CONTROL_OPS_DIR = CONTROL_REPO_PATH / "state" / "control-ops"
 WORKER_RESULTS_DIR = CONTROL_REPO_PATH / "state" / "worker-results"
+PROJECTS_FILE = CONTROL_REPO_PATH / "state" / "projects.json"
 
 # Project context files (expected in project root)
 PROJECT_CONTEXT_FILES = ["PRODUCT.md", "UX_PRINCIPLES.md", "ARCHITECTURE.md"]

@@ -2,8 +2,8 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any
-from .config import BASE_DIR, TASKS_DIR, CONTROL_REPO_PATH
+from typing import Any
+from .config import BASE_DIR, TASKS_DIR
 from .control import ControlManager
 
 logger = logging.getLogger(__name__)
@@ -14,14 +14,14 @@ class Reconciler:
     Self-healing component that cross-checks project repos with control state.
     """
 
-    def reconcile(self, project_ids: List[str]):
+    def reconcile(self, project_ids: list[str]) -> None:
         """
         Scans project repos for recent commits and cross-checks task state.
         """
         for project_id in project_ids:
             self._reconcile_project(project_id)
 
-    def _reconcile_project(self, project_id: str):
+    def _reconcile_project(self, project_id: str) -> None:
         project_path = BASE_DIR / project_id
         if not project_path.exists():
             return

@@ -1,12 +1,12 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_worker_result(task_id: str, results_dir: Path) -> Optional[Dict[str, Any]]:
+def parse_worker_result(task_id: str, results_dir: Path) -> dict[str, Any] | None:
     """
     Parses worker output from the results directory.
     Expected to find task_id.md or task_id.json.
