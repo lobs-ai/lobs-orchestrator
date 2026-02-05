@@ -56,8 +56,8 @@ class LocalTaskProvider(TaskProvider):
         except Exception as e:
             logger.error(f"Failed to consume request: {e}")
 
-    def sync(self) -> None:
-        self.control.process_ops()
+    def sync(self) -> list[dict[str, Any]]:
+        return self.control.process_ops()
 
     def get_engineering_rules(self) -> str:
         from orchestrator.config import CONTROL_REPO_PATH

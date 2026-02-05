@@ -2,9 +2,20 @@ import json
 import subprocess
 import time
 import logging
+import random
+import string
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from orchestrator.config import (
+    CONTROL_REPO_PATH,
+    CONTROL_OPS_DIR,
+    PROJECTS_FILE,
+    TASKS_DIR,
+    TASKS_FILE,
+    WORKER_STATUS_JSON
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +28,10 @@ class ControlManager:
 
     @property
     def ops_dir(self) -> Path:
-        from orchestrator.config import CONTROL_OPS_DIR
         return CONTROL_OPS_DIR
 
     def pull(self) -> None:
         try:
-            from orchestrator.config import CONTROL_REPO_PATH
             subprocess.run(
                 ["git", "pull", "--rebase"],
                 cwd=CONTROL_REPO_PATH,
@@ -34,7 +43,6 @@ class ControlManager:
 
     def push(self, message: str) -> None:
         try:
-            from orchestrator.config import CONTROL_REPO_PATH
             # Check if there are changes to commit
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -65,22 +73,26 @@ class ControlManager:
         except subprocess.CalledProcessError as e:
             logger.error(f"Git push failed: {e.stderr.decode()}")
 
-    def process_ops(self) -> None:
+    def process_ops(self) -> list[dict[str, Any]]:
         self.ops_dir.mkdir(parents=True, exist_ok=True)
         ops_files = sorted(self.ops_dir.glob("*.json"))
         if not ops_files:
-            return
+            return []
 
         # Ensure we have the latest control state before processing
         self.pull()
 
         applied_ops = []
+        messages = []
         for op_file in ops_files:
             try:
                 with open(op_file, "r") as f:
                     op = json.load(f)
 
-                self.apply_op(op)
+                if op.get("type") == "message":
+                    messages.append(op)
+                else:
+                    self.apply_op(op)
                 applied_ops.append(op_file)
             except Exception as e:
                 logger.error(f"Failed to apply op {op_file}: {e}")
@@ -91,6 +103,8 @@ class ControlManager:
 
             # Commit and push control state updates
             self.push(f"lobs: apply {len(applied_ops)} control ops")
+        
+        return messages
 
     def apply_op(self, op: dict[str, Any]) -> None:
         op_type = op.get("type")

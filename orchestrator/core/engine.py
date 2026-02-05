@@ -1,5 +1,6 @@
 import time
 import logging
+import json
 from orchestrator.config import POLL_INTERVAL, LOCKS_DIR
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.reconciler import Reconciler
@@ -20,9 +21,9 @@ class Orchestrator:
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
 
-    def process_control(self) -> None:
+    def process_control(self) -> list[dict[str, Any]]:
         """Process pending control operations via provider."""
-        self.provider.sync()
+        return self.provider.sync()
 
     def process_workers(self) -> None:
         """Check active workers and handle their lifecycle."""
@@ -42,32 +43,21 @@ class Orchestrator:
             logger.info("Worker request detected. Prioritizing.")
             self.provider.consume_request()
 
-    def process_messages(self) -> None:
-        """Process structured messages from workers."""
-        from orchestrator.config import CONTROL_OPS_DIR
-        messages = []
-        # Look for op files that are messages
-        for op_file in CONTROL_OPS_DIR.glob("*.json"):
-            try:
-                with open(op_file, "r") as f:
-                    op = json.load(f)
-                    if op.get("type") == "message":
-                        messages.append(op)
-            except:
-                continue
+    def run_once(self) -> bool:
+        activity = False
         
+        # 1. Sync with provider and process messages
+        messages = self.process_control()
         if messages:
+            activity = True
             self.message_processor.process_messages(messages)
 
-    def run_once(self) -> None:
-        # 0. Process messages from workers (pre-sync)
-        self.process_messages()
-
-        # 1. Sync with provider (e.g. process local ops or API sync)
-        self.process_control()
-
         # 2. Check active workers
+        # We consider worker check as activity only if something finished
+        initial_active = len(self.worker_manager.active_workers)
         self.process_workers()
+        if len(self.worker_manager.active_workers) != initial_active:
+            activity = True
 
         # 3. System Monitoring & Cron watching
         self.monitor.tick()
@@ -76,13 +66,16 @@ class Orchestrator:
         projects = self.provider.get_projects()
         project_ids = [p["id"] for p in projects if not p.get("archived", False)]
 
-        # 4. Periodic reconciliation
+        # 5. Periodic reconciliation
         self.process_reconciliation(project_ids)
 
-        # 5. Handle dashboard requests
-        self.process_requests(self.provider.check_pending_request())
+        # 6. Handle dashboard requests
+        has_request = self.provider.check_pending_request()
+        if has_request:
+            activity = True
+            self.process_requests(True)
 
-        # 6. Task Assignment
+        # 7. Task Assignment
         eligible_tasks = self.provider.get_tasks()
         for task in eligible_tasks:
             project_id = task.get("projectId")
@@ -93,6 +86,7 @@ class Orchestrator:
             task_id = task["id"]
 
             if not self.worker_manager.is_domain_locked(project_id):
+                activity = True
                 logger.info(f"Assigning task {task_id} to project {project_id}")
                 
                 # Determine agent type
@@ -106,8 +100,27 @@ class Orchestrator:
                 # Update task state to in_progress via provider
                 self.provider.update_task(task_id, {"workState": "in_progress"})
 
-                # Continue to next task to potentially spawn more workers for other projects
-                continue
+        return activity
+
+    def loop(self):
+        logger.info("Orchestrator loop started.")
+        current_interval = POLL_INTERVAL
+        while True:
+            try:
+                activity = self.run_once()
+                if activity:
+                    current_interval = POLL_INTERVAL
+                else:
+                    # Adaptive backoff: increase sleep if idle, up to 6x POLL_INTERVAL or 60s
+                    current_interval = min(current_interval + 2, POLL_INTERVAL * 6, 60)
+            except Exception as e:
+                logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
+                current_interval = POLL_INTERVAL # Reset on error
+
+            if current_interval > POLL_INTERVAL:
+                logger.debug(f"Idle, sleeping for {current_interval}s")
+            
+            time.sleep(current_interval)
 
     def loop(self):
         logger.info("Orchestrator loop started.")

@@ -3,7 +3,9 @@ import time
 import json
 from pathlib import Path
 from typing import Any
+from datetime import datetime, timezone
 from orchestrator.providers.base import TaskProvider
+from orchestrator.config import WORKER_STATUS_JSON, CONTROL_REPO_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +73,6 @@ class Monitor:
 
     def check_worker_heartbeats(self) -> None:
         """Verify that worker-status.json is being updated."""
-        from orchestrator.config import WORKER_STATUS_JSON
         if not WORKER_STATUS_JSON.exists():
             return
 
@@ -83,14 +84,9 @@ class Monitor:
             if not last_heartbeat_str or not status.get("active"):
                 return
 
-            from datetime import datetime
             last_heartbeat = datetime.fromisoformat(last_heartbeat_str.replace("Z", "+00:00"))
-            now = datetime.now(datetime.UTC if hasattr(datetime, 'UTC') else None) # Handle 3.11/3.12 compatibility
+            now = datetime.now(timezone.utc)
             
-            if not now.tzinfo:
-                from datetime import timezone
-                now = now.replace(tzinfo=timezone.utc)
-
             delta = (now - last_heartbeat).total_seconds()
             if delta > 1800:  # 30 minutes
                 logger.warning(f"Worker heartbeat is stale ({delta}s). Notifying inbox.")
@@ -108,8 +104,6 @@ class Monitor:
     def check_cron_jobs(self) -> None:
         """Check status of managed cron jobs/scheduled tasks."""
         # Check if worker-watcher (from lobs-control) is running
-        # We can look for the request file's age if it exists, or a dedicated cron-heartbeat
-        from orchestrator.config import CONTROL_REPO_PATH
         watcher_log = Path("/tmp/worker-watcher.log") # Based on lobs-control/README.md
         if watcher_log.exists():
             mtime = watcher_log.stat().st_mtime
@@ -126,18 +120,6 @@ class Monitor:
 
     def generate_proactive_suggestions(self) -> None:
         """LLM-powered pass to generate suggestions for the user inbox."""
-        # In a real setup, this might spawn a 'light-check' or 'overview-review' agent
-        # For now, we simulate a suggestion based on project activity.
-        projects = self.provider.get_projects()
-        for p in projects:
-            if p.get("id") == "prairielearn":
-                 # Example suggestion
-                 self.provider.add_inbox_item({
-                     "id": f"suggest_pl_{int(time.time())}",
-                     "title": "Suggestion: Auto-generate test cases",
-                     "body": "I noticed you're working on the PrairieLearn builder. I can help generate some initial test cases for the YAML editor.",
-                     "type": "suggestion",
-                     "projectId": "prairielearn",
-                     "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                 })
-                 break
+        # Placeholder for future implementation. 
+        # Currently disabled to avoid spamming the inbox 24/7.
+        pass

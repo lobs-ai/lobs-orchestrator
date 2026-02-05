@@ -7,6 +7,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
+
+from orchestrator.config import (
+    BASE_DIR,
+    LOCKS_DIR,
+    WORKER_RESULTS_DIR,
+    WORKER_STATUS_JSON
+)
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
 
@@ -29,9 +36,23 @@ class WorkerManager:
         # task_id -> project_id (workers currently syncing or finalizing)
         self.pending_workers: set[str] = set()
         self.executor = ThreadPoolExecutor(max_workers=10)
+        
+        # Cache for lock status to avoid redundant disk I/O within a single loop
+        self._lock_cache: dict[str, tuple[float, bool]] = {}
 
     def is_domain_locked(self, project_id: str) -> bool:
+        now = time.time()
+        if project_id in self._lock_cache:
+            cache_ts, is_locked = self._lock_cache[project_id]
+            if now - cache_ts < 2:  # 2 second cache for rapid successive calls
+                return is_locked
+
         lock_file = self.lock_dir / f"{project_id}.lock"
+        locked = self._check_lock_file(lock_file, project_id)
+        self._lock_cache[project_id] = (now, locked)
+        return locked
+
+    def _check_lock_file(self, lock_file: Path, project_id: str) -> bool:
         if not lock_file.exists():
             return False
 
@@ -55,7 +76,10 @@ class WorkerManager:
                     os.kill(pid, 0)
                     return True
         except (ProcessLookupError, json.JSONDecodeError, KeyError, FileNotFoundError):
-            lock_file.unlink()
+            try:
+                lock_file.unlink()
+            except:
+                pass
             return False
 
         return False
@@ -69,17 +93,25 @@ class WorkerManager:
         }
         with open(lock_file, "w") as f:
             json.dump(data, f)
+        # Invalidate cache
+        self._lock_cache[project_id] = (time.time(), True)
 
     def release_lock(self, project_id: str):
         lock_file = self.lock_dir / f"{project_id}.lock"
         if lock_file.exists():
-            lock_file.unlink()
+            try:
+                lock_file.unlink()
+            except:
+                pass
+        # Invalidate cache
+        self._lock_cache[project_id] = (time.time(), False)
 
     def spawn_worker(
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> None:
         task_id = task["id"]
-        if self.is_domain_locked(project_id):
+        # We don't use cache here to be absolutely sure
+        if self._check_lock_file(self.lock_dir / f"{project_id}.lock", project_id):
             logger.info(f"Domain {project_id} is locked. Skipping.")
             return
 
@@ -92,7 +124,6 @@ class WorkerManager:
 
     def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
-        from orchestrator.config import BASE_DIR
         workspace = BASE_DIR / project_id
 
         try:
@@ -126,7 +157,6 @@ class WorkerManager:
                 "--prompt-file", prompt_file.name,
             ]
             
-            from orchestrator.config import WORKER_RESULTS_DIR
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
             log_file = open(log_file_path, "w")
@@ -183,7 +213,6 @@ class WorkerManager:
             self.update_active_worker_status()
 
     def _handle_immediate_failure(self, task_id: str, project_id: str, prompt_path: str):
-        from orchestrator.config import WORKER_RESULTS_DIR
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
@@ -219,7 +248,6 @@ class WorkerManager:
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
-        from orchestrator.config import BASE_DIR
         project_path = BASE_DIR / project_id
         try:
             # Check if there are changes

@@ -39,8 +39,8 @@ class TaskProvider(ABC):
         pass
 
     @abstractmethod
-    def sync(self) -> None:
-        """Sync with the remote backend (e.g. git pull/push)."""
+    def sync(self) -> list[dict[str, Any]]:
+        """Sync with the remote backend and return any processed messages."""
         pass
 
     @abstractmethod
