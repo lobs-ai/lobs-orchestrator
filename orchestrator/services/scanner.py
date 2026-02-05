@@ -21,12 +21,12 @@ class Scanner:
         return facts
 
     def check_pending_request(self) -> bool:
-        from .config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
         return request_file.exists()
 
     def get_projects(self) -> list[dict[str, Any]]:
-        from .config import PROJECTS_FILE
+        from orchestrator.config import PROJECTS_FILE
         if not PROJECTS_FILE.exists():
             return []
         try:
@@ -38,7 +38,7 @@ class Scanner:
             return []
 
     def get_eligible_tasks(self) -> list[dict[str, Any]]:
-        from .config import TASKS_DIR, TASKS_FILE
+        from orchestrator.config import TASKS_DIR, TASKS_FILE
 
         tasks = []
         if TASKS_DIR.exists():

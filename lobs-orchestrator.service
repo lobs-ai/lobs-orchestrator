@@ -1,0 +1,16 @@
+[Unit]
+Description=Lobs Orchestrator Service
+After=network.target
+
+[Service]
+Type=simple
+User=%u
+WorkingDirectory=/Users/rafe/other/lobs/lobs-orchestrator
+ExecStart=/usr/bin/python3 /Users/rafe/other/lobs/lobs-orchestrator/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/Users/rafe/.gemini/tmp/lobs-orchestrator.log
+StandardError=append:/Users/rafe/.gemini/tmp/lobs-orchestrator.err
+
+[Install]
+WantedBy=multi-user.target

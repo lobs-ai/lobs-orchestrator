@@ -49,6 +49,10 @@ class TaskProvider(ABC):
         pass
 
     @abstractmethod
+    def update_project(self, project_id: str, updates: dict[str, Any]) -> None:
+        pass
+
+    @abstractmethod
     def add_inbox_item(self, item: dict[str, Any]) -> None:
         """Add an item to the user's inbox (suggestions, alerts)."""
         pass

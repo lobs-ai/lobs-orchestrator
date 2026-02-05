@@ -5,6 +5,7 @@ from orchestrator.core.worker import WorkerManager
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
+from orchestrator.services.messages import MessageProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class Orchestrator:
         self.worker_manager = WorkerManager(LOCKS_DIR, provider)
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
+        self.message_processor = MessageProcessor(provider)
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
 
@@ -40,7 +42,27 @@ class Orchestrator:
             logger.info("Worker request detected. Prioritizing.")
             self.provider.consume_request()
 
+    def process_messages(self) -> None:
+        """Process structured messages from workers."""
+        from orchestrator.config import CONTROL_OPS_DIR
+        messages = []
+        # Look for op files that are messages
+        for op_file in CONTROL_OPS_DIR.glob("*.json"):
+            try:
+                with open(op_file, "r") as f:
+                    op = json.load(f)
+                    if op.get("type") == "message":
+                        messages.append(op)
+            except:
+                continue
+        
+        if messages:
+            self.message_processor.process_messages(messages)
+
     def run_once(self) -> None:
+        # 0. Process messages from workers (pre-sync)
+        self.process_messages()
+
         # 1. Sync with provider (e.g. process local ops or API sync)
         self.process_control()
 

@@ -17,12 +17,12 @@ class ControlManager:
 
     @property
     def ops_dir(self) -> Path:
-        from .config import CONTROL_OPS_DIR
+        from orchestrator.config import CONTROL_OPS_DIR
         return CONTROL_OPS_DIR
 
     def pull(self) -> None:
         try:
-            from .config import CONTROL_REPO_PATH
+            from orchestrator.config import CONTROL_REPO_PATH
             subprocess.run(
                 ["git", "pull", "--rebase"],
                 cwd=CONTROL_REPO_PATH,
@@ -34,7 +34,7 @@ class ControlManager:
 
     def push(self, message: str) -> None:
         try:
-            from .config import CONTROL_REPO_PATH
+            from orchestrator.config import CONTROL_REPO_PATH
             # Check if there are changes to commit
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -96,6 +96,8 @@ class ControlManager:
         op_type = op.get("type")
         if op_type == "update_task":
             self._update_task(op["task_id"], op["updates"])
+        elif op_type == "update_project":
+            self._update_project(op["project_id"], op["updates"])
         elif op_type == "update_worker_status":
             self._update_worker_status(op["updates"])
         elif op_type == "update_alert":
@@ -107,8 +109,34 @@ class ControlManager:
         else:
             logger.warning(f"Unknown op type: {op_type}")
 
+    def _update_project(self, project_id: str, updates: dict[str, Any]) -> None:
+        from orchestrator.config import PROJECTS_FILE
+        
+        if not PROJECTS_FILE.exists():
+            data = {"projects": []}
+        else:
+            with open(PROJECTS_FILE, "r") as f:
+                data = json.load(f)
+
+        found = False
+        for project in data.get("projects", []):
+            if project["id"] == project_id:
+                project.update(updates)
+                found = True
+                break
+        
+        if not found:
+            if "id" not in updates:
+                updates["id"] = project_id
+            data["projects"].append(updates)
+
+        with open(PROJECTS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        logger.info(f"Updated projects file with {project_id}")
+
     def _add_inbox_item(self, item: dict[str, Any]) -> None:
-        from .config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
         inbox_dir.mkdir(parents=True, exist_ok=True)
         
@@ -126,7 +154,7 @@ class ControlManager:
         logger.info(f"Added inbox item file {item_path}")
 
     def _update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
-        from .config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
         inbox_dir.mkdir(parents=True, exist_ok=True)
         
@@ -146,7 +174,7 @@ class ControlManager:
         logger.info(f"Updated inbox item file {item_path}")
 
     def _update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
-        from .config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
         alerts_dir.mkdir(parents=True, exist_ok=True)
         
@@ -166,7 +194,7 @@ class ControlManager:
         logger.info(f"Updated alert file {alert_path}")
 
     def _update_task(self, task_id: str, updates: dict[str, Any]) -> None:
-        from .config import TASKS_DIR, TASKS_FILE
+        from orchestrator.config import TASKS_DIR, TASKS_FILE
 
         # 1. Update individual task file (Preferred)
         task_path = TASKS_DIR / f"{task_id}.json"
@@ -206,7 +234,7 @@ class ControlManager:
                 logger.info(f"Updated legacy tasks file {TASKS_FILE}")
 
     def _update_worker_status(self, updates: dict[str, Any]) -> None:
-        from .config import WORKER_STATUS_JSON
+        from orchestrator.config import WORKER_STATUS_JSON
 
         if not WORKER_STATUS_JSON.exists():
             status = {}
@@ -223,7 +251,7 @@ class ControlManager:
         """
         Static method for other components to request an operation.
         """
-        from .config import CONTROL_OPS_DIR
+        from orchestrator.config import CONTROL_OPS_DIR
         import random
         import string
 

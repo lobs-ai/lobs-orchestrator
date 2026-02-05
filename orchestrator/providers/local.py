@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import Any
 from orchestrator.providers.base import TaskProvider
 from orchestrator.services.scanner import Scanner
@@ -22,6 +23,13 @@ class LocalTaskProvider(TaskProvider):
     def get_projects(self) -> list[dict[str, Any]]:
         return self.scanner.get_projects()
 
+    def update_project(self, project_id: str, updates: dict[str, Any]) -> None:
+        self.control.request_op({
+            "type": "update_project",
+            "project_id": project_id,
+            "updates": updates
+        })
+
     def update_task(self, task_id: str, updates: dict[str, Any]) -> None:
         self.control.request_op({
             "type": "update_task",
@@ -40,7 +48,7 @@ class LocalTaskProvider(TaskProvider):
 
     def consume_request(self) -> None:
         try:
-            from ..config import CONTROL_REPO_PATH
+            from orchestrator.config import CONTROL_REPO_PATH
             request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
             if request_file.exists():
                 request_file.unlink()
@@ -52,14 +60,14 @@ class LocalTaskProvider(TaskProvider):
         self.control.process_ops()
 
     def get_engineering_rules(self) -> str:
-        from ..config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         rules_path = CONTROL_REPO_PATH / "ENGINEERING_RULES.md"
         if rules_path.exists():
             return rules_path.read_text()
         return "Standard engineering practices."
 
     def add_inbox_item(self, item: dict[str, Any]) -> None:
-        from ..config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
         inbox_dir.mkdir(parents=True, exist_ok=True)
         
@@ -72,7 +80,7 @@ class LocalTaskProvider(TaskProvider):
         logger.info(f"Added inbox item: {item_id}")
 
     def get_inbox_items(self) -> list[dict[str, Any]]:
-        from ..config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
         if not inbox_dir.exists():
             return []
@@ -94,7 +102,7 @@ class LocalTaskProvider(TaskProvider):
         })
 
     def get_active_alerts(self) -> list[dict[str, Any]]:
-        from ..config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
         if not alerts_dir.exists():
             return []
