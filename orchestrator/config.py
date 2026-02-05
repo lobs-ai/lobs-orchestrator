@@ -1,5 +1,5 @@
 from pathlib import Path
-from .utils.settings import get_setting
+from orchestrator.utils.settings import get_setting
 
 # Base directory for all lobs related repos
 BASE_DIR = Path(get_setting("base_dir", "/Users/rafe/other/lobs"))

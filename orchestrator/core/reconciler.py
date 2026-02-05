@@ -3,7 +3,7 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Any
-from .base import TaskProvider
+from orchestrator.providers.base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Reconciler:
             self._reconcile_project(project_id)
 
     def _reconcile_project(self, project_id: str) -> None:
-        from .config import BASE_DIR
+        from orchestrator.config import BASE_DIR
         project_path = BASE_DIR / project_id
         if not project_path.exists():
             return
@@ -51,7 +51,7 @@ class Reconciler:
 
     def _ensure_task_completed(self, task_id: str):
         # Cross-check with control state
-        from .config import TASKS_DIR
+        from orchestrator.config import TASKS_DIR
         task_path = TASKS_DIR / f"{task_id}.json"
         if task_path.exists():
             with open(task_path, "r") as f:

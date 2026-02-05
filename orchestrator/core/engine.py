@@ -1,10 +1,10 @@
 import time
 import logging
-from ..config import POLL_INTERVAL, LOCKS_DIR
-from .worker import WorkerManager
-from .reconciler import Reconciler
-from ..providers.base import TaskProvider
-from .monitor import Monitor
+from orchestrator.config import POLL_INTERVAL, LOCKS_DIR
+from orchestrator.core.worker import WorkerManager
+from orchestrator.core.reconciler import Reconciler
+from orchestrator.providers.base import TaskProvider
+from orchestrator.core.monitor import Monitor
 
 logger = logging.getLogger(__name__)
 

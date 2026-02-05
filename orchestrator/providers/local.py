@@ -1,9 +1,9 @@
 import json
 import logging
 from typing import Any
-from ..base import TaskProvider
-from ..scanner import Scanner
-from ..control import ControlManager
+from orchestrator.providers.base import TaskProvider
+from orchestrator.services.scanner import Scanner
+from orchestrator.services.control import ControlManager
 
 logger = logging.getLogger(__name__)
 

@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
-from ..providers.base import TaskProvider
-from .escalation import EscalationManager
+from orchestrator.providers.base import TaskProvider
+from orchestrator.core.escalation import EscalationManager
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class WorkerManager:
 
     def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
-        from ..config import BASE_DIR
+        from orchestrator.config import BASE_DIR
         workspace = BASE_DIR / project_id
 
         try:
@@ -107,7 +107,7 @@ class WorkerManager:
             )
             
             # Step 2: Build Prompt
-            from ..services.prompter import Prompter
+            from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
             import tempfile
@@ -116,7 +116,7 @@ class WorkerManager:
             prompt_file.close()
 
             # Step 3: Launch OpenClaw
-            from ..utils.settings import get_setting
+            from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
             cmd = [
@@ -126,7 +126,7 @@ class WorkerManager:
                 "--prompt-file", prompt_file.name,
             ]
             
-            from ..config import WORKER_RESULTS_DIR
+            from orchestrator.config import WORKER_RESULTS_DIR
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
             log_file = open(log_file_path, "w")
@@ -183,7 +183,7 @@ class WorkerManager:
             self.update_active_worker_status()
 
     def _handle_immediate_failure(self, task_id: str, project_id: str, prompt_path: str):
-        from ..config import WORKER_RESULTS_DIR
+        from orchestrator.config import WORKER_RESULTS_DIR
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
@@ -219,7 +219,7 @@ class WorkerManager:
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
-        from ..config import BASE_DIR
+        from orchestrator.config import BASE_DIR
         project_path = BASE_DIR / project_id
         try:
             # Check if there are changes

@@ -3,7 +3,7 @@ import time
 import json
 from pathlib import Path
 from typing import Any
-from ..providers.base import TaskProvider
+from orchestrator.providers.base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class Monitor:
 
     def check_worker_heartbeats(self) -> None:
         """Verify that worker-status.json is being updated."""
-        from .config import WORKER_STATUS_JSON
+        from orchestrator.config import WORKER_STATUS_JSON
         if not WORKER_STATUS_JSON.exists():
             return
 
@@ -109,7 +109,7 @@ class Monitor:
         """Check status of managed cron jobs/scheduled tasks."""
         # Check if worker-watcher (from lobs-control) is running
         # We can look for the request file's age if it exists, or a dedicated cron-heartbeat
-        from .config import CONTROL_REPO_PATH
+        from orchestrator.config import CONTROL_REPO_PATH
         watcher_log = Path("/tmp/worker-watcher.log") # Based on lobs-control/README.md
         if watcher_log.exists():
             mtime = watcher_log.stat().st_mtime

@@ -1,7 +1,7 @@
 import logging
 import time
 from typing import Any
-from .base import TaskProvider
+from orchestrator.providers.base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
