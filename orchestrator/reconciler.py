@@ -8,11 +8,12 @@ from .control import ControlManager
 
 logger = logging.getLogger(__name__)
 
+
 class Reconciler:
     """
     Self-healing component that cross-checks project repos with control state.
     """
-    
+
     def reconcile(self, project_ids: List[str]):
         """
         Scans project repos for recent commits and cross-checks task state.
@@ -32,10 +33,10 @@ class Reconciler:
                 cwd=project_path,
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
-            commits = result.stdout.split('\n')
-            
+            commits = result.stdout.split("\n")
+
             # Look for task completion markers in commit messages
             # e.g. "lobs: complete task UUID"
             for commit_msg in commits:
@@ -49,16 +50,17 @@ class Reconciler:
         # Cross-check with control state
         task_path = TASKS_DIR / f"{task_id}.json"
         if task_path.exists():
-            with open(task_path, 'r') as f:
+            with open(task_path, "r") as f:
                 task = json.load(f)
-            
+
             if task.get("status") != "completed":
-                logger.warning(f"Reconciler found completed task {task_id} in git but not in control state. Fixing.")
-                ControlManager.request_op({
-                    "type": "update_task",
-                    "task_id": task_id,
-                    "updates": {
-                        "workState": "completed",
-                        "status": "completed"
+                logger.warning(
+                    f"Reconciler found completed task {task_id} in git but not in control state. Fixing."
+                )
+                ControlManager.request_op(
+                    {
+                        "type": "update_task",
+                        "task_id": task_id,
+                        "updates": {"workState": "completed", "status": "completed"},
                     }
-                })
+                )

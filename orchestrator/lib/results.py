@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
 def parse_worker_result(task_id: str, results_dir: Path) -> Optional[Dict[str, Any]]:
     """
     Parses worker output from the results directory.
@@ -13,9 +14,9 @@ def parse_worker_result(task_id: str, results_dir: Path) -> Optional[Dict[str, A
     json_path = results_dir / f"{task_id}.json"
     if json_path.exists():
         try:
-            with open(json_path, 'r') as f:
+            with open(json_path, "r") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Failed to parse result JSON for {task_id}: {e}")
-    
+
     return None

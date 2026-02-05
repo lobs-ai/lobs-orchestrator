@@ -3,16 +3,19 @@ from datetime import datetime
 from typing import List, Optional, Dict
 from enum import Enum
 
+
 class TaskStatus(Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     ARCHIVED = "archived"
+
 
 class WorkState(Enum):
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
+
 
 @dataclass
 class Task:
@@ -26,6 +29,7 @@ class Task:
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 
+
 @dataclass
 class WorkerStatus:
     active: bool
@@ -34,6 +38,7 @@ class WorkerStatus:
     lastHeartbeat: str
     currentTask: Optional[str] = None
     tasksCompleted: int = 0
+
 
 @dataclass
 class DomainLock:
