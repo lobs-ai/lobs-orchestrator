@@ -1,8 +1,8 @@
 import logging
 import sys
 import argparse
-from orchestrator.engine import Orchestrator
-from orchestrator.settings import get_setting, set_setting
+from orchestrator.core.engine import Orchestrator
+from orchestrator.utils.settings import get_setting, set_setting
 
 def setup_logging():
     logging.basicConfig(

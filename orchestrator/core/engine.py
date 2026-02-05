@@ -1,9 +1,10 @@
 import time
 import logging
-from .config import POLL_INTERVAL, LOCKS_DIR
+from ..config import POLL_INTERVAL, LOCKS_DIR
 from .worker import WorkerManager
 from .reconciler import Reconciler
-from .base import TaskProvider
+from ..providers.base import TaskProvider
+from .monitor import Monitor
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class Orchestrator:
         self.provider = provider
         self.worker_manager = WorkerManager(LOCKS_DIR, provider)
         self.reconciler = Reconciler(provider)
+        self.monitor = Monitor(provider)
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
 
@@ -45,7 +47,10 @@ class Orchestrator:
         # 2. Check active workers
         self.process_workers()
 
-        # 3. Scan for new work and facts from provider
+        # 3. System Monitoring & Cron watching
+        self.monitor.tick()
+
+        # 4. Scan for new work and facts from provider
         projects = self.provider.get_projects()
         project_ids = [p["id"] for p in projects if not p.get("archived", False)]
 

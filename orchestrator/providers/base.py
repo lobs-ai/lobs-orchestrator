@@ -47,3 +47,28 @@ class TaskProvider(ABC):
     def get_engineering_rules(self) -> str:
         """Fetch global engineering rules."""
         pass
+
+    @abstractmethod
+    def add_inbox_item(self, item: dict[str, Any]) -> None:
+        """Add an item to the user's inbox (suggestions, alerts)."""
+        pass
+
+    @abstractmethod
+    def get_inbox_items(self) -> list[dict[str, Any]]:
+        """Fetch items from the inbox."""
+        pass
+
+    @abstractmethod
+    def update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
+        """Update an inbox item's state."""
+        pass
+
+    @abstractmethod
+    def get_active_alerts(self) -> list[dict[str, Any]]:
+        """Fetch active error/failure alerts."""
+        pass
+
+    @abstractmethod
+    def update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
+        """Update an alert's state or escalation level."""
+        pass

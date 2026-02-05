@@ -52,7 +52,67 @@ class LocalTaskProvider(TaskProvider):
         self.control.process_ops()
 
     def get_engineering_rules(self) -> str:
+        from ..config import CONTROL_REPO_PATH
         rules_path = CONTROL_REPO_PATH / "ENGINEERING_RULES.md"
         if rules_path.exists():
             return rules_path.read_text()
         return "Standard engineering practices."
+
+    def add_inbox_item(self, item: dict[str, Any]) -> None:
+        from ..config import CONTROL_REPO_PATH
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time() * 1000)
+        item_id = item.get("id", f"inbox_{timestamp}")
+        item_path = inbox_dir / f"{item_id}.json"
+        
+        with open(item_path, "w") as f:
+            json.dump(item, f, indent=2)
+        logger.info(f"Added inbox item: {item_id}")
+
+    def get_inbox_items(self) -> list[dict[str, Any]]:
+        from ..config import CONTROL_REPO_PATH
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        if not inbox_dir.exists():
+            return []
+        
+        items = []
+        for item_file in inbox_dir.glob("*.json"):
+            try:
+                with open(item_file, "r") as f:
+                    items.append(json.load(f))
+            except Exception as e:
+                logger.error(f"Failed to read inbox item {item_file}: {e}")
+        return items
+
+    def update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
+        self.control.request_op({
+            "type": "update_inbox_item",
+            "item_id": item_id,
+            "updates": updates
+        })
+
+    def get_active_alerts(self) -> list[dict[str, Any]]:
+        from ..config import CONTROL_REPO_PATH
+        alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
+        if not alerts_dir.exists():
+            return []
+        
+        alerts = []
+        for alert_file in alerts_dir.glob("*.json"):
+            try:
+                with open(alert_file, "r") as f:
+                    alert = json.load(f)
+                    if alert.get("status") != "resolved":
+                        alerts.append(alert)
+            except Exception as e:
+                logger.error(f"Failed to read alert {alert_file}: {e}")
+        return alerts
+
+    def update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
+        self.control.request_op({
+            "type": "update_alert",
+            "alert_id": alert_id,
+            "updates": updates
+        })

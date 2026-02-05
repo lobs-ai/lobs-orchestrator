@@ -3,7 +3,6 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Any
-from .config import BASE_DIR, TASKS_DIR
 from .base import TaskProvider
 
 logger = logging.getLogger(__name__)
@@ -52,6 +51,7 @@ class Reconciler:
 
     def _ensure_task_completed(self, task_id: str):
         # Cross-check with control state
+        from .config import TASKS_DIR
         task_path = TASKS_DIR / f"{task_id}.json"
         if task_path.exists():
             with open(task_path, "r") as f:

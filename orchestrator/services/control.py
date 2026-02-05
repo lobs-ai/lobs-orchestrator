@@ -98,8 +98,72 @@ class ControlManager:
             self._update_task(op["task_id"], op["updates"])
         elif op_type == "update_worker_status":
             self._update_worker_status(op["updates"])
+        elif op_type == "update_alert":
+            self._update_alert(op["alert_id"], op["updates"])
+        elif op_type == "update_inbox_item":
+            self._update_inbox_item(op["item_id"], op["updates"])
+        elif op_type == "add_inbox_item":
+            self._add_inbox_item(op["item"])
         else:
             logger.warning(f"Unknown op type: {op_type}")
+
+    def _add_inbox_item(self, item: dict[str, Any]) -> None:
+        from .config import CONTROL_REPO_PATH
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time() * 1000)
+        item_id = item.get("id", f"inbox_{timestamp}")
+        item_path = inbox_dir / f"{item_id}.json"
+        
+        # Ensure item has basic fields
+        if "createdAt" not in item:
+            item["createdAt"] = datetime.now(timezone.utc).isoformat()
+        
+        with open(item_path, "w") as f:
+            json.dump(item, f, indent=2)
+            f.write("\n")
+        logger.info(f"Added inbox item file {item_path}")
+
+    def _update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
+        from .config import CONTROL_REPO_PATH
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        
+        item_path = inbox_dir / f"{item_id}.json"
+        if item_path.exists():
+            with open(item_path, "r") as f:
+                item = json.load(f)
+        else:
+            item = {"id": item_id, "createdAt": datetime.now(timezone.utc).isoformat()}
+
+        item.update(updates)
+        item["updatedAt"] = datetime.now(timezone.utc).isoformat()
+
+        with open(item_path, "w") as f:
+            json.dump(item, f, indent=2)
+            f.write("\n")
+        logger.info(f"Updated inbox item file {item_path}")
+
+    def _update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
+        from .config import CONTROL_REPO_PATH
+        alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
+        alerts_dir.mkdir(parents=True, exist_ok=True)
+        
+        alert_path = alerts_dir / f"{alert_id}.json"
+        if alert_path.exists():
+            with open(alert_path, "r") as f:
+                alert = json.load(f)
+        else:
+            alert = {"id": alert_id, "createdAt": datetime.now(timezone.utc).isoformat()}
+
+        alert.update(updates)
+        alert["updatedAt"] = datetime.now(timezone.utc).isoformat()
+
+        with open(alert_path, "w") as f:
+            json.dump(alert, f, indent=2)
+            f.write("\n")
+        logger.info(f"Updated alert file {alert_path}")
 
     def _update_task(self, task_id: str, updates: dict[str, Any]) -> None:
         from .config import TASKS_DIR, TASKS_FILE
@@ -160,10 +224,13 @@ class ControlManager:
         Static method for other components to request an operation.
         """
         from .config import CONTROL_OPS_DIR
+        import random
+        import string
 
         CONTROL_OPS_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = int(time.time() * 1000)
-        op_file = CONTROL_OPS_DIR / f"op_{timestamp}.json"
+        rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        op_file = CONTROL_OPS_DIR / f"op_{timestamp}_{rand}.json"
         with open(op_file, "w") as f:
             json.dump(op, f, indent=2)
             f.write("\n")

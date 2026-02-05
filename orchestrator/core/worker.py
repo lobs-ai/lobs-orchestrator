@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
-from .base import TaskProvider
+from ..providers.base import TaskProvider
+from .escalation import EscalationManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class WorkerManager:
         self.lock_dir = lock_dir
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
+        self.escalation = EscalationManager(provider)
         # task_id -> (process, project_id, log_file, prompt_path)
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, str]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
@@ -90,7 +92,7 @@ class WorkerManager:
 
     def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
-        from .config import BASE_DIR
+        from ..config import BASE_DIR
         workspace = BASE_DIR / project_id
 
         try:
@@ -105,7 +107,7 @@ class WorkerManager:
             )
             
             # Step 2: Build Prompt
-            from .prompter import Prompter
+            from ..services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
             import tempfile
@@ -114,14 +116,17 @@ class WorkerManager:
             prompt_file.close()
 
             # Step 3: Launch OpenClaw
+            from ..utils.settings import get_setting
+            executable = get_setting("openclaw_executable", "openclaw")
+            
             cmd = [
-                "openclaw", "run",
+                executable, "run",
                 "--agent", agent_type,
                 "--workspace", str(workspace),
                 "--prompt-file", prompt_file.name,
             ]
             
-            from .config import WORKER_RESULTS_DIR
+            from ..config import WORKER_RESULTS_DIR
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
             log_file = open(log_file_path, "w")
@@ -178,7 +183,7 @@ class WorkerManager:
             self.update_active_worker_status()
 
     def _handle_immediate_failure(self, task_id: str, project_id: str, prompt_path: str):
-        from .config import WORKER_RESULTS_DIR
+        from ..config import WORKER_RESULTS_DIR
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
@@ -214,7 +219,7 @@ class WorkerManager:
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
-        from .config import BASE_DIR
+        from ..config import BASE_DIR
         project_path = BASE_DIR / project_id
         try:
             # Check if there are changes
@@ -253,18 +258,9 @@ class WorkerManager:
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str):
         logger.error(f"Worker failure for task {task_id} on {project_id}")
+        self.escalation.process_failure(task_id, project_id, error_log)
         
-        # Write diagnostic artifact
-        from .config import WORKER_RESULTS_DIR
-        diagnostic_path = WORKER_RESULTS_DIR / f"{task_id}_diagnostic.md"
-        with open(diagnostic_path, "w") as f:
-            f.write(f"# Diagnostic for Task {task_id}\n\n")
-            f.write(f"**Project:** {project_id}\n")
-            f.write(f"**Timestamp:** {datetime.now(timezone.utc).isoformat()}\n\n")
-            f.write("## Error Log\n\n```\n")
-            f.write(error_log)
-            f.write("\n```\n")
-            
+        # Still update task to failed so it doesn't get re-run immediately by scanner
         self.provider.update_task(task_id, {"workState": "failed"})
 
     def update_active_worker_status(self):

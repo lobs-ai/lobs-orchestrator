@@ -45,7 +45,10 @@ Output Contract:
 2. Produce clean, idiomatic code and relevant tests.
 3. Write a summary of your work (notes, findings, etc.) to:
    {CONTROL_REPO_PATH}/state/worker-results/{task["id"]}.md
-4. Do NOT attempt to update tasks.json or other control state yourself.
+4. Proactive Suggestions: If you have ideas for further improvements or need clarification, you can add a suggestion to my inbox by creating a file in:
+   {CONTROL_REPO_PATH}/state/control-ops/
+   Format: {{"type": "add_inbox_item", "item": {{"title": "...", "body": "...", "type": "suggestion", "projectId": "{project_id}"}}}}
+5. Do NOT attempt to update tasks.json or other control state yourself.
 
 CONTEXT:
 Task ID: {task["id"]}
