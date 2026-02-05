@@ -7,8 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
-from .config import ORCHESTRATOR_REPO_PATH, CONTROL_REPO_PATH, BASE_DIR
-from .control import ControlManager
+from .base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +18,10 @@ class WorkerManager:
     Enforced via domain locks. Git operations on projects are asynchronous.
     """
 
-    def __init__(self, lock_dir: Path):
+    def __init__(self, lock_dir: Path, provider: TaskProvider):
         self.lock_dir = lock_dir
         self.lock_dir.mkdir(parents=True, exist_ok=True)
+        self.provider = provider
         # task_id -> (process, project_id, log_file, prompt_path)
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, str]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
@@ -74,7 +74,7 @@ class WorkerManager:
             lock_file.unlink()
 
     def spawn_worker(
-        self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner"
+        self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> None:
         task_id = task["id"]
         if self.is_domain_locked(project_id):
@@ -86,10 +86,11 @@ class WorkerManager:
         self.pending_workers.add(task_id)
         
         # Start async spawn
-        self.executor.submit(self._async_spawn_flow, task, project_id, agent_type)
+        self.executor.submit(self._async_spawn_flow, task, project_id, agent_type, rules)
 
-    def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str):
+    def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
+        from .config import BASE_DIR
         workspace = BASE_DIR / project_id
 
         try:
@@ -105,7 +106,7 @@ class WorkerManager:
             
             # Step 2: Build Prompt
             from .prompter import Prompter
-            prompt = Prompter.build_task_prompt(task, project_id)
+            prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
             import tempfile
             prompt_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
@@ -138,13 +139,10 @@ class WorkerManager:
             self.acquire_lock(project_id, pid=process.pid, status="running")
             self.active_workers[task_id] = (process, project_id, log_file, prompt_file.name)
             
-            ControlManager.request_op({
-                "type": "update_worker_status",
-                "updates": {
-                    "active": True,
-                    "currentTask": task_id,
-                    "lastHeartbeat": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                },
+            self.provider.update_worker_status({
+                "active": True,
+                "currentTask": task_id,
+                "lastHeartbeat": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             })
 
         except Exception as e:
@@ -216,6 +214,7 @@ class WorkerManager:
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
+        from .config import BASE_DIR
         project_path = BASE_DIR / project_id
         try:
             # Check if there are changes
@@ -249,14 +248,8 @@ class WorkerManager:
             return False
 
     def handle_worker_success(self, task_id: str, project_id: str):
-        logger.info(f"Worker success for task {task_id}. Requesting completion op.")
-        ControlManager.request_op(
-            {
-                "type": "update_task",
-                "task_id": task_id,
-                "updates": {"workState": "completed", "status": "completed"},
-            }
-        )
+        logger.info(f"Worker success for task {task_id}. Updating state.")
+        self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str):
         logger.error(f"Worker failure for task {task_id} on {project_id}")
@@ -272,26 +265,15 @@ class WorkerManager:
             f.write(error_log)
             f.write("\n```\n")
             
-        ControlManager.request_op(
-            {
-                "type": "update_task",
-                "task_id": task_id,
-                "updates": {"workState": "failed"},
-            }
-        )
+        self.provider.update_task(task_id, {"workState": "failed"})
 
     def update_active_worker_status(self):
-        ControlManager.request_op(
-            {
-                "type": "update_worker_status",
-                "updates": {
-                    "active": len(self.active_workers) > 0,
-                    "currentTask": None
-                    if not self.active_workers
-                    else list(self.active_workers.keys())[0],
-                    "lastHeartbeat": datetime.now(timezone.utc).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
-                    ),
-                },
-            }
-        )
+        self.provider.update_worker_status({
+            "active": len(self.active_workers) > 0,
+            "currentTask": None
+            if not self.active_workers
+            else list(self.active_workers.keys())[0],
+            "lastHeartbeat": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        })

@@ -2,7 +2,6 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
-from .config import CONTROL_REPO_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +12,6 @@ class Scanner:
     Produces facts about current state.
     """
 
-    def __init__(self):
-        self.request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
-
     def scan(self) -> dict[str, Any]:
         facts = {
             "pending_request": self.check_pending_request(),
@@ -25,7 +21,9 @@ class Scanner:
         return facts
 
     def check_pending_request(self) -> bool:
-        return self.request_file.exists()
+        from .config import CONTROL_REPO_PATH
+        request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
+        return request_file.exists()
 
     def get_projects(self) -> list[dict[str, Any]]:
         from .config import PROJECTS_FILE

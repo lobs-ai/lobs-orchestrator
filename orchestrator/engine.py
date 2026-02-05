@@ -1,26 +1,24 @@
 import time
 import logging
 from .config import POLL_INTERVAL, LOCKS_DIR
-from .control import ControlManager
 from .worker import WorkerManager
-from .scanner import Scanner
 from .reconciler import Reconciler
+from .base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
-    def __init__(self):
-        self.control = ControlManager()
-        self.worker_manager = WorkerManager(LOCKS_DIR)
-        self.scanner = Scanner()
-        self.reconciler = Reconciler()
+    def __init__(self, provider: TaskProvider):
+        self.provider = provider
+        self.worker_manager = WorkerManager(LOCKS_DIR, provider)
+        self.reconciler = Reconciler(provider)
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
 
     def process_control(self) -> None:
-        """Process pending control operations."""
-        self.control.process_ops()
+        """Process pending control operations via provider."""
+        self.provider.sync()
 
     def process_workers(self) -> None:
         """Check active workers and handle their lifecycle."""
@@ -35,38 +33,30 @@ class Orchestrator:
             self.last_reconcile = now
 
     def process_requests(self, pending_request: bool) -> None:
-        """Handle explicit worker requests from the dashboard."""
+        """Handle explicit worker requests via provider."""
         if pending_request:
-            logger.info("Worker request detected from dashboard. Prioritizing.")
-            try:
-                from .config import CONTROL_REPO_PATH
-                request_file = CONTROL_REPO_PATH / "state" / "worker-request.json"
-                if request_file.exists():
-                    request_file.unlink()
-                    logger.info("Consumed worker-request.json")
-            except Exception as e:
-                logger.error(f"Failed to consume worker-request: {e}")
+            logger.info("Worker request detected. Prioritizing.")
+            self.provider.consume_request()
 
     def run_once(self) -> None:
-        # 1. Process control state (exactly one writer pattern)
+        # 1. Sync with provider (e.g. process local ops or API sync)
         self.process_control()
 
         # 2. Check active workers
         self.process_workers()
 
-        # 3. Scan for new work and facts
-        facts = self.scanner.scan()
-        projects = facts["projects"]
+        # 3. Scan for new work and facts from provider
+        projects = self.provider.get_projects()
         project_ids = [p["id"] for p in projects if not p.get("archived", False)]
 
         # 4. Periodic reconciliation
         self.process_reconciliation(project_ids)
 
         # 5. Handle dashboard requests
-        self.process_requests(facts["pending_request"])
+        self.process_requests(self.provider.check_pending_request())
 
         # 6. Task Assignment
-        eligible_tasks = facts["eligible_tasks"]
+        eligible_tasks = self.provider.get_tasks()
         for task in eligible_tasks:
             project_id = task.get("projectId")
             if not project_id or project_id not in project_ids:
@@ -81,16 +71,13 @@ class Orchestrator:
                 # Determine agent type
                 agent_type = task.get("agentType", "task-runner")
                 
-                self.worker_manager.spawn_worker(task, project_id, agent_type=agent_type)
+                # Get rules from provider
+                rules = self.provider.get_engineering_rules()
+                
+                self.worker_manager.spawn_worker(task, project_id, agent_type=agent_type, rules=rules)
 
-                # Update task state to in_progress
-                ControlManager.request_op(
-                    {
-                        "type": "update_task",
-                        "task_id": task_id,
-                        "updates": {"workState": "in_progress"},
-                    }
-                )
+                # Update task state to in_progress via provider
+                self.provider.update_task(task_id, {"workState": "in_progress"})
 
                 # Continue to next task to potentially spawn more workers for other projects
                 continue

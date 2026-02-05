@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import Any
-from .config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH, ORCHESTRATOR_REPO_PATH
 
 
 class Prompter:
@@ -11,7 +10,8 @@ class Prompter:
     """
 
     @staticmethod
-    def build_task_prompt(task: dict[str, Any], project_id: str) -> str:
+    def build_task_prompt(task: dict[str, Any], project_id: str, rules: str = "") -> str:
+        from .config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH, ORCHESTRATOR_REPO_PATH
         project_path = BASE_DIR / project_id
 
         # 1. Product Context
@@ -21,14 +21,7 @@ class Prompter:
             if file_path.exists():
                 product_context += f"### {filename}\n{file_path.read_text()}\n\n"
 
-        # 2. Engineering Rules & Agent Rules
-        rules_path = CONTROL_REPO_PATH / "ENGINEERING_RULES.md"
-        rules = (
-            rules_path.read_text()
-            if rules_path.exists()
-            else "Standard engineering practices."
-        )
-        
+        # 2. Agent Rules
         # Add AGENTS.md rules from this repo
         agents_rules_path = ORCHESTRATOR_REPO_PATH / "AGENTS.md"
         agent_rules = (

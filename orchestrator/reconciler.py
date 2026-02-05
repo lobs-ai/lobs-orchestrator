@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 from .config import BASE_DIR, TASKS_DIR
-from .control import ControlManager
+from .base import TaskProvider
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,9 @@ class Reconciler:
     Self-healing component that cross-checks project repos with control state.
     """
 
+    def __init__(self, provider: TaskProvider):
+        self.provider = provider
+
     def reconcile(self, project_ids: list[str]) -> None:
         """
         Scans project repos for recent commits and cross-checks task state.
@@ -22,6 +25,7 @@ class Reconciler:
             self._reconcile_project(project_id)
 
     def _reconcile_project(self, project_id: str) -> None:
+        from .config import BASE_DIR
         project_path = BASE_DIR / project_id
         if not project_path.exists():
             return
@@ -57,10 +61,4 @@ class Reconciler:
                 logger.warning(
                     f"Reconciler found completed task {task_id} in git but not in control state. Fixing."
                 )
-                ControlManager.request_op(
-                    {
-                        "type": "update_task",
-                        "task_id": task_id,
-                        "updates": {"workState": "completed", "status": "completed"},
-                    }
-                )
+                self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})

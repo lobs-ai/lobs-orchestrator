@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from .config import CONTROL_REPO_PATH, TASKS_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +15,14 @@ class ControlManager:
     Reads requests from state/control-ops/, applies them, and pushes.
     """
 
-    def __init__(self):
+    @property
+    def ops_dir(self) -> Path:
         from .config import CONTROL_OPS_DIR
-
-        self.ops_dir = CONTROL_OPS_DIR
-        self.ops_dir.mkdir(parents=True, exist_ok=True)
+        return CONTROL_OPS_DIR
 
     def pull(self) -> None:
         try:
+            from .config import CONTROL_REPO_PATH
             subprocess.run(
                 ["git", "pull", "--rebase"],
                 cwd=CONTROL_REPO_PATH,
@@ -35,6 +34,7 @@ class ControlManager:
 
     def push(self, message: str) -> None:
         try:
+            from .config import CONTROL_REPO_PATH
             # Check if there are changes to commit
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -66,6 +66,7 @@ class ControlManager:
             logger.error(f"Git push failed: {e.stderr.decode()}")
 
     def process_ops(self) -> None:
+        self.ops_dir.mkdir(parents=True, exist_ok=True)
         ops_files = sorted(self.ops_dir.glob("*.json"))
         if not ops_files:
             return
