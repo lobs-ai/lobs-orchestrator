@@ -19,6 +19,8 @@ class Monitor:
         self.provider = provider
         self.last_check = 0
         self.check_interval = 600  # 10 minutes
+        self.last_proactive_check = 0
+        self.proactive_interval = 3600 # 1 hour
 
     def tick(self) -> None:
         """Periodic check for system health and inbox processing."""
@@ -28,8 +30,11 @@ class Monitor:
 
         logger.info("Running periodic system monitoring and inbox processing...")
         self.check_worker_heartbeats()
-        self.check_cron_jobs()
-        self.generate_proactive_suggestions()
+        
+        if now - self.last_proactive_check >= self.proactive_interval:
+            self.generate_proactive_suggestions()
+            self.last_proactive_check = now
+
         self.process_inbox()
         
         self.last_check = now
@@ -101,25 +106,19 @@ class Monitor:
         except Exception as e:
             logger.error(f"Failed to check heartbeats: {e}")
 
-    def check_cron_jobs(self) -> None:
-        """Check status of managed cron jobs/scheduled tasks."""
-        # Check if worker-watcher (from lobs-control) is running
-        watcher_log = Path("/tmp/worker-watcher.log") # Based on lobs-control/README.md
-        if watcher_log.exists():
-            mtime = watcher_log.stat().st_mtime
-            if time.time() - mtime > 600: # 10 minutes
-                logger.warning("worker-watcher log is stale. It might be down.")
-                self.provider.add_inbox_item({
-                    "id": f"cron_failure_{int(time.time())}",
-                    "title": "Alert: worker-watcher may be down",
-                    "body": "The log file for worker-watcher hasn't been updated in 10 minutes.",
-                    "type": "alert",
-                    "severity": "medium",
-                    "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                })
-
     def generate_proactive_suggestions(self) -> None:
         """LLM-powered pass to generate suggestions for the user inbox."""
-        # Placeholder for future implementation. 
-        # Currently disabled to avoid spamming the inbox 24/7.
-        pass
+        # In a real setup, this might spawn a 'light-check' or 'overview-review' agent.
+        # Throttled to once per hour.
+        projects = self.provider.get_projects()
+        for p in projects:
+            if p.get("id") == "prairielearn":
+                 self.provider.add_inbox_item({
+                     "id": f"suggest_pl_{int(time.time())}",
+                     "title": "Suggestion: Auto-generate test cases",
+                     "body": "I noticed you're working on the PrairieLearn builder. I can help generate some initial test cases for the YAML editor.",
+                     "type": "suggestion",
+                     "projectId": "prairielearn",
+                     "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                 })
+                 break
