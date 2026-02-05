@@ -22,16 +22,26 @@ class Prompter:
             if file_path.exists():
                 product_context += f"### {filename}\n{file_path.read_text()}\n\n"
 
-        # 2. Engineering Rules (Global)
+        # 2. Engineering Rules & Agent Rules
         rules_path = CONTROL_REPO_PATH / "ENGINEERING_RULES.md"
         rules = (
             rules_path.read_text()
             if rules_path.exists()
             else "Standard engineering practices."
         )
+        
+        # Add AGENTS.md rules from this repo
+        agents_rules_path = ORCHESTRATOR_REPO_PATH / "AGENTS.md"
+        agent_rules = (
+            agents_rules_path.read_text()
+            if agents_rules_path.exists()
+            else ""
+        )
 
         # 3. Prompt Construction
         prompt = f"""SYSTEM:
+{agent_rules}
+
 Engineering Rules:
 {rules}
 
@@ -39,23 +49,25 @@ Product Context ({project_id}):
 {product_context}
 
 Output Contract:
-Produce changes as git diffs or specific artifacts.
-Report completion by creating a control-op in state/control-ops/.
-Write detailed notes to state/worker-results/{task["id"]}.md.
+1. Implement the task in the {project_id} repository.
+2. Produce clean, idiomatic code and relevant tests.
+3. Write a summary of your work (notes, findings, etc.) to:
+   {CONTROL_REPO_PATH}/state/worker-results/{task["id"]}.md
+4. Do NOT attempt to update tasks.json or other control state yourself.
 
 CONTEXT:
 Task ID: {task["id"]}
 Project: {project_id}
-Status: {task.get("status")}
+Control Repo: {CONTROL_REPO_PATH}
 
 TASK:
 Title: {task.get("title")}
 Notes: {task.get("notes")}
 
 CONSTRAINTS:
-- Do not run git commands directly.
-- Use fresh sessions only.
-- Focus strictly on the defined task.
+- You are operating on the real filesystem in {project_path}.
+- Use 'git pull --rebase' before starting.
+- Focus strictly on this task.
 """
         return prompt
 

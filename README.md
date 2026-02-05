@@ -38,7 +38,7 @@ Configuration is managed in `orchestrator/config.py`. Key settings:
 
 ## Control Operations
 
-To request a state change (e.g., update a task), other components or workers should create a JSON file in `lobs-control/state/ops/`.
+To request a state change (e.g., update a task), other components or workers should create a JSON file in `lobs-control/state/control-ops/`.
 
 Example `update_task` operation:
 

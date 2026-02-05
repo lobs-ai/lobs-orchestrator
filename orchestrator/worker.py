@@ -5,8 +5,8 @@ import time
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, Tuple
-from .config import ORCHESTRATOR_REPO_PATH, CONTROL_REPO_PATH
+from typing import Optional, Dict, Tuple, Any
+from .config import ORCHESTRATOR_REPO_PATH, CONTROL_REPO_PATH, BASE_DIR
 from .control import ControlManager
 
 logger = logging.getLogger(__name__)
@@ -106,12 +106,23 @@ class WorkerManager:
             # We use a wrapper or log the prompt file location for debugging
             logger.info(f"Invoking OpenClaw: {' '.join(cmd)}")
 
+            from .config import WORKER_RESULTS_DIR
+            WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+            
+            log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+            log_file = open(log_file_path, "w")
+
             process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                cmd, 
+                stdout=log_file, 
+                stderr=subprocess.STDOUT, 
+                text=True,
+                start_new_session=True # Run in its own session
             )
 
             self.acquire_lock(project_id, process.pid)
-            self.active_workers[task_id] = (process, project_id)
+            # Store the log file handle so we can close it later
+            self.active_workers[task_id] = (process, project_id, log_file, prompt_file.name)
 
             ControlManager.request_op(
                 {
@@ -127,7 +138,7 @@ class WorkerManager:
             )
 
             logger.info(
-                f"Spawned worker {process.pid} for task {task_id} on {project_id} using agent {agent_type}"
+                f"Spawned worker {process.pid} for task {task_id} on {project_id} using agent {agent_type}. Logs: {log_file_path}"
             )
             return process
         except Exception as e:
@@ -142,13 +153,15 @@ class WorkerManager:
     def check_workers(self):
         """Check status of active workers and release locks on completion."""
         finished_tasks = []
-        for task_id, (process, project_id) in self.active_workers.items():
+        for task_id, (process, project_id, log_file, prompt_path) in self.active_workers.items():
             retcode = process.poll()
             if retcode is not None:
                 # Process finished
                 logger.info(
                     f"Worker process for task {task_id} on {project_id} finished with code {retcode}"
                 )
+                
+                log_file.close()
 
                 if retcode == 0:
                     # Step 3: Project repo commit & push (Reality happens first)
@@ -161,10 +174,26 @@ class WorkerManager:
                             task_id, project_id, "Project repo push failed"
                         )
                 else:
-                    _, stderr = process.communicate()
-                    self.handle_worker_failure(task_id, project_id, stderr)
+                    # Read end of log for error
+                    from .config import WORKER_RESULTS_DIR
+                    log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+                    error_tail = ""
+                    try:
+                        with open(log_file_path, "r") as f:
+                            lines = f.readlines()
+                            error_tail = "".join(lines[-20:])
+                    except:
+                        pass
+                    self.handle_worker_failure(task_id, project_id, error_tail)
 
                 self.release_lock(project_id)
+                
+                # Cleanup
+                try:
+                    os.unlink(prompt_path)
+                except:
+                    pass
+                    
                 finished_tasks.append(task_id)
 
         for task_id in finished_tasks:
@@ -219,6 +248,18 @@ class WorkerManager:
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str):
         logger.error(f"Worker failure for task {task_id} on {project_id}")
+        
+        # Write diagnostic artifact
+        from .config import WORKER_RESULTS_DIR
+        diagnostic_path = WORKER_RESULTS_DIR / f"{task_id}_diagnostic.md"
+        with open(diagnostic_path, "w") as f:
+            f.write(f"# Diagnostic for Task {task_id}\n\n")
+            f.write(f"**Project:** {project_id}\n")
+            f.write(f"**Timestamp:** {datetime.now(timezone.utc).isoformat()}\n\n")
+            f.write("## Error Log\n\n```\n")
+            f.write(error_log)
+            f.write("\n```\n")
+            
         ControlManager.request_op(
             {
                 "type": "update_task",
@@ -226,7 +267,6 @@ class WorkerManager:
                 "updates": {"workState": "failed"},
             }
         )
-        # Could also write diagnostic artifact here
 
     def update_active_worker_status(self):
         ControlManager.request_op(

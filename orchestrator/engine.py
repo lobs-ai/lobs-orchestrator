@@ -29,19 +29,21 @@ class Orchestrator:
         now = time.time()
         if now - self.last_reconcile > self.reconcile_interval:
             logger.info("Starting periodic reconciliation...")
-            # Ideally we'd discover projects dynamically
-            self.reconciler.reconcile(["lobs-dashboard", "flock"])
+            from .config import BASE_DIR
+            projects = [d.name for d in BASE_DIR.iterdir() if d.is_dir() and (d / ".git").exists()]
+            self.reconciler.reconcile(projects)
             self.last_reconcile = now
 
         # 4. Scan for new work
         facts = self.scanner.scan()
 
-        # 4. Decision logic
+        # 5. Decision logic
         # Handle explicit worker requests from dashboard
         if facts["pending_request"]:
-            logger.info("Worker request detected from dashboard.")
-            # Consume the request
+            logger.info("Worker request detected from dashboard. Prioritizing.")
+            # We could use this to trigger a scan or bypass some throttle
             try:
+                from .config import CONTROL_REPO_PATH
                 (CONTROL_REPO_PATH / "state" / "worker-request.json").unlink()
                 logger.info("Consumed worker-request.json")
             except FileNotFoundError:
@@ -49,12 +51,21 @@ class Orchestrator:
 
         eligible_tasks = facts["eligible_tasks"]
         for task in eligible_tasks:
-            project_id = task.get("projectId", "default")
+            project_id = task.get("projectId")
+            if not project_id or project_id == "default":
+                # Try to infer project or skip
+                logger.warning(f"Task {task['id']} has no projectId. Skipping.")
+                continue
+
             task_id = task["id"]
 
             if not self.worker_manager.is_domain_locked(project_id):
                 logger.info(f"Assigning task {task_id} to project {project_id}")
-                self.worker_manager.spawn_worker(task, project_id)
+                
+                # Determine agent type
+                agent_type = task.get("agentType", "task-runner")
+                
+                self.worker_manager.spawn_worker(task, project_id, agent_type=agent_type)
 
                 # Update task state to in_progress
                 ControlManager.request_op(
@@ -65,9 +76,7 @@ class Orchestrator:
                     }
                 )
 
-                # If we handled a request, we might want to consume it.
-                # For now, one worker at a time per domain.
-                # We only spawn one worker per run_once to avoid overwhelming.
+                # Only spawn one worker per loop to keep it simple and avoid race conditions
                 break
 
     def loop(self):
