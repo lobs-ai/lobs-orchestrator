@@ -45,7 +45,7 @@ class Orchestrator:
 
     def run_once(self) -> bool:
         activity = False
-        
+
         # 1. Sync with provider and process messages
         messages = self.process_control()
         if messages:
@@ -80,7 +80,9 @@ class Orchestrator:
         for task in eligible_tasks:
             project_id = task.get("projectId")
             if not project_id or project_id not in project_ids:
-                logger.warning(f"Task {task['id']} has invalid or unregistered projectId '{project_id}'. Skipping.")
+                logger.warning(
+                    f"Task {task['id']} has invalid or unregistered projectId '{project_id}'. Skipping."
+                )
                 continue
 
             task_id = task["id"]
@@ -88,14 +90,16 @@ class Orchestrator:
             if not self.worker_manager.is_domain_locked(project_id):
                 activity = True
                 logger.info(f"Assigning task {task_id} to project {project_id}")
-                
+
                 # Determine agent type
                 agent_type = task.get("agentType", "task-runner")
-                
+
                 # Get rules from provider
                 rules = self.provider.get_engineering_rules()
-                
-                self.worker_manager.spawn_worker(task, project_id, agent_type=agent_type, rules=rules)
+
+                self.worker_manager.spawn_worker(
+                    task, project_id, agent_type=agent_type, rules=rules
+                )
 
                 # Update task state to in_progress via provider
                 self.provider.update_task(task_id, {"workState": "in_progress"})
@@ -115,19 +119,9 @@ class Orchestrator:
                     current_interval = min(current_interval + 2, POLL_INTERVAL * 6, 60)
             except Exception as e:
                 logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
-                current_interval = POLL_INTERVAL # Reset on error
+                current_interval = POLL_INTERVAL  # Reset on error
 
             if current_interval > POLL_INTERVAL:
                 logger.debug(f"Idle, sleeping for {current_interval}s")
-            
+
             time.sleep(current_interval)
-
-    def loop(self):
-        logger.info("Orchestrator loop started.")
-        while True:
-            try:
-                self.run_once()
-            except Exception as e:
-                logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
-
-            time.sleep(POLL_INTERVAL)
