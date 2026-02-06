@@ -11,8 +11,21 @@ def parse_args():
     parser.add_argument("--orchestrator-repo", help="Set the path to the orchestrator repository")
     parser.add_argument("--poll-interval", type=int, help="Polling interval in seconds")
     parser.add_argument("--openclaw-executable", help="Path to openclaw executable")
+    parser.add_argument("--show", action="store_true", help="Show current settings")
     
     return parser.parse_args()
+
+def show_settings():
+    from orchestrator import config
+    print("\nCurrent Configuration:")
+    print(f"  Provider:             {get_setting('provider', 'local')}")
+    print(f"  Base Directory:       {config.BASE_DIR}")
+    print(f"  Control Repo:         {config.CONTROL_REPO_PATH}")
+    print(f"  Orchestrator Repo:    {config.ORCHESTRATOR_REPO_PATH}")
+    print(f"  Poll Interval:        {config.POLL_INTERVAL}s")
+    print(f"  Locks Directory:      {config.LOCKS_DIR}")
+    print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'Not set')}")
+    print("")
 
 def apply_args(args):
     # Update settings if provided via CLI
@@ -43,4 +56,7 @@ def apply_args(args):
 def setup_orchestrator():
     args = parse_args()
     apply_args(args)
+    if args.show:
+        show_settings()
+        sys.exit(0)
     return args

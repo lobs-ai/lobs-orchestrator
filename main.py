@@ -5,7 +5,7 @@ import os
 # Ensure the current directory is in sys.path for absolute imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from orchestrator.utils.cli import setup_orchestrator
+from orchestrator.utils.cli import setup_orchestrator, show_settings
 from orchestrator.utils.settings import get_setting
 
 
@@ -22,6 +22,7 @@ def main():
 
     # Setup settings from CLI and file
     setup_orchestrator()
+    show_settings()
 
     # Import core components ONLY AFTER settings are updated
     from orchestrator.core.engine import Orchestrator

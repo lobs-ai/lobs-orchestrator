@@ -186,6 +186,85 @@ class ControlManager:
             except Exception as e:
                 logger.error(f"Failed to update legacy tasks file: {e}")
 
+    def _update_project(self, project_id: str, updates: dict[str, Any]) -> None:
+        from orchestrator.config import PROJECTS_FILE
+        if not PROJECTS_FILE.exists():
+            return
+
+        try:
+            with open(PROJECTS_FILE, "r") as f:
+                data = json.load(f)
+
+            found = False
+            for project in data.get("projects", []):
+                if project["id"] == project_id:
+                    project.update(updates)
+                    found = True
+                    break
+
+            if found:
+                with open(PROJECTS_FILE, "w") as f:
+                    json.dump(data, f, indent=2)
+                    f.write("\n")
+                logger.info(f"Updated project {project_id}")
+        except Exception as e:
+            logger.error(f"Failed to update project {project_id}: {e}")
+
+    def _update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
+        from orchestrator.config import CONTROL_REPO_PATH
+        alert_path = CONTROL_REPO_PATH / "state" / "alerts" / f"{alert_id}.json"
+        if not alert_path.exists():
+            return
+
+        try:
+            with open(alert_path, "r") as f:
+                data = json.load(f)
+
+            data.update(updates)
+            with open(alert_path, "w") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            logger.info(f"Updated alert {alert_id}")
+        except Exception as e:
+            logger.error(f"Failed to update alert {alert_id}: {e}")
+
+    def _update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
+        from orchestrator.config import CONTROL_REPO_PATH
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        item_path = inbox_dir / f"{item_id}.json"
+        if not item_path.exists():
+            return
+
+        try:
+            with open(item_path, "r") as f:
+                data = json.load(f)
+
+            data.update(updates)
+            with open(item_path, "w") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            logger.info(f"Updated inbox item {item_id}")
+        except Exception as e:
+            logger.error(f"Failed to update inbox item {item_id}: {e}")
+
+    def _add_inbox_item(self, item: dict[str, Any]) -> None:
+        from orchestrator.config import CONTROL_REPO_PATH
+        import time
+        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time() * 1000)
+        item_id = item.get("id", f"inbox_{timestamp}")
+        item_path = inbox_dir / f"{item_id}.json"
+        
+        try:
+            with open(item_path, "w") as f:
+                json.dump(item, f, indent=2)
+                f.write("\n")
+            logger.info(f"Added inbox item: {item_id}")
+        except Exception as e:
+            logger.error(f"Failed to add inbox item: {e}")
+
     def _update_worker_status(self, updates: dict[str, Any]) -> None:
         from orchestrator.config import WORKER_STATUS_JSON
 
