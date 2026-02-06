@@ -52,7 +52,9 @@ def test_worker_manager_uses_custom_openclaw(mock_run, mock_popen, temp_control_
         args, kwargs = mock_popen.call_args
         cmd = args[0]
         assert cmd[0] == custom_path
-        assert cmd[1] == "run"
+        assert cmd[1] == "agent"
+        assert "--agent" in cmd
+        assert "--message" in cmd
 
 @patch("subprocess.Popen")
 @patch("subprocess.run")

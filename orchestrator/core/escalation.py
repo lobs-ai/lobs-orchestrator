@@ -1,22 +1,35 @@
+"""
+Escalation manager for handling worker failures.
+
+Levels:
+1. Auto-fix (common pattern matching)
+2. Diagnostic (LLM analysis)
+3. Human intervention (inbox message + notification)
+"""
+
 import logging
 import time
 import subprocess
 from typing import Any
 from orchestrator.providers.base import TaskProvider
+from orchestrator.services.chat import get_chat_service
 
 logger = logging.getLogger(__name__)
+
 
 class EscalationManager:
     """
     Handles tiered escalation for errors and failures.
+    
     Levels:
-    1. Auto-fix (Common pattern matching)
-    2. Diagnostic (LLM Analysis)
-    3. Human Intervention (Inbox Message)
+    1. Auto-fix: Common pattern matching (missing deps, etc.)
+    2. Diagnostic: Spawn a diagnostic agent to analyze
+    3. Human: Notify the owner and wait for input
     """
 
     def __init__(self, provider: TaskProvider):
         self.provider = provider
+        self.chat = get_chat_service()
 
     def process_failure(self, task_id: str, project_id: str, error_log: str):
         """Initial entry point for a worker failure."""
@@ -27,7 +40,7 @@ class EscalationManager:
             "id": alert_id,
             "taskId": task_id,
             "projectId": project_id,
-            "errorLog": error_log,
+            "errorLog": error_log[:2000],  # Truncate for storage
             "level": 1,
             "status": "active",
             "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -68,27 +81,46 @@ class EscalationManager:
         project_path = BASE_DIR / project_id
         
         auto_fixed = False
+        fix_note = ""
         
-        # Example Pattern: Missing node_modules
+        # Pattern: Missing node_modules
         if "cannot find module" in error_log or "module not found" in error_log:
             logger.info(f"Detected potential missing dependency in {project_id}. Attempting install...")
             try:
                 if (project_path / "package.json").exists():
-                    subprocess.run(["npm", "install"], cwd=project_path, check=True)
+                    subprocess.run(["npm", "install"], cwd=project_path, check=True, timeout=120)
                     auto_fixed = True
+                    fix_note = "Ran npm install"
                 elif (project_path / "requirements.txt").exists():
-                    subprocess.run(["pip", "install", "-r", "requirements.txt"], cwd=project_path, check=True)
+                    subprocess.run(["pip", "install", "-r", "requirements.txt"], cwd=project_path, check=True, timeout=120)
                     auto_fixed = True
+                    fix_note = "Ran pip install -r requirements.txt"
             except Exception as e:
                 logger.error(f"Auto-fix failed: {e}")
+
+        # Pattern: Git conflicts
+        if "conflict" in error_log and "merge" in error_log:
+            logger.info(f"Detected git conflict in {project_id}. Cannot auto-fix, escalating.")
+            fix_note = "Git conflict detected - requires human resolution"
+
+        # Pattern: Permission denied
+        if "permission denied" in error_log:
+            logger.info(f"Permission denied in {project_id}. Cannot auto-fix, escalating.")
+            fix_note = "Permission issue detected"
 
         if auto_fixed:
             logger.info(f"Auto-fix successful for {alert['id']}. Re-activating task.")
             self.provider.update_task(task_id, {"workState": "not_started", "status": "active"})
-            self.provider.update_alert(alert["id"], {"status": "resolved", "note": "Auto-fixed by Level 1."})
+            self.provider.update_alert(alert["id"], {
+                "status": "resolved",
+                "note": f"Auto-fixed by Level 1: {fix_note}"
+            })
         else:
             # Move to Level 2
-            self.provider.update_alert(alert["id"], {"level": 2, "note": "No auto-fix patterns matched."})
+            self.provider.update_alert(alert["id"], {
+                "level": 2,
+                "note": fix_note or "No auto-fix patterns matched."
+            })
             # Re-fetch alert with updated level and continue
             alert["level"] = 2
             self._handle_level_2(alert)
@@ -101,26 +133,44 @@ class EscalationManager:
         diagnostic_task = {
             "id": f"diag_{alert['id']}",
             "projectId": alert["projectId"],
-            "title": f"Diagnostic for failure {alert['taskId']}",
-            "notes": f"Analyze this error: {alert['errorLog']}",
+            "title": f"Diagnostic: analyze failure {alert['taskId']}",
+            "notes": f"Analyze this error and propose a fix:\n\n{alert['errorLog'][:1500]}",
             "status": "active",
             "workState": "not_started",
-            "agentType": "diagnostic"
+            "agentType": "diagnostic",
+            "priority": 0,  # High priority
         }
         self.provider.update_task(diagnostic_task["id"], diagnostic_task)
-        self.provider.update_alert(alert["id"], {"level": 3, "diagnosticTaskId": diagnostic_task["id"], "note": "Diagnostic agent spawned."})
+        self.provider.update_alert(alert["id"], {
+            "level": 3,
+            "diagnosticTaskId": diagnostic_task["id"],
+            "note": "Diagnostic agent spawned."
+        })
 
     def _handle_level_3(self, alert: dict[str, Any]):
-        """Level 3: Human help."""
+        """Level 3: Human help needed."""
         logger.info(f"Escalation Level 3 for {alert['id']}: Notifying human.")
         
+        task_id = alert.get("taskId", "unknown")
+        project_id = alert.get("projectId", "unknown")
+        error_preview = alert.get("errorLog", "")[:500]
+        
+        # Create inbox item
         inbox_item = {
             "id": f"help_{alert['id']}",
-            "title": "Action Required: Persistent Failure",
-            "body": f"Task {alert['taskId']} in {alert['projectId']} has failed multiple escalation tiers.\nError: {alert['errorLog']}",
+            "title": "🚨 Action Required: Persistent Failure",
+            "body": f"Task `{task_id}` in **{project_id}** has failed multiple escalation tiers.\n\nError:\n```\n{error_preview}\n```",
             "type": "alert",
             "severity": "high",
             "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
         self.provider.add_inbox_item(inbox_item)
+        
+        # Send notification to chat
+        self.chat.send_alert(
+            title="Task Failure - Human Needed",
+            body=f"Task `{task_id}` in **{project_id}** failed after auto-fix and diagnostic attempts.\n\nCheck the inbox for details.",
+            severity="high"
+        )
+        
         self.provider.update_alert(alert["id"], {"status": "escalated_to_human"})

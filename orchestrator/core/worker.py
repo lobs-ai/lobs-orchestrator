@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class WorkerManager:
     """
     Manages spawning and tracking worker subprocesses.
+    Workers are spawned via `openclaw agent` command.
     Enforced via domain locks. Git operations on projects are asynchronous.
     """
 
@@ -31,8 +32,8 @@ class WorkerManager:
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
-        # task_id -> (process, project_id, log_file, prompt_path)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
         self.pending_workers: set[str] = set()
         self.executor = ThreadPoolExecutor(max_workers=10)
@@ -141,43 +142,45 @@ class WorkerManager:
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
-            import tempfile
-            prompt_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-            prompt_file.write(prompt)
-            prompt_file.close()
-
-            # Step 3: Launch OpenClaw
+            # Step 3: Launch OpenClaw agent
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
+            # Map agent types to configured agent IDs
+            agent_id = self._resolve_agent_id(agent_type)
+            
             cmd = [
-                executable, "run",
-                "--agent", agent_type,
-                "--workspace", str(workspace),
-                "--prompt-file", prompt_file.name,
+                executable, "agent",
+                "--agent", agent_id,
+                "--message", prompt,
+                "--timeout", "3600",  # 1 hour timeout
+                "--json",
             ]
             
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
             log_file = open(log_file_path, "w")
 
-            logger.info(f"Invoking OpenClaw for {task_id}: {' '.join(cmd)}")
+            logger.info(f"Invoking OpenClaw for {task_id} with agent {agent_id}")
             process = subprocess.Popen(
                 cmd, 
                 stdout=log_file, 
                 stderr=subprocess.STDOUT, 
                 text=True,
-                start_new_session=True
+                start_new_session=True,
+                cwd=workspace  # Run in the project directory
             )
 
             # Update lock to "running" with PID
             self.acquire_lock(project_id, pid=process.pid, status="running")
-            self.active_workers[task_id] = (process, project_id, log_file, prompt_file.name)
+            self.active_workers[task_id] = (process, project_id, log_file, time.time())
             
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.provider.update_worker_status({
                 "active": True,
                 "currentTask": task_id,
+                "agentType": agent_type,
+                "projectId": project_id,
                 "startedAt": now_iso,
                 "lastHeartbeat": now_iso,
             })
@@ -190,22 +193,37 @@ class WorkerManager:
             if task_id in self.pending_workers:
                 self.pending_workers.remove(task_id)
 
+    def _resolve_agent_id(self, agent_type: str) -> str:
+        """Map internal agent types to OpenClaw agent IDs."""
+        # These should match agents configured in openclaw.json
+        agent_map = {
+            "task-runner": "worker",
+            "researcher": "worker",
+            "diagnostic": "worker",
+            "inbox-processor": "worker",
+            "design-review": "worker",
+            "overview-review": "worker",
+            "light-check": "worker",
+        }
+        return agent_map.get(agent_type, "worker")
+
     def check_workers(self):
         """Check status of active workers and release locks on completion."""
         finished_tasks = []
-        for task_id, (process, project_id, log_file, prompt_path) in list(self.active_workers.items()):
+        for task_id, (process, project_id, log_file, start_time) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
-                logger.info(f"Worker for {task_id} on {project_id} finished with code {retcode}")
+                elapsed = time.time() - start_time
+                logger.info(f"Worker for {task_id} on {project_id} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
                 finished_tasks.append(task_id)
                 
                 if retcode == 0:
                     # Transition to "finalizing" state
                     self.acquire_lock(project_id, status="finalizing")
-                    self.executor.submit(self._async_finalize_flow, task_id, project_id, prompt_path)
+                    self.executor.submit(self._async_finalize_flow, task_id, project_id)
                 else:
-                    self._handle_immediate_failure(task_id, project_id, prompt_path)
+                    self._handle_immediate_failure(task_id, project_id)
 
         for task_id in finished_tasks:
             if task_id in self.active_workers:
@@ -214,24 +232,20 @@ class WorkerManager:
         if finished_tasks:
             self.update_active_worker_status()
 
-    def _handle_immediate_failure(self, task_id: str, project_id: str, prompt_path: str):
+    def _handle_immediate_failure(self, task_id: str, project_id: str):
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
             with open(log_file_path, "r") as f:
                 lines = f.readlines()
-                error_tail = "".join(lines[-20:])
+                error_tail = "".join(lines[-50:])
         except:
             pass
         
         self.handle_worker_failure(task_id, project_id, error_tail)
         self.release_lock(project_id)
-        try:
-            os.unlink(prompt_path)
-        except:
-            pass
 
-    def _async_finalize_flow(self, task_id: str, project_id: str, prompt_path: str):
+    def _async_finalize_flow(self, task_id: str, project_id: str):
         try:
             success = self.finalize_project_changes(task_id, project_id)
             if success:
@@ -243,10 +257,6 @@ class WorkerManager:
             self.handle_worker_failure(task_id, project_id, str(e))
         finally:
             self.release_lock(project_id)
-            try:
-                os.unlink(prompt_path)
-            except:
-                pass
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
@@ -270,7 +280,7 @@ class WorkerManager:
                 ["git", "commit", "-m", commit_msg], cwd=project_path, check=True
             )
 
-            # Push (Reality first)
+            # Push
             subprocess.run(["git", "push"], cwd=project_path, check=True)
             logger.info(
                 f"Successfully pushed changes for task {task_id} to {project_id}"

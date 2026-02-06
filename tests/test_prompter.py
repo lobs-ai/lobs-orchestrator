@@ -26,7 +26,7 @@ def test_build_task_prompt_basic(temp_control_repo):
     assert "Global Rules" in prompt
     assert "Fix a bug" in prompt
     assert "Something is broken" in prompt
-    assert f"Project: {project_id}" in prompt
+    assert f"**Project:** {project_id}" in prompt
     assert str(project_dir) in prompt
 
 def test_build_task_prompt_research_request(temp_control_repo):
@@ -42,5 +42,5 @@ def test_build_task_prompt_research_request(temp_control_repo):
     
     prompt = Prompter.build_task_prompt(item, project_id)
     
-    assert "RESEARCH REQUEST:" in prompt
+    assert "## RESEARCH REQUEST" in prompt
     assert "Investigate X" in prompt

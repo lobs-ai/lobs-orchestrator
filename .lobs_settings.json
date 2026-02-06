@@ -1,0 +1,7 @@
+{
+  "base_dir": "/home/rafe",
+  "control_repo_path": "/home/rafe/lobs-control",
+  "orchestrator_repo_path": "/home/rafe/lobs-orchestrator",
+  "poll_interval": 10,
+  "openclaw_executable": "openclaw"
+}
