@@ -29,7 +29,7 @@ class Monitor:
             return
 
         logger.info("Running periodic system monitoring and inbox processing...")
-        self.check_worker_heartbeats()
+        self.check_stuck_tasks()
         
         if now - self.last_proactive_check >= self.proactive_interval:
             self.generate_proactive_suggestions()
@@ -76,8 +76,8 @@ class Monitor:
             self.provider.update_task(new_task["id"], new_task)
             self.provider.update_inbox_item(item["id"], {"status": "resolved", "taskId": new_task["id"]})
 
-    def check_worker_heartbeats(self) -> None:
-        """Verify that worker-status.json is being updated."""
+    def check_stuck_tasks(self) -> None:
+        """Verify that running tasks haven't exceeded timeout."""
         if not WORKER_STATUS_JSON.exists():
             return
 
@@ -85,26 +85,34 @@ class Monitor:
             with open(WORKER_STATUS_JSON, "r") as f:
                 status = json.load(f)
             
-            last_heartbeat_str = status.get("lastHeartbeat")
-            if not last_heartbeat_str or not status.get("active"):
+            current_task = status.get("currentTask")
+            started_at_str = status.get("startedAt")
+            
+            if not current_task or not started_at_str:
                 return
 
-            last_heartbeat = datetime.fromisoformat(last_heartbeat_str.replace("Z", "+00:00"))
+            started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
             
-            delta = (now - last_heartbeat).total_seconds()
-            if delta > 1800:  # 30 minutes
-                logger.warning(f"Worker heartbeat is stale ({delta}s). Notifying inbox.")
+            delta = (now - started_at).total_seconds()
+            if delta > 3600:  # 1 hour timeout (increased from 30m)
+                logger.warning(f"Task {current_task} is running long ({int(delta/60)}m). Notifying inbox.")
+                
+                # Check if we already alerted
+                alerts = self.provider.get_active_alerts()
+                if any(a.get("taskId") == current_task for a in alerts):
+                    return
+
                 self.provider.add_inbox_item({
                     "id": f"stale_worker_{int(time.time())}",
-                    "title": "Alert: Stalled Worker Detected",
-                    "body": f"The worker for task {status.get('currentTask')} hasn't reported a heartbeat in {int(delta/60)} minutes.",
+                    "title": "Alert: Task Timeout",
+                    "body": f"The task {current_task} has been running for {int(delta/60)} minutes.",
                     "type": "alert",
                     "severity": "medium",
                     "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 })
         except Exception as e:
-            logger.error(f"Failed to check heartbeats: {e}")
+            logger.error(f"Failed to check stuck tasks: {e}")
 
     def generate_proactive_suggestions(self) -> None:
         """LLM-powered pass to generate suggestions for the user inbox."""

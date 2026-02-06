@@ -62,7 +62,7 @@ Output Contract:
    Format: {{"type": "add_inbox_item", "item": {{"title": "...", "body": "...", "type": "suggestion", "projectId": "{project_id}"}}}}
 5. System Control: You can request system actions by creating a control op file.
    Format: {{"type": "message", "action": "register_project", "payload": {{"id": "new-repo", "name": "...", "path": "..."}}}}
-   Supported actions: register_project, update_instructions, broadcast.
+   Supported actions: register_project, update_instructions, broadcast, system_request.
 6. Do NOT attempt to update tasks.json or other control state yourself.
 
 CONTEXT:
@@ -73,7 +73,20 @@ Control Repo: {CONTROL_REPO_PATH.resolve()}
 Workspace: {project_path}
 
 """
-        if kind == "task":
+        agent_type = item.get("agentType")
+        if agent_type == "diagnostic":
+             prompt += f"""DIAGNOSTIC TASK:
+This is a high-priority diagnostic mission.
+Title: {item.get("title")}
+Context/Error: {item.get("notes")}
+
+Your goal:
+1. Analyze the workspace and the reported error.
+2. Attempt to fix the issue if it is a configuration or code error.
+3. If fixed, verify.
+4. If not fixable, provide a detailed root cause analysis in your result summary.
+"""
+        elif kind == "task":
             prompt += f"""TASK:
 Title: {item.get("title")}
 Notes: {item.get("notes")}

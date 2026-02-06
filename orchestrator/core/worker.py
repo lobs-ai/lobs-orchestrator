@@ -174,10 +174,12 @@ class WorkerManager:
             self.acquire_lock(project_id, pid=process.pid, status="running")
             self.active_workers[task_id] = (process, project_id, log_file, prompt_file.name)
             
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.provider.update_worker_status({
                 "active": True,
                 "currentTask": task_id,
-                "lastHeartbeat": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "startedAt": now_iso,
+                "lastHeartbeat": now_iso,
             })
 
         except Exception as e:

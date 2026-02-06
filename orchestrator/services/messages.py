@@ -33,8 +33,21 @@ class MessageProcessor:
             self._update_instructions(payload)
         elif msg_type == "broadcast":
             self._broadcast_message(payload)
+        elif msg_type == "system_request":
+            self._system_request(payload)
         else:
             logger.warning(f"Unknown message action: {msg_type}")
+
+    def _system_request(self, payload: Any):
+        """Create a request for the system monitor to handle."""
+        self.provider.add_inbox_item({
+            "title": payload.get("title", "System Request"),
+            "body": payload.get("content"),
+            "type": "request",
+            "responder": "system",
+            "actionRequired": True,
+            "sender": payload.get("sender", "worker-llm")
+        })
 
     def _register_project(self, payload: Any):
         project_id = payload.get("id")

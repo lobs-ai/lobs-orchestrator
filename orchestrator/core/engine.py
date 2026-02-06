@@ -1,6 +1,7 @@
 import time
 import logging
 import json
+from datetime import datetime, timezone
 from orchestrator.config import POLL_INTERVAL, LOCKS_DIR
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.reconciler import Reconciler
@@ -20,6 +21,7 @@ class Orchestrator:
         self.message_processor = MessageProcessor(provider)
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
+        self.last_heartbeat = 0
 
     def process_control(self) -> list[dict[str, Any]]:
         """Process pending control operations via provider."""
@@ -43,8 +45,24 @@ class Orchestrator:
             logger.info("Worker request detected. Prioritizing.")
             self.provider.consume_request()
 
+    def _pulse_system_heartbeat(self) -> None:
+        """Update the system heartbeat to indicate liveness."""
+        now = time.time()
+        # Pulse every 30 seconds
+        if now - self.last_heartbeat > 30:
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.provider.update_worker_status({
+                "lastHeartbeat": now_iso,
+                # Ensure active is true when system is running
+                "active": True 
+            })
+            self.last_heartbeat = now
+
     def run_once(self) -> bool:
         activity = False
+
+        # 0. System Heartbeat
+        self._pulse_system_heartbeat()
 
         # 1. Sync with provider and process messages
         messages = self.process_control()
