@@ -53,7 +53,6 @@ class Orchestrator:
             self.message_processor.process_messages(messages)
 
         # 2. Check active workers
-        # We consider worker check as activity only if something finished
         initial_active = len(self.worker_manager.active_workers)
         self.process_workers()
         if len(self.worker_manager.active_workers) != initial_active:
@@ -65,6 +64,9 @@ class Orchestrator:
         # 4. Scan for new work and facts from provider
         projects = self.provider.get_projects()
         project_ids = [p["id"] for p in projects if not p.get("archived", False)]
+        # Always allow lobs-control for inbox/system tasks
+        if "lobs-control" not in project_ids:
+            project_ids.append("lobs-control")
 
         # 5. Periodic reconciliation
         self.process_reconciliation(project_ids)
@@ -75,34 +77,53 @@ class Orchestrator:
             activity = True
             self.process_requests(True)
 
-        # 7. Task Assignment
-        eligible_tasks = self.provider.get_tasks()
-        for task in eligible_tasks:
-            project_id = task.get("projectId")
-            if not project_id or project_id not in project_ids:
+        # 7. Work Assignment
+        eligible_work = self.provider.get_tasks()
+        for item in eligible_work:
+            kind = item.get("kind", "task")
+            project_id = item.get("projectId")
+            
+            # Default project mapping for certain kinds
+            if not project_id:
+                if kind == "inbox_response":
+                    project_id = "lobs-control"
+                else:
+                    project_id = "default"
+
+            if project_id not in project_ids:
                 logger.warning(
-                    f"Task {task['id']} has invalid or unregistered projectId '{project_id}'. Skipping."
+                    f"Work {item['id']} has invalid, archived, or unregistered projectId '{project_id}'. Skipping."
                 )
                 continue
 
-            task_id = task["id"]
+            work_id = item["id"]
 
             if not self.worker_manager.is_domain_locked(project_id):
                 activity = True
-                logger.info(f"Assigning task {task_id} to project {project_id}")
+                logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
                 # Determine agent type
-                agent_type = task.get("agentType", "task-runner")
+                agent_type = item.get("agentType")
+                if not agent_type:
+                    if kind == "research_request":
+                        agent_type = "researcher"
+                    elif kind == "inbox_response":
+                        agent_type = "inbox-processor"
+                    else:
+                        agent_type = "task-runner"
 
                 # Get rules from provider
                 rules = self.provider.get_engineering_rules()
 
                 self.worker_manager.spawn_worker(
-                    task, project_id, agent_type=agent_type, rules=rules
+                    item, project_id, agent_type=agent_type, rules=rules
                 )
 
-                # Update task state to in_progress via provider
-                self.provider.update_task(task_id, {"workState": "in_progress"})
+                # Update state to in_progress via provider
+                if kind == "task":
+                    self.provider.update_task(work_id, {"workState": "in_progress"})
+                else:
+                    self.provider.update_task(work_id, {"status": "in_progress"})
 
         return activity
 

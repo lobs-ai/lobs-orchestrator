@@ -109,7 +109,7 @@ class ControlManager:
     def apply_op(self, op: dict[str, Any]) -> None:
         op_type = op.get("type")
         if op_type == "update_task":
-            self._update_task(op["task_id"], op["updates"])
+            self._update_item(op["task_id"], op["updates"], kind=op.get("kind", "task"))
         elif op_type == "update_project":
             self._update_project(op["project_id"], op["updates"])
         elif op_type == "update_worker_status":
@@ -123,129 +123,68 @@ class ControlManager:
         else:
             logger.warning(f"Unknown op type: {op_type}")
 
-    def _update_project(self, project_id: str, updates: dict[str, Any]) -> None:
-        from orchestrator.config import PROJECTS_FILE
+    def _update_item(self, item_id: str, updates: dict[str, Any], kind: str = "task") -> None:
+        from orchestrator.config import CONTROL_REPO_PATH, TASKS_DIR, TASKS_FILE
         
-        if not PROJECTS_FILE.exists():
-            data = {"projects": []}
-        else:
-            with open(PROJECTS_FILE, "r") as f:
-                data = json.load(f)
-
-        found = False
-        for project in data.get("projects", []):
-            if project["id"] == project_id:
-                project.update(updates)
-                found = True
-                break
-        
-        if not found:
-            if "id" not in updates:
-                updates["id"] = project_id
-            data["projects"].append(updates)
-
-        with open(PROJECTS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        logger.info(f"Updated projects file with {project_id}")
-
-    def _add_inbox_item(self, item: dict[str, Any]) -> None:
-        from orchestrator.config import CONTROL_REPO_PATH
-        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
-        inbox_dir.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = int(time.time() * 1000)
-        item_id = item.get("id", f"inbox_{timestamp}")
-        item_path = inbox_dir / f"{item_id}.json"
-        
-        # Ensure item has basic fields
-        if "createdAt" not in item:
-            item["createdAt"] = datetime.now(timezone.utc).isoformat()
-        
-        with open(item_path, "w") as f:
-            json.dump(item, f, indent=2)
-            f.write("\n")
-        logger.info(f"Added inbox item file {item_path}")
-
-    def _update_inbox_item(self, item_id: str, updates: dict[str, Any]) -> None:
-        from orchestrator.config import CONTROL_REPO_PATH
-        inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
-        inbox_dir.mkdir(parents=True, exist_ok=True)
-        
-        item_path = inbox_dir / f"{item_id}.json"
-        if item_path.exists():
-            with open(item_path, "r") as f:
-                item = json.load(f)
-        else:
-            item = {"id": item_id, "createdAt": datetime.now(timezone.utc).isoformat()}
-
-        item.update(updates)
-        item["updatedAt"] = datetime.now(timezone.utc).isoformat()
-
-        with open(item_path, "w") as f:
-            json.dump(item, f, indent=2)
-            f.write("\n")
-        logger.info(f"Updated inbox item file {item_path}")
-
-    def _update_alert(self, alert_id: str, updates: dict[str, Any]) -> None:
-        from orchestrator.config import CONTROL_REPO_PATH
-        alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
-        alerts_dir.mkdir(parents=True, exist_ok=True)
-        
-        alert_path = alerts_dir / f"{alert_id}.json"
-        if alert_path.exists():
-            with open(alert_path, "r") as f:
-                alert = json.load(f)
-        else:
-            alert = {"id": alert_id, "createdAt": datetime.now(timezone.utc).isoformat()}
-
-        alert.update(updates)
-        alert["updatedAt"] = datetime.now(timezone.utc).isoformat()
-
-        with open(alert_path, "w") as f:
-            json.dump(alert, f, indent=2)
-            f.write("\n")
-        logger.info(f"Updated alert file {alert_path}")
-
-    def _update_task(self, task_id: str, updates: dict[str, Any]) -> None:
-        from orchestrator.config import TASKS_DIR, TASKS_FILE
-
-        # 1. Update individual task file (Preferred)
-        task_path = TASKS_DIR / f"{task_id}.json"
-        if task_path.exists():
-            with open(task_path, "r") as f:
-                task = json.load(f)
-
-            task.update(updates)
-            task["updatedAt"] = datetime.now(timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-
-            with open(task_path, "w") as f:
-                json.dump(task, f, indent=2)
-                f.write("\n")
-            logger.info(f"Updated task file {task_path}")
-
-        # 2. Update legacy aggregate file (Compatibility)
-        if TASKS_FILE.exists():
-            with open(TASKS_FILE, "r") as f:
-                data = json.load(f)
-
-            found = False
-            for task in data.get("tasks", []):
-                if task["id"] == task_id:
-                    task.update(updates)
-                    task["updatedAt"] = datetime.now(timezone.utc).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
-                    )
-                    found = True
+        item_path = None
+        if kind == "task":
+            item_path = TASKS_DIR / f"{item_id}.json"
+        elif kind == "research_request":
+            # Research requests are in state/research/*/requests/*.json
+            research_dir = CONTROL_REPO_PATH / "state" / "research"
+            for req_dir in research_dir.glob("*/requests"):
+                p = req_dir / f"{item_id}.json"
+                if p.exists():
+                    item_path = p
                     break
+        elif kind == "inbox_response":
+            item_path = CONTROL_REPO_PATH / "state" / "inbox-responses" / f"{item_id}.json"
+            if not item_path.exists():
+                # Check rglob for nested inbox-responses
+                for p in (CONTROL_REPO_PATH / "state" / "inbox-responses").rglob(f"{item_id}.json"):
+                    item_path = p
+                    break
+        
+        if item_path and item_path.exists():
+            try:
+                with open(item_path, "r") as f:
+                    data = json.load(f)
 
-            if found:
-                with open(TASKS_FILE, "w") as f:
+                data.update(updates)
+                data["updatedAt"] = datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+
+                with open(item_path, "w") as f:
                     json.dump(data, f, indent=2)
                     f.write("\n")
-                logger.info(f"Updated legacy tasks file {TASKS_FILE}")
+                logger.info(f"Updated {kind} file {item_path}")
+            except Exception as e:
+                logger.error(f"Failed to update {kind} item {item_id}: {e}")
+
+        # Fallback for legacy tasks.json
+        if kind == "task" and TASKS_FILE.exists():
+            try:
+                with open(TASKS_FILE, "r") as f:
+                    data = json.load(f)
+
+                found = False
+                for task in data.get("tasks", []):
+                    if task["id"] == item_id:
+                        task.update(updates)
+                        task["updatedAt"] = datetime.now(timezone.utc).strftime(
+                            "%Y-%m-%dT%H:%M:%SZ"
+                        )
+                        found = True
+                        break
+
+                if found:
+                    with open(TASKS_FILE, "w") as f:
+                        json.dump(data, f, indent=2)
+                        f.write("\n")
+                    logger.info(f"Updated legacy tasks file {TASKS_FILE}")
+            except Exception as e:
+                logger.error(f"Failed to update legacy tasks file: {e}")
 
     def _update_worker_status(self, updates: dict[str, Any]) -> None:
         from orchestrator.config import WORKER_STATUS_JSON

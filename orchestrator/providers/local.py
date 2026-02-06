@@ -31,10 +31,12 @@ class LocalTaskProvider(TaskProvider):
         })
 
     def update_task(self, task_id: str, updates: dict[str, Any]) -> None:
+        kind = updates.pop("kind", "task")
         self.control.request_op({
             "type": "update_task",
             "task_id": task_id,
-            "updates": updates
+            "updates": updates,
+            "kind": kind
         })
 
     def update_worker_status(self, updates: dict[str, Any]) -> None:

@@ -1,5 +1,6 @@
 import json
 import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -9,16 +10,13 @@ logger = logging.getLogger(__name__)
 
 class Scanner:
     """
-    Scripted scanner (no LLM).
+    Scripted scanner that uses lobs-control scripts.
     Produces facts about current state.
     """
 
     def __init__(self):
         self._projects_cache = None
         self._projects_mtime = 0
-        self._tasks_cache = None
-        self._tasks_dir_mtime = 0
-        self._tasks_file_mtime = 0
 
     def scan(self) -> dict[str, Any]:
         facts = {
@@ -53,45 +51,36 @@ class Scanner:
             return self._projects_cache or []
 
     def get_eligible_tasks(self) -> list[dict[str, Any]]:
-        from orchestrator.config import TASKS_DIR, TASKS_FILE
+        from orchestrator.config import CONTROL_REPO_PATH
+        
+        script_path = CONTROL_REPO_PATH / "bin" / "open-work"
+        if not script_path.exists():
+            logger.warning(f"open-work script not found at {script_path}")
+            return []
 
-        tasks = []
-        should_reload = False
-
-        if TASKS_DIR.exists():
-            mtime = TASKS_DIR.stat().st_mtime
-            if self._tasks_cache is None or mtime > self._tasks_dir_mtime:
-                should_reload = True
-                self._tasks_dir_mtime = mtime
-        elif TASKS_FILE.exists():
-            mtime = TASKS_FILE.stat().st_mtime
-            if self._tasks_cache is None or mtime > self._tasks_file_mtime:
-                should_reload = True
-                self._tasks_file_mtime = mtime
-
-        if not should_reload and self._tasks_cache is not None:
-            tasks = self._tasks_cache
-        else:
-            if TASKS_DIR.exists():
-                for task_file in TASKS_DIR.glob("*.json"):
-                    try:
-                        with open(task_file, "r") as f:
-                            tasks.append(json.load(f))
-                    except Exception as e:
-                        logger.error(f"Failed to read task file {task_file}: {e}")
-            elif TASKS_FILE.exists():
-                try:
-                    with open(TASKS_FILE, "r") as f:
-                        data = json.load(f)
-                        tasks = data.get("tasks", [])
-                except Exception as e:
-                    logger.error(f"Failed to read legacy tasks file: {e}")
+        try:
+            result = subprocess.run(
+                [str(script_path)],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            all_work = json.loads(result.stdout)
             
-            self._tasks_cache = tasks
-
-        eligible = [
-            t
-            for t in tasks
-            if t.get("status") == "active" and t.get("workState") == "not_started"
-        ]
-        return eligible
+            # Filter to items that are not started or active but not assigned
+            # open-work already filters out completed/done items.
+            # We specifically want things that the orchestrator can pick up.
+            eligible = []
+            for item in all_work:
+                if item.get("kind") == "task":
+                    if item.get("workState") == "not_started" and item.get("status") == "active":
+                        eligible.append(item)
+                elif item.get("kind") in ("research_request", "tracker_request", "inbox_response", "text_dump"):
+                    # These kinds usually don't have workState yet, so if they are in open-work they are eligible
+                    eligible.append(item)
+            
+            return eligible
+        except Exception as e:
+            logger.error(f"Failed to run open-work: {e}")
+            return []

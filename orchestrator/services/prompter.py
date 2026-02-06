@@ -6,11 +6,11 @@ from typing import Any
 class Prompter:
     """
     Builds structured prompts for workers.
-    Gathers product context, task details, and engineering rules.
+    Gathers product context, work details, and engineering rules.
     """
 
     @staticmethod
-    def build_task_prompt(task: dict[str, Any], project_id: str, rules: str = "") -> str:
+    def build_task_prompt(item: dict[str, Any], project_id: str, rules: str = "") -> str:
         from orchestrator.config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH, ORCHESTRATOR_REPO_PATH
         from orchestrator.utils.settings import get_setting
         
@@ -36,6 +36,9 @@ class Prompter:
             else ""
         )
 
+        kind = item.get("kind", "task")
+        item_id = item.get("id", "unknown")
+
         # 4. Prompt Construction
         prompt = f"""SYSTEM:
 {agent_rules}
@@ -53,7 +56,7 @@ Output Contract:
 1. Implement the task in the {project_id} repository.
 2. Produce clean, idiomatic code and relevant tests.
 3. Write a summary of your work (notes, findings, etc.) to:
-   {(CONTROL_REPO_PATH / "state" / "worker-results" / f"{task['id']}.md").resolve()}
+   {(CONTROL_REPO_PATH / "state" / "worker-results" / f"{item_id}.md").resolve()}
 4. Proactive Suggestions: If you have ideas for further improvements or need clarification, you can add a suggestion to my inbox by creating a file in:
    {(CONTROL_REPO_PATH / "state" / "control-ops").resolve()}
    Format: {{"type": "add_inbox_item", "item": {{"title": "...", "body": "...", "type": "suggestion", "projectId": "{project_id}"}}}}
@@ -63,19 +66,42 @@ Output Contract:
 6. Do NOT attempt to update tasks.json or other control state yourself.
 
 CONTEXT:
-Task ID: {task["id"]}
+Work Kind: {kind}
+ID: {item_id}
 Project: {project_id}
 Control Repo: {CONTROL_REPO_PATH.resolve()}
 Workspace: {project_path}
 
-TASK:
-Title: {task.get("title")}
-Notes: {task.get("notes")}
+"""
+        if kind == "task":
+            prompt += f"""TASK:
+Title: {item.get("title")}
+Notes: {item.get("notes")}
+"""
+        elif kind == "research_request":
+            prompt += f"""RESEARCH REQUEST:
+Prompt: {item.get("prompt")}
+"""
+        elif kind == "inbox_response":
+            prompt += f"""INBOX RESPONSE NEEDED:
+Document: {item.get("docId")}
+Last Message: {item.get("lastMessage")}
+"""
+        elif kind == "text_dump":
+            prompt += f"""TEXT DUMP PROCESSING:
+Project: {item.get("projectId")}
+Preview: {item.get("textPreview")}
+"""
+        else:
+            prompt += f"""WORK ITEM:
+{json.dumps(item, indent=2)}
+"""
 
+        prompt += f"""
 CONSTRAINTS:
 - You are operating on the real filesystem in {project_path}.
 - Use 'git pull --rebase' before starting.
-- Focus strictly on this task.
+- Focus strictly on this work item.
 """
         return prompt
 
