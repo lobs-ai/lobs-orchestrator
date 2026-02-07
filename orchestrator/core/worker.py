@@ -12,10 +12,12 @@ from orchestrator.config import (
     BASE_DIR,
     LOCKS_DIR,
     WORKER_RESULTS_DIR,
-    WORKER_STATUS_JSON
+    WORKER_STATUS_JSON,
+    ORCHESTRATOR_REPO_PATH
 )
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
+from orchestrator.core.agents import AgentManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +34,15 @@ class WorkerManager:
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
-        # task_id -> (process, project_id, log_file, start_time)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
         self.pending_workers: set[str] = set()
         self.executor = ThreadPoolExecutor(max_workers=10)
+        
+        # Agent manager for provisioning workers
+        template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
+        self.agent_manager = AgentManager(template_dir)
         
         # Cache for lock status to avoid redundant disk I/O within a single loop
         self._lock_cache: dict[str, tuple[float, bool]] = {}
@@ -128,7 +134,30 @@ class WorkerManager:
         workspace = BASE_DIR / project_id
 
         try:
-            # Step 1: Sync Repo
+            # Step 1: Provision worker agent (creates if doesn't exist)
+            agent_id = f"worker-{project_id}"
+            logger.info(f"Provisioning worker agent for {project_id}...")
+            
+            needs_provision = not self.agent_manager.worker_exists(project_id)
+            needs_registration = not self.agent_manager.is_agent_registered(project_id)
+            
+            if needs_provision or needs_registration:
+                if not self.agent_manager.provision_worker(project_id, register=True):
+                    raise Exception(f"Failed to provision worker agent for {project_id}")
+                
+                # If we just registered a new agent, restart gateway
+                if needs_registration:
+                    logger.warning(f"New worker registered: {agent_id} - restarting gateway...")
+                    if not self.agent_manager.restart_gateway():
+                        logger.error("Failed to restart gateway - worker may not be available")
+                        raise Exception("Gateway restart failed after agent registration")
+                    
+                    # Wait for gateway to come back online
+                    import time
+                    time.sleep(3)
+                    logger.info("Gateway restarted, worker should now be available")
+            
+            # Step 2: Sync Repo
             logger.info(f"Syncing project repo {project_id}...")
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -138,33 +167,20 @@ class WorkerManager:
                 timeout=60
             )
             
-            # Step 2: Build Prompt
+            # Step 3: Build Prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
-            # Step 3: Launch OpenClaw agent
+            # Step 4: Launch OpenClaw agent with project-specific worker
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
-            # Map agent types to configured agent IDs
-            agent_id = self._resolve_agent_id(agent_type)
-            
-            # Create isolated session key for this worker
-            # Pattern: agent:worker:task:<task_id>
-            # This prevents workers from taking over the main Discord session
-            session_key = f"agent:{agent_id}:task:{task_id}"
-            
-            # Use gateway API directly to pass sessionKey (not sessionId)
-            # CLI --session-id expects UUID; gateway API accepts structured keys
+            # Spawn with dedicated worker agent
+            # Each project has its own worker-<project-id> agent = isolated session
             cmd = [
-                executable, "gateway", "call", "agent",
-                "--params", json.dumps({
-                    "message": prompt,
-                    "agentId": agent_id,
-                    "sessionKey": session_key,
-                    "timeout": 3600,
-                }),
-                "--json",
+                executable, "agent",
+                "--agent", agent_id,
+                "-m", prompt,
             ]
             
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -183,7 +199,8 @@ class WorkerManager:
 
             # Update lock to "running" with PID
             self.acquire_lock(project_id, pid=process.pid, status="running")
-            self.active_workers[task_id] = (process, project_id, log_file, time.time())
+            # Store process info with agent_id
+            self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id)
             
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.provider.update_worker_status({
@@ -203,46 +220,32 @@ class WorkerManager:
             if task_id in self.pending_workers:
                 self.pending_workers.remove(task_id)
 
-    def _resolve_agent_id(self, agent_type: str) -> str:
-        """Map internal agent types to OpenClaw agent IDs."""
-        # These should match agents configured in openclaw.json
-        agent_map = {
-            "task-runner": "worker",
-            "researcher": "worker",
-            "diagnostic": "worker",
-            "inbox-processor": "worker",
-            "design-review": "worker",
-            "overview-review": "worker",
-            "light-check": "worker",
-        }
-        return agent_map.get(agent_type, "worker")
-
     def check_workers(self):
         """Check status of active workers and release locks on completion."""
         finished_tasks = []
-        for task_id, (process, project_id, log_file, start_time) in list(self.active_workers.items()):
+        for task_id, (process, project_id, log_file, start_time, agent_id) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
                 elapsed = time.time() - start_time
                 logger.info(f"Worker for {task_id} on {project_id} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished_tasks.append(task_id)
+                finished_tasks.append((task_id, agent_id))
                 
                 if retcode == 0:
                     # Transition to "finalizing" state
                     self.acquire_lock(project_id, status="finalizing")
-                    self.executor.submit(self._async_finalize_flow, task_id, project_id)
+                    self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id)
                 else:
-                    self._handle_immediate_failure(task_id, project_id)
+                    self._handle_immediate_failure(task_id, project_id, agent_id)
 
-        for task_id in finished_tasks:
+        for task_id, agent_id in finished_tasks:
             if task_id in self.active_workers:
                 del self.active_workers[task_id]
 
         if finished_tasks:
             self.update_active_worker_status()
 
-    def _handle_immediate_failure(self, task_id: str, project_id: str):
+    def _handle_immediate_failure(self, task_id: str, project_id: str, agent_id: str):
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
@@ -252,19 +255,19 @@ class WorkerManager:
         except:
             pass
         
-        self.handle_worker_failure(task_id, project_id, error_tail)
+        self.handle_worker_failure(task_id, project_id, error_tail, agent_id)
         self.release_lock(project_id)
 
-    def _async_finalize_flow(self, task_id: str, project_id: str):
+    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str):
         try:
             success = self.finalize_project_changes(task_id, project_id)
             if success:
-                self.handle_worker_success(task_id, project_id)
+                self.handle_worker_success(task_id, project_id, agent_id)
             else:
-                self.handle_worker_failure(task_id, project_id, "Project repo push failed")
+                self.handle_worker_failure(task_id, project_id, "Project repo push failed", agent_id)
         except Exception as e:
             logger.error(f"Error in finalization for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e))
+            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
         finally:
             self.release_lock(project_id)
 
@@ -302,48 +305,49 @@ class WorkerManager:
             )
             return False
 
-    def _cleanup_worker_session(self, task_id: str, agent_id: str):
-        """Delete the worker session after task completion."""
+    def _cleanup_worker_session(self, agent_id: str):
+        """
+        Delete the worker agent's session after task completion.
+        
+        Since workers use --agent flag, they share a session per agent.
+        We use /reset to clear the agent's session for next task.
+        """
         from orchestrator.utils.settings import get_setting
         executable = get_setting("openclaw_executable", "openclaw")
-        session_key = f"agent:{agent_id}:task:{task_id}"
         
         try:
-            # Use openclaw gateway call to delete the session
-            # Note: parameter is "key" not "sessionKey" for sessions.delete
+            # Reset the agent session (clears history but keeps agent)
             subprocess.run(
                 [
-                    executable, "gateway", "call", "sessions.delete",
-                    "--params", json.dumps({"key": session_key, "deleteTranscript": True})
+                    executable, "gateway", "call", "sessions.reset",
+                    "--params", json.dumps({"agentId": agent_id})
                 ],
                 check=True,
                 capture_output=True,
                 timeout=10
             )
-            logger.info(f"Cleaned up worker session: {session_key}")
+            logger.info(f"Reset worker session for agent: {agent_id}")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Failed to cleanup session {session_key}: {e}")
+            logger.warning(f"Failed to reset session for {agent_id}: {e}")
         except Exception as e:
-            logger.warning(f"Error cleaning up session {session_key}: {e}")
+            logger.warning(f"Error resetting session for {agent_id}: {e}")
 
-    def handle_worker_success(self, task_id: str, project_id: str):
+    def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
         logger.info(f"Worker success for task {task_id}. Updating state.")
         self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})
         
-        # Clean up the worker session
-        agent_id = "worker"  # Default worker agent id
-        self._cleanup_worker_session(task_id, agent_id)
+        # Reset the worker session for next task
+        self._cleanup_worker_session(agent_id)
 
-    def handle_worker_failure(self, task_id: str, project_id: str, error_log: str):
+    def handle_worker_failure(self, task_id: str, project_id: str, error_log: str, agent_id: str):
         logger.error(f"Worker failure for task {task_id} on {project_id}")
         self.escalation.process_failure(task_id, project_id, error_log)
         
         # Still update task to failed so it doesn't get re-run immediately by scanner
         self.provider.update_task(task_id, {"workState": "failed"})
         
-        # Clean up the worker session
-        agent_id = "worker"  # Default worker agent id
-        self._cleanup_worker_session(task_id, agent_id)
+        # Reset the worker session for next task
+        self._cleanup_worker_session(agent_id)
 
     def update_active_worker_status(self):
         self.provider.update_worker_status({

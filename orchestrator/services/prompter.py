@@ -2,11 +2,12 @@
 Prompt builder for worker agents.
 
 Constructs structured prompts that include:
-- Agent rules (from AGENTS.md)
 - Engineering rules (global + project-specific)
 - Product context
 - Task details
 - Output contract
+
+Worker agent files (AGENTS.md, SOUL.md, etc.) are auto-loaded by OpenClaw.
 """
 
 import json
@@ -72,9 +73,12 @@ class Prompter:
         item_id = item.get("id", "unknown")
 
         # 4. Build the prompt
-        prompt = f"""You are a task-scoped software engineer. Execute the assigned work precisely.
+        # Note: AGENTS.md, SOUL.md, etc. are auto-loaded by OpenClaw for --agent workers
+        prompt = f"""# TASK ASSIGNMENT
 
-## Rules
+Execute the assigned work precisely.
+
+## Orchestrator Rules
 {agent_rules}
 
 ## Global Engineering Rules
