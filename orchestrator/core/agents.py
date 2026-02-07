@@ -19,18 +19,18 @@ logger = logging.getLogger(__name__)
 class AgentManager:
     """
     Manages worker agent provisioning.
-    
-    Creates isolated agent directories for each project:
-    - ~/.openclaw/agents/worker-<project-id>/
-    - ~/.openclaw/workspace-worker-<project-id>/
-    
+
+    Creates a single shared worker agent:
+    - ~/.openclaw/agents/worker/
+    - ~/.openclaw/workspace-worker/
+
     Copies template files from orchestrator's worker-template/ directory.
     """
-    
+
     def __init__(self, template_dir: Path, openclaw_dir: Optional[Path] = None):
         """
         Initialize agent manager.
-        
+
         Args:
             template_dir: Path to worker-template directory (in orchestrator repo)
             openclaw_dir: Path to .openclaw directory (defaults to ~/.openclaw)
@@ -39,39 +39,45 @@ class AgentManager:
         self.openclaw_dir = (openclaw_dir or Path.home() / ".openclaw").resolve()
         self.agents_dir = self.openclaw_dir / "agents"
         self.config_file = self.openclaw_dir / "openclaw.json"
-        
+
         if not self.template_dir.exists():
             raise ValueError(f"Worker template directory not found: {self.template_dir}")
-        
+
         # Ensure base directories exist
         self.agents_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_agent_id(self, project_id: str) -> str:
+        """Get agent ID from project ID. Use single 'worker' agent."""
+        # Always use single shared worker agent
+        return "worker"
     
     def worker_exists(self, project_id: str) -> bool:
-        """Check if worker agent exists for project."""
-        agent_dir = self.agents_dir / f"worker-{project_id}"
-        workspace_dir = self.openclaw_dir / f"workspace-worker-{project_id}"
+        """Check if worker agent exists."""
+        agent_id = self._get_agent_id(project_id)
+        agent_dir = self.agents_dir / agent_id
+        workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
         return agent_dir.exists() and workspace_dir.exists()
     
     def provision_worker(self, project_id: str, force: bool = False, register: bool = True) -> bool:
         """
-        Provision a worker agent for a project.
-        
+        Provision a worker agent.
+
         Creates:
-        - ~/.openclaw/agents/worker-<project-id>/
-        - ~/.openclaw/workspace-worker-<project-id>/
+        - ~/.openclaw/agents/worker/
+        - ~/.openclaw/workspace-worker/
         - Registers in openclaw.json (if register=True)
-        
+
         Copies template files to workspace.
-        
+
         Args:
-            project_id: Project identifier (e.g., "flock-master", "prairie")
+            project_id: Project identifier (used for compatibility, always creates shared worker)
             force: If True, recreate even if worker exists
             register: If True, register agent in openclaw.json (requires restart)
-            
+
         Returns:
             True if provisioned (or already exists), False on error
         """
-        agent_id = f"worker-{project_id}"
+        agent_id = self._get_agent_id(project_id)
         agent_dir = self.agents_dir / agent_id
         workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
         
@@ -123,21 +129,21 @@ class AgentManager:
     
     def sync_worker_templates(self, project_id: str) -> bool:
         """
-        Sync template files to an existing worker.
-        
-        Useful for updating workers when templates change.
-        
+        Sync template files to the shared worker.
+
+        Useful for updating worker when templates change.
+
         Args:
-            project_id: Project identifier
-            
+            project_id: Project identifier (used for compatibility)
+
         Returns:
             True if synced successfully
         """
         if not self.worker_exists(project_id):
-            logger.warning(f"Worker for {project_id} does not exist, cannot sync")
+            logger.warning(f"Worker does not exist, cannot sync")
             return False
-        
-        agent_id = f"worker-{project_id}"
+
+        agent_id = self._get_agent_id(project_id)
         workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
         
         try:
@@ -167,15 +173,15 @@ class AgentManager:
     def cleanup_worker(self, project_id: str, unregister: bool = True) -> bool:
         """
         Remove worker agent and workspace.
-        
+
         Args:
-            project_id: Project identifier
+            project_id: Project identifier (used for compatibility)
             unregister: If True, unregister from openclaw.json (requires restart)
-            
+
         Returns:
             True if removed successfully
         """
-        agent_id = f"worker-{project_id}"
+        agent_id = self._get_agent_id(project_id)
         agent_dir = self.agents_dir / agent_id
         workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
         
@@ -203,17 +209,13 @@ class AgentManager:
     def list_workers(self) -> list[str]:
         """
         List all provisioned worker agents.
-        
+
         Returns:
-            List of project IDs with workers
+            List with "worker" if the shared worker exists
         """
-        workers = []
-        for agent_dir in self.agents_dir.glob("worker-*"):
-            if agent_dir.is_dir():
-                project_id = agent_dir.name.replace("worker-", "")
-                if self.worker_exists(project_id):
-                    workers.append(project_id)
-        return sorted(workers)
+        if self.worker_exists("worker"):
+            return ["worker"]
+        return []
     
     def _read_config(self) -> dict:
         """Read openclaw.json config."""
@@ -233,7 +235,7 @@ class AgentManager:
         """Check if worker agent is registered in openclaw.json."""
         try:
             config = self._read_config()
-            agent_id = f"worker-{project_id}"
+            agent_id = self._get_agent_id(project_id)
             agents_list = config.get("agents", {}).get("list", [])
             return any(agent.get("id") == agent_id for agent in agents_list)
         except Exception as e:
@@ -243,51 +245,51 @@ class AgentManager:
     def register_agent(self, project_id: str, model: Optional[str] = None) -> bool:
         """
         Register worker agent in openclaw.json.
-        
+
         Args:
-            project_id: Project identifier
+            project_id: Project identifier (used for compatibility)
             model: Optional model override (defaults to sonnet)
-            
+
         Returns:
             True if registered successfully
         """
-        agent_id = f"worker-{project_id}"
-        
+        agent_id = self._get_agent_id(project_id)
+
         try:
             config = self._read_config()
-            
+
             # Ensure agents.list exists
             if "agents" not in config:
                 config["agents"] = {}
             if "list" not in config["agents"]:
                 config["agents"]["list"] = []
-            
+
             agents_list = config["agents"]["list"]
-            
+
             # Check if already registered
             if any(agent.get("id") == agent_id for agent in agents_list):
                 logger.debug(f"Agent {agent_id} already registered")
                 return True
-            
+
             # Add new agent
             new_agent = {
                 "id": agent_id,
-                "name": f"Worker: {project_id}",
+                "name": "Lobs Worker",
                 "workspace": str(self.openclaw_dir / f"workspace-{agent_id}"),
                 "model": model or "anthropic/claude-sonnet-4-5",
                 "identity": {
-                    "name": f"{project_id} Worker",
+                    "name": "Lobs Worker",
                     "emoji": "🔧"
                 }
             }
-            
+
             agents_list.append(new_agent)
             self._write_config(config)
-            
+
             logger.info(f"✅ Registered agent in openclaw.json: {agent_id}")
             logger.warning("⚠️  Gateway restart required for agent to be available")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to register agent {agent_id}: {e}")
             return False
@@ -295,33 +297,33 @@ class AgentManager:
     def unregister_agent(self, project_id: str) -> bool:
         """
         Unregister worker agent from openclaw.json.
-        
+
         Args:
-            project_id: Project identifier
-            
+            project_id: Project identifier (used for compatibility)
+
         Returns:
             True if unregistered successfully
         """
-        agent_id = f"worker-{project_id}"
-        
+        agent_id = self._get_agent_id(project_id)
+
         try:
             config = self._read_config()
             agents_list = config.get("agents", {}).get("list", [])
-            
+
             # Remove agent
             original_len = len(agents_list)
             agents_list[:] = [a for a in agents_list if a.get("id") != agent_id]
-            
+
             if len(agents_list) == original_len:
                 logger.debug(f"Agent {agent_id} not found in config")
                 return True
-            
+
             self._write_config(config)
-            
+
             logger.info(f"✅ Unregistered agent from openclaw.json: {agent_id}")
             logger.warning("⚠️  Gateway restart required for change to take effect")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to unregister agent {agent_id}: {e}")
             return False

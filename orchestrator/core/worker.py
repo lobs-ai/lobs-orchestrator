@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 class WorkerManager:
     """
-    Manages spawning and tracking worker subprocesses.
-    Workers are spawned via `openclaw agent` command.
-    Enforced via domain locks. Git operations on projects are asynchronous.
+    Manages spawning and tracking a single worker subprocess.
+    Worker is spawned via `openclaw agent --agent worker` command.
+    Only one worker runs at a time globally. Git operations on projects are asynchronous.
     """
 
     def __init__(self, lock_dir: Path, provider: TaskProvider):
@@ -38,7 +38,8 @@ class WorkerManager:
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
         self.pending_workers: set[str] = set()
-        self.executor = ThreadPoolExecutor(max_workers=10)
+        # Single worker at a time - limit to 1
+        self.executor = ThreadPoolExecutor(max_workers=1)
         
         # Agent manager for provisioning workers
         template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
@@ -117,6 +118,12 @@ class WorkerManager:
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> None:
         task_id = task["id"]
+
+        # Global lock: only 1 worker at a time
+        if self.active_workers or self.pending_workers:
+            logger.info(f"A worker is already running. Skipping task {task_id}.")
+            return
+
         # We don't use cache here to be absolutely sure
         if self._check_lock_file(self.lock_dir / f"{project_id}.lock", project_id):
             logger.info(f"Domain {project_id} is locked. Skipping.")
@@ -125,7 +132,7 @@ class WorkerManager:
         # Acquire lock early in "syncing" state
         self.acquire_lock(project_id, status="syncing")
         self.pending_workers.add(task_id)
-        
+
         # Start async spawn
         self.executor.submit(self._async_spawn_flow, task, project_id, agent_type, rules)
 
@@ -134,24 +141,26 @@ class WorkerManager:
         workspace = BASE_DIR / project_id
 
         try:
-            # Step 1: Provision worker agent (creates if doesn't exist)
-            agent_id = f"worker-{project_id}"
-            logger.info(f"Provisioning worker agent for {project_id}...")
-            
-            needs_provision = not self.agent_manager.worker_exists(project_id)
-            needs_registration = not self.agent_manager.is_agent_registered(project_id)
-            
+            # Step 1: Use single shared worker agent
+            agent_id = "worker"
+            logger.info(f"Using shared worker agent: {agent_id}")
+
+            # Check if worker agent exists and is registered (one-time setup)
+            needs_provision = not self.agent_manager.worker_exists("worker")
+            needs_registration = not self.agent_manager.is_agent_registered("worker")
+
             if needs_provision or needs_registration:
-                if not self.agent_manager.provision_worker(project_id, register=True):
-                    raise Exception(f"Failed to provision worker agent for {project_id}")
-                
+                logger.info(f"Provisioning shared worker agent...")
+                if not self.agent_manager.provision_worker("worker", register=True):
+                    raise Exception(f"Failed to provision worker agent")
+
                 # If we just registered a new agent, restart gateway
                 if needs_registration:
                     logger.warning(f"New worker registered: {agent_id} - restarting gateway...")
                     if not self.agent_manager.restart_gateway():
                         logger.error("Failed to restart gateway - worker may not be available")
                         raise Exception("Gateway restart failed after agent registration")
-                    
+
                     # Wait for gateway to come back online
                     import time
                     time.sleep(3)
@@ -171,12 +180,12 @@ class WorkerManager:
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
-            # Step 4: Launch OpenClaw agent with project-specific worker
+            # Step 4: Launch OpenClaw agent with shared worker
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
-            
-            # Spawn with dedicated worker agent
-            # Each project has its own worker-<project-id> agent = isolated session
+
+            # Spawn with shared worker agent (always "worker")
+            # Single worker at a time across all projects
             cmd = [
                 executable, "agent",
                 "--agent", agent_id,

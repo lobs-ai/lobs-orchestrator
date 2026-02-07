@@ -7,13 +7,13 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 - **Scripts own control.** LLMs do bounded work. Humans approve intent.
 - **Deterministic & Restart-safe.** The filesystem is the recovery log.
 - **Single Writer Pattern.** Exactly one component (`ControlManager`) writes to the control repo to avoid git races.
-- **Domain Locks.** At most one worker per project domain at a time.
+- **Single Worker.** Only one worker runs at a time globally, using the `--agent worker` flag.
 
 ## Architecture
 
 - **Engine:** Main loop that polls for state changes and triggers work.
 - **ControlManager:** Manages git operations and applies state updates serially.
-- **WorkerManager:** Spawns worker subprocesses and manages domain locks.
+- **WorkerManager:** Spawns a single worker subprocess using `openclaw agent --agent worker`.
 - **Scanner:** Purely scripted fact detection (tasks, requests, failures).
 
 ## Getting Started
