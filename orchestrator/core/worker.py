@@ -298,9 +298,36 @@ class WorkerManager:
             )
             return False
 
+    def _cleanup_worker_session(self, task_id: str, agent_id: str):
+        """Delete the worker session after task completion."""
+        from orchestrator.utils.settings import get_setting
+        executable = get_setting("openclaw_executable", "openclaw")
+        session_key = f"agent:{agent_id}:task:{task_id}"
+        
+        try:
+            # Use openclaw gateway call to delete the session
+            subprocess.run(
+                [
+                    executable, "gateway", "call", "sessions.delete",
+                    "--params", json.dumps({"sessionKey": session_key})
+                ],
+                check=True,
+                capture_output=True,
+                timeout=10
+            )
+            logger.info(f"Cleaned up worker session: {session_key}")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to cleanup session {session_key}: {e}")
+        except Exception as e:
+            logger.warning(f"Error cleaning up session {session_key}: {e}")
+
     def handle_worker_success(self, task_id: str, project_id: str):
         logger.info(f"Worker success for task {task_id}. Updating state.")
         self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})
+        
+        # Clean up the worker session
+        agent_id = "worker"  # Default worker agent id
+        self._cleanup_worker_session(task_id, agent_id)
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str):
         logger.error(f"Worker failure for task {task_id} on {project_id}")
@@ -308,6 +335,10 @@ class WorkerManager:
         
         # Still update task to failed so it doesn't get re-run immediately by scanner
         self.provider.update_task(task_id, {"workState": "failed"})
+        
+        # Clean up the worker session
+        agent_id = "worker"  # Default worker agent id
+        self._cleanup_worker_session(task_id, agent_id)
 
     def update_active_worker_status(self):
         self.provider.update_worker_status({
