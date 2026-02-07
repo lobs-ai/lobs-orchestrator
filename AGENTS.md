@@ -113,6 +113,33 @@ This ensures:
 - **Simplified management** - one agent to provision/configure
 - **Predictable execution** - deterministic FIFO order
 
+### Session Cleanup Between Tasks
+
+**CRITICAL: Proper session cleanup is essential to prevent context leakage.**
+
+After each task completes, the orchestrator clears the worker's session files:
+
+```python
+# Location: ~/.openclaw/agents/worker/sessions/
+# Deleted files:
+- *.jsonl           # Conversation transcripts
+- sessions.json     # Session metadata store
+```
+
+**Why NOT `sessions.reset`:**
+- ❌ `sessions.reset` with `agentId: "worker"` resets ALL sessions for that agent
+- ❌ Could interfere with main chat sessions or other system sessions
+- ❌ API calls can have unintended side effects
+
+**Why Direct File Deletion:**
+- ✅ Only affects worker agent's sessions (surgical, isolated)
+- ✅ No risk of affecting user's main chat session
+- ✅ Simple file operations - predictable and safe
+- ✅ Files are recreated automatically on next worker spawn
+- ✅ Ensures clean context for each task
+
+**Implementation:** See `orchestrator/core/worker.py::_cleanup_worker_session()`
+
 ---
 
 ## Git Rules (Mandatory)
