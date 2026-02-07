@@ -74,26 +74,44 @@ If work is unclear → **stop and report ambiguity**.
 
 ## Worker Architecture
 
-This orchestrator uses a **single shared worker** model:
+This orchestrator uses a **single shared worker** model with **automatic queueing**.
 
-- Only **1 worker runs at a time** globally (not per-project)
-- Worker is spawned with `openclaw agent --agent worker`
+### Core Constraints
+
+- **ONE worker** runs at a time globally (not per-project, not per-task)
+- **All work is queued** automatically when worker is busy
+- **Sequential processing** - tasks execute one after another
+- **No concurrency** - zero concurrent task execution
+
+### Implementation Details
+
+- Worker spawned with `openclaw agent --agent worker`
 - All projects share the same `worker` agent
-- Worker session is reset after each task completion
-- ThreadPoolExecutor is limited to `max_workers=1`
+- Worker session files cleared between tasks for fresh context
+- ThreadPoolExecutor limited to `max_workers=1` enforces constraint
+- Queueing happens in the provider - tasks wait for next engine iteration
 
 ### Worker Agent Details
 
-- **Agent ID**: `worker` (not per-project)
+- **Agent ID**: `worker` (hardcoded, never changes)
 - **Agent Directory**: `~/.openclaw/agents/worker/`
 - **Workspace**: `~/.openclaw/workspace-worker/`
 - **Registration**: Single "Lobs Worker" agent in openclaw.json
+- **Model**: Claude Sonnet 4.5 (configurable per-agent)
+
+### Queueing Behavior
+
+When a task is assigned:
+1. WorkerManager checks if worker is busy (`active_workers` or `pending_workers`)
+2. If busy: logs "[QUEUE]" message, task remains in provider queue
+3. If idle: spawns worker, acquires lock, begins work
+4. Next engine iteration (poll interval) picks up queued tasks
 
 This ensures:
-- No concurrent work conflicts
-- Clean session state between tasks
-- Simplified worker management
-- Predictable execution order
+- **No concurrent work conflicts** - only one task modifies files at a time
+- **Clean session state** - each task starts with fresh agent context
+- **Simplified management** - one agent to provision/configure
+- **Predictable execution** - deterministic FIFO order
 
 ---
 

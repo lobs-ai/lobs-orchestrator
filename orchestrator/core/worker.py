@@ -24,9 +24,18 @@ logger = logging.getLogger(__name__)
 
 class WorkerManager:
     """
-    Manages spawning and tracking a single worker subprocess.
-    Worker is spawned via `openclaw agent --agent worker` command.
-    Only one worker runs at a time globally. Git operations on projects are asynchronous.
+    Manages spawning and tracking a SINGLE worker subprocess.
+
+    CRITICAL CONSTRAINTS:
+    - Only ONE worker runs at a time globally (enforced by max_workers=1)
+    - All work is queued automatically - tasks are processed sequentially
+    - Worker is spawned via `openclaw agent --agent worker` command
+    - Same worker agent is reused for all tasks (session reset between tasks)
+
+    Queueing Mechanism:
+    - spawn_worker() checks for active/pending workers and returns early if busy
+    - Unprocessed tasks remain in provider's queue
+    - Next engine loop iteration picks up queued work when worker becomes free
     """
 
     def __init__(self, lock_dir: Path, provider: TaskProvider):
@@ -34,11 +43,15 @@ class WorkerManager:
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
+
+        # SINGLE WORKER TRACKING:
         # task_id -> (process, project_id, log_file, start_time, agent_id)
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str]] = {}
         # task_id -> project_id (workers currently syncing or finalizing)
         self.pending_workers: set[str] = set()
-        # Single worker at a time - limit to 1
+
+        # ENFORCE SINGLE WORKER: ThreadPoolExecutor with max_workers=1
+        # This ensures only one async spawn can run at a time
         self.executor = ThreadPoolExecutor(max_workers=1)
         
         # Agent manager for provisioning workers
@@ -117,11 +130,22 @@ class WorkerManager:
     def spawn_worker(
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> None:
-        task_id = task["id"]
+        """
+        Spawn a worker for the given task.
 
-        # Global lock: only 1 worker at a time
+        QUEUEING: If a worker is already active or pending, this method returns immediately.
+        The task remains in the provider's queue and will be picked up in the next
+        orchestrator loop iteration when the worker becomes free.
+
+        This implements automatic queueing without needing a separate queue data structure.
+        """
+        task_id = task["id"]
+        task_title = task.get("title", task.get("prompt", task_id[:8]))
+
+        # QUEUE CHECK: Enforce single worker - reject if any worker is active/pending
         if self.active_workers or self.pending_workers:
-            logger.info(f"A worker is already running. Skipping task {task_id}.")
+            active_task = list(self.active_workers.keys())[0] if self.active_workers else list(self.pending_workers)[0]
+            logger.info(f"[QUEUE] Worker busy with {active_task}. Queueing task {task_id} ({task_title})")
             return
 
         # We don't use cache here to be absolutely sure
@@ -141,9 +165,11 @@ class WorkerManager:
         workspace = BASE_DIR / project_id
 
         try:
-            # Step 1: Use single shared worker agent
+            # Step 1: ALWAYS use the single shared "worker" agent
+            # Note: agent_type parameter is just metadata for prompts/logging
+            # The actual OpenClaw agent is ALWAYS "worker" - no other agents exist
             agent_id = "worker"
-            logger.info(f"Using shared worker agent: {agent_id}")
+            logger.info(f"[WORKER] Using shared worker agent: {agent_id} (type: {agent_type})")
 
             # Check if worker agent exists and is registered (one-time setup)
             needs_provision = not self.agent_manager.worker_exists("worker")
@@ -208,6 +234,15 @@ class WorkerManager:
 
             # Update lock to "running" with PID
             self.acquire_lock(project_id, pid=process.pid, status="running")
+
+            # VALIDATION: Ensure single-worker constraint is never violated
+            if len(self.active_workers) > 0:
+                logger.error(
+                    f"CRITICAL: Single-worker constraint violated! "
+                    f"Active workers: {list(self.active_workers.keys())}"
+                )
+                raise RuntimeError("Single-worker constraint violated")
+
             # Store process info with agent_id
             self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id)
             
@@ -316,30 +351,51 @@ class WorkerManager:
 
     def _cleanup_worker_session(self, agent_id: str):
         """
-        Delete the worker agent's session after task completion.
-        
-        Since workers use --agent flag, they share a session per agent.
-        We use /reset to clear the agent's session for next task.
+        Clean up the worker agent's session files after task completion.
+
+        IMPORTANT: We do NOT use sessions.reset with agentId because that would
+        reset ALL sessions for the agent. Instead, we delete the specific session
+        files for the worker agent to clear its context between tasks.
+
+        This approach:
+        - Clears worker context between tasks (fresh start)
+        - Does not affect any other sessions in the system
+        - Safe to run after each task completion
         """
-        from orchestrator.utils.settings import get_setting
-        executable = get_setting("openclaw_executable", "openclaw")
-        
         try:
-            # Reset the agent session (clears history but keeps agent)
-            subprocess.run(
-                [
-                    executable, "gateway", "call", "sessions.reset",
-                    "--params", json.dumps({"agentId": agent_id})
-                ],
-                check=True,
-                capture_output=True,
-                timeout=10
-            )
-            logger.info(f"Reset worker session for agent: {agent_id}")
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"Failed to reset session for {agent_id}: {e}")
+            # Delete worker session files directly
+            # Worker sessions are stored in ~/.openclaw/agents/worker/sessions/
+            agent_sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
+
+            if not agent_sessions_dir.exists():
+                logger.debug(f"No session directory found for agent {agent_id}")
+                return
+
+            # Delete all session files (JSONL transcripts and sessions.json store)
+            deleted_count = 0
+            for session_file in agent_sessions_dir.glob("*.jsonl"):
+                try:
+                    session_file.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete session file {session_file}: {e}")
+
+            # Also clear the sessions store (sessions.json)
+            store_file = agent_sessions_dir / "sessions.json"
+            if store_file.exists():
+                try:
+                    store_file.unlink()
+                    logger.debug(f"Deleted sessions store for agent {agent_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete sessions store: {e}")
+
+            if deleted_count > 0:
+                logger.info(f"[WORKER] Cleared {deleted_count} session file(s) for agent {agent_id}")
+            else:
+                logger.debug(f"No session files to clean for agent {agent_id}")
+
         except Exception as e:
-            logger.warning(f"Error resetting session for {agent_id}: {e}")
+            logger.warning(f"Error cleaning worker sessions for {agent_id}: {e}")
 
     def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
         logger.info(f"Worker success for task {task_id}. Updating state.")
@@ -368,3 +424,43 @@ class WorkerManager:
                 "%Y-%m-%dT%H:%M:%SZ"
             ),
         })
+
+    def is_worker_busy(self) -> bool:
+        """
+        Check if the single worker is currently busy.
+
+        Returns:
+            True if worker is active or pending (syncing/finalizing)
+        """
+        return bool(self.active_workers or self.pending_workers)
+
+    def get_worker_status(self) -> dict[str, Any]:
+        """
+        Get detailed worker status for logging/monitoring.
+
+        Returns:
+            Dict with worker status including:
+            - busy: whether worker is active
+            - current_task: ID of current task (if any)
+            - state: 'idle', 'syncing', 'running', or 'finalizing'
+        """
+        if self.pending_workers:
+            task_id = list(self.pending_workers)[0]
+            return {
+                "busy": True,
+                "current_task": task_id,
+                "state": "syncing/finalizing",
+            }
+        elif self.active_workers:
+            task_id = list(self.active_workers.keys())[0]
+            return {
+                "busy": True,
+                "current_task": task_id,
+                "state": "running",
+            }
+        else:
+            return {
+                "busy": False,
+                "current_task": None,
+                "state": "idle",
+            }

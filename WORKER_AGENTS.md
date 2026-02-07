@@ -2,11 +2,26 @@
 
 ## Overview
 
-The orchestrator uses **one shared worker** for all work types (tasks, research, inbox responses, diagnostics).
-There are no project-specific workers.
+The orchestrator uses **ONE shared worker** for ALL work types (tasks, research, inbox responses, diagnostics).
 
-Only one worker runs at a time globally. New work is **queued** by leaving it in the provider until the
-current worker finishes.
+### Key Design Principles
+
+- **Single Worker:** Only one worker agent exists: `worker`
+- **No Project-Specific Agents:** All projects use the same shared worker
+- **Automatic Queueing:** Tasks wait in provider queue when worker is busy
+- **Sequential Processing:** Work items execute one at a time, never concurrently
+- **Session Isolation:** Worker session resets between tasks for clean state
+
+### How Queueing Works
+
+1. **Provider** (Scanner) identifies eligible work items
+2. **Engine** attempts to assign work to WorkerManager
+3. **WorkerManager** enforces single-worker constraint:
+   - If worker idle → spawn for current task
+   - If worker busy → task remains in queue (provider holds it)
+4. **Next poll** picks up queued work when worker completes
+
+**No separate queue data structure** - the provider's eligible work list IS the queue.
 
 ## Architecture
 
@@ -64,12 +79,23 @@ cmd = [
 ]
 ```
 
-### 3. Queueing
+### 3. Queueing (Automatic)
 
-Only one worker can run at a time:
-- If a worker is active, new work is **not spawned**
-- The work remains pending in the provider
-- The next loop iteration will pick it up when the worker is free
+**Single Worker Enforcement:**
+- WorkerManager checks `active_workers` and `pending_workers` before spawning
+- If ANY worker is active/pending → spawn request rejected, task stays queued
+- Logs: `[QUEUE] Worker busy with <task>. Queueing task <new_task>`
+
+**Queue Processing:**
+- Provider's `get_tasks()` returns eligible work (the queue)
+- Engine iterates through items every poll interval (default: 10s)
+- When worker completes → lock released → next iteration spawns queued work
+- FIFO order (first eligible task gets assigned when worker becomes free)
+
+**No Explicit Queue Structure:**
+- Tasks aren't moved to a separate queue
+- They remain in provider's eligible work list
+- This is simpler and restart-safe (filesystem is the queue)
 
 ## Management
 

@@ -128,11 +128,20 @@ class Orchestrator:
             activity = True
             self.process_requests(True)
 
-        # 8. Work Assignment
+        # 8. Work Assignment and Queueing
         eligible_work = self.provider.get_tasks()
-        
+
         if eligible_work:
             self.heartbeat.notify_work_available(len(eligible_work))
+
+            # Log queue depth if worker is busy
+            worker_status = self.worker_manager.get_worker_status()
+            if worker_status["busy"] and len(eligible_work) > 0:
+                current = worker_status["current_task"][:8] if worker_status["current_task"] else "unknown"
+                logger.info(
+                    f"[QUEUE] Worker busy (current: {current}, state: {worker_status['state']}). "
+                    f"{len(eligible_work)} task(s) queued."
+                )
 
         for item in eligible_work:
             kind = item.get("kind", "task")
@@ -159,13 +168,14 @@ class Orchestrator:
                 activity = True
                 logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-                # Single shared worker handles all kinds of work
+                # NOTE: Single shared "worker" agent handles ALL work types
+                # agentType is metadata used to customize the prompt, not to select different agents
                 agent_type = item.get("agentType") or "worker"
 
                 # Get rules from provider
                 rules = self.provider.get_engineering_rules()
 
-                # Spawn the worker
+                # Spawn the single worker (will queue if busy)
                 self.worker_manager.spawn_worker(
                     item, project_id, agent_type=agent_type, rules=rules
                 )
@@ -212,11 +222,15 @@ class Orchestrator:
 
     def status(self) -> dict[str, Any]:
         """Return current orchestrator status."""
+        worker_status = self.worker_manager.get_worker_status()
         return {
             "running": True,
             "uptime_seconds": int(time.time() - self.start_time),
-            "active_workers": len(self.worker_manager.active_workers),
-            "pending_workers": len(self.worker_manager.pending_workers),
+            "worker_busy": worker_status["busy"],
+            "worker_state": worker_status["state"],
+            "current_task": worker_status["current_task"],
+            "active_workers": len(self.worker_manager.active_workers),  # Should be 0 or 1
+            "pending_workers": len(self.worker_manager.pending_workers),  # Should be 0 or 1
             "last_reconcile": self.last_reconcile,
             "last_heartbeat": self.last_heartbeat,
         }
