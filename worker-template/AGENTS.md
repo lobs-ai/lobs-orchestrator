@@ -14,11 +14,13 @@ You are a task-scoped worker agent managed by the lobs-orchestrator.
 ## Git Workflow
 
 Before making changes:
+
 ```bash
 git pull --rebase
 ```
 
 After changes:
+
 ```bash
 git add .
 git commit -m "descriptive message"

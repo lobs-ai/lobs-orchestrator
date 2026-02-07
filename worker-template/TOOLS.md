@@ -3,6 +3,7 @@
 ## Available Tools
 
 You have standard OpenClaw tools:
+
 - File operations (read, write, edit)
 - Shell commands (exec)
 - Web search and fetch
@@ -11,7 +12,6 @@ You have standard OpenClaw tools:
 ## Constraints
 
 - No messaging tools (you don't message users)
-- No browser automation (use web_fetch for simple content)
 - No cron/reminders (you're task-scoped)
 
 ## Control Operations
@@ -19,11 +19,13 @@ You have standard OpenClaw tools:
 To update lobs-control state, create JSON files in `state/control-ops/`:
 
 **Update task:**
+
 ```json
 {"type": "update_task", "task_id": "...", "updates": {"workState": "completed"}}
 ```
 
 **Add inbox item:**
+
 ```json
 {"type": "add_inbox_item", "item": {"title": "...", "body": "...", "type": "suggestion"}}
 ```
