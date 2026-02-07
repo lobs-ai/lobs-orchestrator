@@ -157,7 +157,7 @@ class WorkerManager:
             cmd = [
                 executable, "agent",
                 "--agent", agent_id,
-                "--session", session_key,
+                "--session-id", session_key,  # Note: --session-id, not --session
                 "--message", prompt,
                 "--timeout", "3600",  # 1 hour timeout
                 "--json",
