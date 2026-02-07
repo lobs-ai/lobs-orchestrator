@@ -4,11 +4,11 @@ Worker agent management CLI.
 
 Usage:
     bin/manage-workers list                    # List all provisioned workers
-    bin/manage-workers provision <proj>        # Provision worker for project
-    bin/manage-workers provision <proj> --restart  # Provision + restart gateway
-    bin/manage-workers sync <proj>             # Sync templates to worker
+    bin/manage-workers provision               # Provision shared worker
+    bin/manage-workers provision --restart     # Provision + restart gateway
+    bin/manage-workers sync                    # Sync templates to worker
     bin/manage-workers sync-all                # Sync templates to all workers
-    bin/manage-workers cleanup <proj>          # Remove worker for project
+    bin/manage-workers cleanup                 # Remove shared worker
     bin/manage-workers restart                 # Restart OpenClaw gateway
 """
 
@@ -39,20 +39,18 @@ def main():
         else:
             print("Provisioned workers:")
             for project_id in workers:
-                print(f"  - worker-{project_id} (project: {project_id})")
+                print(f"  - {project_id} (shared)")
     
     elif command == "provision":
-        if len(sys.argv) < 3:
-            print("Usage: bin/manage-workers provision <project-id> [--restart]")
-            sys.exit(1)
-        
-        project_id = sys.argv[2]
+        project_id = "worker"
+        if len(sys.argv) >= 3 and not sys.argv[2].startswith("-"):
+            project_id = sys.argv[2]
         should_restart = "--restart" in sys.argv
         
-        print(f"Provisioning worker for {project_id}...")
+        print("Provisioning shared worker...")
         
         if manager.provision_worker(project_id, force=False, register=True):
-            print(f"✅ Worker provisioned: worker-{project_id}")
+            print("✅ Worker provisioned: worker")
             print("⚠️  Agent registered in openclaw.json")
             
             if should_restart:
@@ -65,21 +63,19 @@ def main():
             else:
                 print("ℹ️  Run 'openclaw gateway restart' or 'bin/manage-workers restart' for agent to be available")
         else:
-            print(f"❌ Failed to provision worker for {project_id}")
+            print("❌ Failed to provision shared worker")
             sys.exit(1)
     
     elif command == "sync":
-        if len(sys.argv) < 3:
-            print("Usage: bin/manage-workers sync <project-id>")
-            sys.exit(1)
-        
-        project_id = sys.argv[2]
-        print(f"Syncing templates to worker-{project_id}...")
+        project_id = "worker"
+        if len(sys.argv) >= 3 and not sys.argv[2].startswith("-"):
+            project_id = sys.argv[2]
+        print("Syncing templates to shared worker...")
         
         if manager.sync_worker_templates(project_id):
-            print(f"✅ Templates synced for worker-{project_id}")
+            print("✅ Templates synced for worker")
         else:
-            print(f"❌ Failed to sync templates for {project_id}")
+            print("❌ Failed to sync templates for worker")
             sys.exit(1)
     
     elif command == "sync-all":
@@ -105,17 +101,15 @@ def main():
             print(f"\n✅ All workers synced successfully")
     
     elif command == "cleanup":
-        if len(sys.argv) < 3:
-            print("Usage: bin/manage-workers cleanup <project-id>")
-            sys.exit(1)
-        
-        project_id = sys.argv[2]
-        print(f"Removing worker for {project_id}...")
+        project_id = "worker"
+        if len(sys.argv) >= 3 and not sys.argv[2].startswith("-"):
+            project_id = sys.argv[2]
+        print("Removing shared worker...")
         
         if manager.cleanup_worker(project_id):
-            print(f"✅ Worker removed: worker-{project_id}")
+            print("✅ Worker removed: worker")
         else:
-            print(f"❌ Failed to remove worker for {project_id}")
+            print("❌ Failed to remove worker")
             sys.exit(1)
     
     elif command == "restart":

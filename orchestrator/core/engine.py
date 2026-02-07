@@ -159,15 +159,8 @@ class Orchestrator:
                 activity = True
                 logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-                # Determine agent type
-                agent_type = item.get("agentType")
-                if not agent_type:
-                    if kind == "research_request":
-                        agent_type = "researcher"
-                    elif kind == "inbox_response":
-                        agent_type = "inbox-processor"
-                    else:
-                        agent_type = "task-runner"
+                # Single shared worker handles all kinds of work
+                agent_type = item.get("agentType") or "worker"
 
                 # Get rules from provider
                 rules = self.provider.get_engineering_rules()

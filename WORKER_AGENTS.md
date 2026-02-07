@@ -2,12 +2,11 @@
 
 ## Overview
 
-The orchestrator now uses **project-specific worker agents** for complete session isolation and automatic agent file loading.
+The orchestrator uses **one shared worker** for all work types (tasks, research, inbox responses, diagnostics).
+There are no project-specific workers.
 
-Each project gets its own dedicated worker agent:
-- `worker-flock` for flock-master project
-- `worker-prairie` for prairie-learn-builder project
-- etc.
+Only one worker runs at a time globally. New work is **queued** by leaving it in the provider until the
+current worker finishes.
 
 ## Architecture
 
@@ -16,17 +15,13 @@ Each project gets its own dedicated worker agent:
 ```
 ~/.openclaw/
   agents/
-    worker-flock/              # Agent directory (minimal)
-    worker-prairie/
-  workspace-worker-flock/      # Agent workspace with files
+    worker/                  # Agent directory (minimal)
+  workspace-worker/          # Agent workspace with files
     AGENTS.md
     SOUL.md
     TOOLS.md
     USER.md
     IDENTITY.md
-  workspace-worker-prairie/
-    AGENTS.md
-    ...
 ```
 
 ### Template System
@@ -43,77 +38,55 @@ Worker template files live in the orchestrator repo:
     IDENTITY.md     # Worker identity
 ```
 
-When a worker is provisioned, these templates are copied to the worker's workspace.
+When the shared worker is provisioned, these templates are copied to the worker's workspace.
 
 ## How It Works
 
 ### 1. Provisioning (Automatic with One-Time Restart)
 
-When a task is spawned for a project, the orchestrator:
-1. Checks if `worker-<project-id>` exists and is registered
+When any task is spawned, the orchestrator:
+1. Checks if `worker` exists and is registered
 2. If not, creates:
-   - `~/.openclaw/agents/worker-<project-id>/`
-   - `~/.openclaw/workspace-worker-<project-id>/`
+   - `~/.openclaw/agents/worker/`
+   - `~/.openclaw/workspace-worker/`
    - Copies template files to workspace
    - **Registers agent in openclaw.json**
    - **Requires gateway restart** (one-time, handled automatically)
 
-**openclaw.json is automatically updated** to register the new agent.
-
-**Gateway restart required** but happens automatically during first provision.
-
 ### 2. Spawning Workers
 
 ```python
-# WorkerManager spawns with project-specific agent
+# WorkerManager spawns with the shared agent
 cmd = [
     "openclaw", "agent",
-    "--agent", "worker-flock",  # Project-specific agent
-    "-m", prompt,               # Task prompt
+    "--agent", "worker",
+    "-m", prompt,
 ]
 ```
 
-Each worker:
-- Runs in its own agent session (isolated by agent ID)
-- Auto-loads AGENTS.md, SOUL.md, etc. from workspace
-- Can have custom model configured per agent
+### 3. Queueing
 
-### 3. Session Management
-
-- **Isolation:** Each agent has its own session namespace
-- **Parallel:** `worker-flock` and `worker-prairie` can run simultaneously
-- **Cleanup:** After task completion, session is reset (not deleted) via `sessions.reset`
-- **Reuse:** Same worker agent handles all tasks for its project
-
-## Benefits
-
-✅ **True isolation** - Workers cannot interfere with each other  
-✅ **No shared state** - Each agent has its own session  
-✅ **Auto-loaded files** - Agent files automatically included (no prompt embedding)  
-✅ **Parallel execution** - Multiple workers on different projects run concurrently  
-✅ **Per-project config** - Can set different models per worker agent  
-✅ **No restarts** - Workers provision on-demand  
-✅ **Simple management** - Templates in one place, copied to workers
+Only one worker can run at a time:
+- If a worker is active, new work is **not spawned**
+- The work remains pending in the provider
+- The next loop iteration will pick it up when the worker is free
 
 ## Management
 
 ### CLI Tool: `bin/manage-workers`
 
 ```bash
-# List all provisioned workers
+# List provisioned workers
 bin/manage-workers list
 
-# Provision worker for a project
-bin/manage-workers provision flock
+# Provision shared worker
+bin/manage-workers provision
 
-# Sync updated templates to a worker
-bin/manage-workers sync flock
+# Sync updated templates to the worker
+bin/manage-workers sync
 
-# Sync templates to all workers
-bin/manage-workers sync-all
-
-# Remove a worker
-bin/manage-workers cleanup flock
+# Remove the shared worker
+bin/manage-workers cleanup
 ```
 
 ### Updating Worker Templates
@@ -121,49 +94,24 @@ bin/manage-workers cleanup flock
 When you update `worker-template/*.md`:
 
 ```bash
-# Sync changes to all existing workers
-bin/manage-workers sync-all
+# Sync changes to the shared worker
+bin/manage-workers sync
 ```
-
-New workers automatically get the latest templates.
-
-### Custom Per-Project Workers
-
-To customize a specific worker (e.g., different instructions for flock):
-
-1. Edit `~/.openclaw/workspace-worker-flock/AGENTS.md`
-2. Changes apply only to that worker
-3. Template syncs won't overwrite (or will, so be careful)
-
-**Recommendation:** Keep workers uniform via templates. If you need custom behavior, add it to the task prompt instead.
 
 ## Model Configuration
 
-### Option 1: Per-Agent Config (Future)
+### Gateway Default
 
-Add to `~/.openclaw/agents/worker-flock/config.json`:
+The shared worker uses the gateway's default model unless overridden.
+
+### Per-Agent Config (Future)
+
+Add to `~/.openclaw/agents/worker/config.json`:
 ```json
 {
   "model": "anthropic/claude-opus-4-5"
 }
 ```
-
-### Option 2: Gateway Default
-
-All workers use the gateway's default model unless overridden.
-
-### Option 3: Task-Level Override (Future)
-
-Add `model` field to tasks in lobs-control, orchestrator passes it somehow.
-
-## Migration
-
-**Automatic.** Next time orchestrator spawns a worker:
-- It provisions the worker agent (if doesn't exist)
-- Spawns with `--agent worker-<project-id>`
-- No manual steps needed
-
-**Old shared worker sessions** will naturally stop being used.
 
 ## Troubleshooting
 
@@ -172,36 +120,32 @@ Add `model` field to tasks in lobs-control, orchestrator passes it somehow.
 Check provisioning:
 ```bash
 bin/manage-workers list
-ls -la ~/.openclaw/agents/worker-*
-ls -la ~/.openclaw/workspace-worker-*/
+ls -la ~/.openclaw/agents/worker/
+ls -la ~/.openclaw/workspace-worker/
+```
+
+Re-provision if needed:
+```bash
+bin/manage-workers provision
 ```
 
 ### Templates not loaded
 
 Verify files exist:
 ```bash
-ls -la ~/.openclaw/workspace-worker-<project-id>/
+ls -la ~/.openclaw/workspace-worker/
 ```
 
-Re-provision if needed:
+Re-sync if needed:
 ```bash
-bin/manage-workers provision <project-id>
+bin/manage-workers sync
 ```
-
-### Workers interfering with each other
-
-Should not happen. Verify they use different agent IDs:
-```bash
-ps aux | grep "openclaw agent"
-```
-
-Each should have unique `--agent worker-<project-id>`.
 
 ### Session not resetting between tasks
 
 Check logs for reset errors. Reset manually:
 ```bash
-openclaw gateway call sessions.reset --params '{"agentId":"worker-<project-id>"}'
+openclaw gateway call sessions.reset --params '{"agentId":"worker"}'
 ```
 
 ## Code References
@@ -211,11 +155,3 @@ openclaw gateway call sessions.reset --params '{"agentId":"worker-<project-id>"}
 - **Prompter:** `orchestrator/services/prompter.py`
 - **Templates:** `worker-template/`
 - **CLI:** `bin/manage-workers`
-
-## Future Enhancements
-
-- [ ] Per-agent model configuration
-- [ ] Worker agent metrics/monitoring
-- [ ] Template versioning
-- [ ] Agent-specific logging
-- [ ] Worker health checks

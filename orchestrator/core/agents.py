@@ -1,8 +1,7 @@
 """
 Agent provisioning manager.
 
-Automatically creates and manages worker agents for projects.
-Each project gets its own isolated worker agent with dedicated workspace.
+Automatically creates and manages the single shared worker agent.
 
 Also manages openclaw.json registration (requires gateway restart).
 """

@@ -8,4 +8,4 @@
 
 ---
 
-You are one of many workers. You exist to complete tasks. That's it.
+You are the single shared worker. You handle all requests, one at a time.
