@@ -1,48 +1,55 @@
 #!/bin/bash
-
-# Script to manage the systemd service for Lobs Orchestrator
+set -euo pipefail
 
 SERVICE_NAME="lobs-orchestrator.service"
+SERVICE_DIR="$HOME/.config/systemd/user"
 SERVICE_PATH="$(pwd)/$SERVICE_NAME"
-SYSTEMD_PATH="/etc/systemd/system/$SERVICE_NAME"
+INSTALL_PATH="$SERVICE_DIR/$SERVICE_NAME"
 
 function install() {
-    echo "Installing service..."
-    sudo cp "$SERVICE_PATH" "$SYSTEMD_PATH"
-    sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
-    echo "Service installed and enabled."
+    echo "Installing user service..."
+
+    mkdir -p "$SERVICE_DIR"
+    cp "$SERVICE_PATH" "$INSTALL_PATH"
+
+    systemctl --user daemon-reload
+    systemctl --user enable "$SERVICE_NAME"
+
+    echo "User service installed and enabled."
 }
 
 function start() {
     echo "Starting service..."
-    sudo systemctl start "$SERVICE_NAME"
+    systemctl --user start "$SERVICE_NAME"
 }
 
 function stop() {
     echo "Stopping service..."
-    sudo systemctl stop "$SERVICE_NAME"
+    systemctl --user stop "$SERVICE_NAME"
 }
 
 function restart() {
     echo "Restarting service..."
-    sudo systemctl restart "$SERVICE_NAME"
+    systemctl --user restart "$SERVICE_NAME"
 }
 
 function status() {
-    sudo systemctl status "$SERVICE_NAME"
+    systemctl --user status "$SERVICE_NAME"
 }
 
 function logs() {
-    journalctl -u "$SERVICE_NAME" -f
+    journalctl --user -u "$SERVICE_NAME" -f
 }
 
-case "$1" in
+case "${1:-}" in
     install) install ;;
     start) start ;;
     stop) stop ;;
     restart) restart ;;
     status) status ;;
     logs) logs ;;
-    *) echo "Usage: $0 {install|start|stop|restart|status|logs}" ;;
+    *)
+        echo "Usage: $0 {install|start|stop|restart|status|logs}"
+        exit 1
+        ;;
 esac

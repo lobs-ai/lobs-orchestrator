@@ -1,10 +1,8 @@
 [Unit]
 Description=Lobs Orchestrator Service
-After=network.target
 
 [Service]
 Type=simple
-User=rafe
 WorkingDirectory=/home/rafe/lobs-orchestrator
 ExecStart=/home/rafe/lobs-orchestrator/.venv/bin/python3 /home/rafe/lobs-orchestrator/main.py
 Restart=always
@@ -14,4 +12,4 @@ StandardError=append:/home/rafe/.openclaw/logs/lobs-orchestrator.err
 Environment="PATH=/home/rafe/.npm-global/bin:/usr/local/bin:/usr/bin:/bin"
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
