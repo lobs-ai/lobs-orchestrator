@@ -1,28 +1,41 @@
 import json
 import logging
 import subprocess
+import time
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 from orchestrator.providers.base import TaskProvider
-from orchestrator.config import BASE_DIR, TASKS_DIR
+from orchestrator.config import BASE_DIR, TASKS_DIR, CONTROL_REPO_PATH
 
 logger = logging.getLogger(__name__)
 
 
 class Reconciler:
     """
-    Self-healing component that cross-checks project repos with control state.
+    Self-healing component that:
+    1. Cross-checks project repos with control state
+    2. Resets stuck/failed tasks to allow retries
+    3. Ensures the orchestrator never gets permanently stuck
     """
 
     def __init__(self, provider: TaskProvider):
         self.provider = provider
+        self.stuck_task_timeout = 3600  # 1 hour - tasks stuck in_progress for this long get reset
+        self.failed_task_cooldown = 300  # 5 minutes - wait this long before retrying failed tasks
 
     def reconcile(self, project_ids: list[str]) -> None:
         """
-        Scans project repos for recent commits and cross-checks task state.
+        Performs reconciliation:
+        1. Cross-check git commits with task state
+        2. Reset stuck tasks
         """
+        # First, check git commits for completed tasks
         for project_id in project_ids:
             self._reconcile_project(project_id)
+
+        # Then, reset stuck/failed tasks to unblock the orchestrator
+        self._reset_stuck_tasks()
 
     def _reconcile_project(self, project_id: str) -> None:
         project_path = BASE_DIR / project_id
@@ -61,3 +74,69 @@ class Reconciler:
                     f"Reconciler found completed task {task_id} in git but not in control state. Fixing."
                 )
                 self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})
+
+    def _reset_stuck_tasks(self):
+        """
+        Scans all tasks and resets stuck/failed ones to allow retries.
+
+        Rules:
+        - Tasks in_progress for > stuck_task_timeout: reset to not_started
+        - Tasks failed for > failed_task_cooldown: reset to not_started
+        - This ensures the orchestrator always has work to do
+        """
+        tasks_dir = CONTROL_REPO_PATH / "state" / "tasks"
+        if not tasks_dir.exists():
+            return
+
+        now = time.time()
+        reset_count = 0
+
+        for task_file in tasks_dir.glob("*.json"):
+            try:
+                with open(task_file, "r") as f:
+                    task = json.load(f)
+
+                task_id = task.get("id", task_file.stem)
+                work_state = task.get("workState", "not_started")
+                status = task.get("status", "active")
+                updated_at = task.get("updatedAt", "")
+
+                # Skip if not active or if already not_started/completed
+                if status != "active":
+                    continue
+                if work_state in ("not_started", "completed"):
+                    continue
+
+                # Calculate time since last update
+                try:
+                    if updated_at:
+                        updated_ts = datetime.fromisoformat(updated_at.replace('Z', '+00:00')).timestamp()
+                        elapsed = now - updated_ts
+                    else:
+                        elapsed = 0
+                except:
+                    elapsed = 0
+
+                should_reset = False
+                reason = ""
+
+                # Check if in_progress for too long
+                if work_state == "in_progress" and elapsed > self.stuck_task_timeout:
+                    should_reset = True
+                    reason = f"stuck in_progress for {elapsed/60:.1f} minutes"
+
+                # Check if failed and cooldown period has passed
+                elif work_state == "failed" and elapsed > self.failed_task_cooldown:
+                    should_reset = True
+                    reason = f"failed, cooldown ({elapsed/60:.1f} minutes) elapsed"
+
+                if should_reset:
+                    logger.info(f"[RECONCILER] Resetting task {task_id[:8]} to not_started ({reason})")
+                    self.provider.update_task(task_id, {"workState": "not_started"})
+                    reset_count += 1
+
+            except Exception as e:
+                logger.error(f"Error processing task file {task_file}: {e}")
+
+        if reset_count > 0:
+            logger.info(f"[RECONCILER] Reset {reset_count} stuck/failed task(s) to not_started")
