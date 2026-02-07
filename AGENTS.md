@@ -72,10 +72,36 @@ If work is unclear → **stop and report ambiguity**.
 
 ---
 
+## Worker Architecture
+
+This orchestrator uses a **single shared worker** model:
+
+- Only **1 worker runs at a time** globally (not per-project)
+- Worker is spawned with `openclaw agent --agent worker`
+- All projects share the same `worker` agent
+- Worker session is reset after each task completion
+- ThreadPoolExecutor is limited to `max_workers=1`
+
+### Worker Agent Details
+
+- **Agent ID**: `worker` (not per-project)
+- **Agent Directory**: `~/.openclaw/agents/worker/`
+- **Workspace**: `~/.openclaw/workspace-worker/`
+- **Registration**: Single "Lobs Worker" agent in openclaw.json
+
+This ensures:
+- No concurrent work conflicts
+- Clean session state between tasks
+- Simplified worker management
+- Predictable execution order
+
+---
+
 ## Git Rules (Mandatory)
 
 Before making changes:
 
 ```bash
 git pull --rebase
+```
 
