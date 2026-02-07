@@ -149,9 +149,15 @@ class WorkerManager:
             # Map agent types to configured agent IDs
             agent_id = self._resolve_agent_id(agent_type)
             
+            # Create isolated session key for this worker
+            # Pattern: agent:worker:task:<task_id>
+            # This prevents workers from taking over the main Discord session
+            session_key = f"agent:{agent_id}:task:{task_id}"
+            
             cmd = [
                 executable, "agent",
                 "--agent", agent_id,
+                "--session", session_key,
                 "--message", prompt,
                 "--timeout", "3600",  # 1 hour timeout
                 "--json",
