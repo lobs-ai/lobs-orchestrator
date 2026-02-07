@@ -154,12 +154,16 @@ class WorkerManager:
             # This prevents workers from taking over the main Discord session
             session_key = f"agent:{agent_id}:task:{task_id}"
             
+            # Use gateway API directly to pass sessionKey (not sessionId)
+            # CLI --session-id expects UUID; gateway API accepts structured keys
             cmd = [
-                executable, "agent",
-                "--agent", agent_id,
-                "--session-id", session_key,  # Note: --session-id, not --session
-                "--message", prompt,
-                "--timeout", "3600",  # 1 hour timeout
+                executable, "gateway", "call", "agent",
+                "--params", json.dumps({
+                    "message": prompt,
+                    "agentId": agent_id,
+                    "sessionKey": session_key,
+                    "timeout": 3600,
+                }),
                 "--json",
             ]
             
@@ -306,10 +310,11 @@ class WorkerManager:
         
         try:
             # Use openclaw gateway call to delete the session
+            # Note: parameter is "key" not "sessionKey" for sessions.delete
             subprocess.run(
                 [
                     executable, "gateway", "call", "sessions.delete",
-                    "--params", json.dumps({"sessionKey": session_key})
+                    "--params", json.dumps({"key": session_key, "deleteTranscript": True})
                 ],
                 check=True,
                 capture_output=True,
