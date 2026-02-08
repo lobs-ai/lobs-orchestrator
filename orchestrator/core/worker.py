@@ -374,6 +374,11 @@ class WorkerManager:
                 # Mark as provisioned so we never check again
                 self._worker_provisioned = True
             
+            # Sync worker template files before each task (ensures WORKER_RULES.md etc. are up to date)
+            logger.debug(f"Syncing worker template files...")
+            if not self.agent_manager.sync_worker_templates("worker"):
+                logger.warning("Failed to sync worker templates - continuing anyway")
+            
             # Step 2: Sync Repo
             logger.info(f"Syncing project repo {project_id}...")
             subprocess.run(

@@ -101,6 +101,7 @@ class AgentManager:
                 "TOOLS.md",
                 "USER.md",
                 "IDENTITY.md",
+                "WORKER_RULES.md",
             ]
             
             for filename in template_files:
@@ -152,6 +153,7 @@ class AgentManager:
                 "TOOLS.md",
                 "USER.md",
                 "IDENTITY.md",
+                "WORKER_RULES.md",
             ]
             
             for filename in template_files:

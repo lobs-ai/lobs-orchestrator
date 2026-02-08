@@ -20,6 +20,27 @@ This file documents the **worker architecture and implementation details** for d
 
 ---
 
+## Worker Template Sync
+
+Worker workspace files are automatically synced before each task spawn:
+
+1. **Source**: `worker-template/` directory (template files)
+2. **Destination**: `~/.openclaw/workspace-worker/` (worker workspace)
+3. **Sync trigger**: Before each task spawn (in `_async_spawn_openclaw_flow`)
+
+**Files synced:**
+- `WORKER_RULES.md` - Core rules for workers (sent to workers via workspace, not prompt)
+- `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, `IDENTITY.md` - Context files
+
+**Updating worker files:**
+1. Edit `WORKER_RULES.md` in orchestrator root
+2. Run `scripts/sync-worker-template.sh` to copy to `worker-template/`
+3. Next task spawn will automatically sync to worker workspace
+
+This ensures workers always have the latest rules without needing to restart the orchestrator.
+
+---
+
 ## Worker Architecture
 
 This orchestrator uses a **single shared worker** model with **automatic queueing**.

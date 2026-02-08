@@ -60,20 +60,14 @@ class Prompter:
             except Exception:
                 pass
 
-        # 3. Worker Rules from orchestrator
-        worker_rules = ""
-        worker_rules_path = (ORCHESTRATOR_REPO_PATH / "WORKER_RULES.md").resolve()
-        if worker_rules_path.exists():
-            try:
-                worker_rules = worker_rules_path.read_text()
-            except Exception:
-                pass
+        # 3. Worker Rules - now loaded from worker workspace (synced automatically)
+        # No need to include in prompt - OpenClaw auto-loads workspace files
 
         kind = item.get("kind", "task")
         item_id = item.get("id", "unknown")
 
         # 4. Build the prompt
-        # Note: AGENTS.md, SOUL.md, etc. are auto-loaded by OpenClaw for --agent workers
+        # Note: WORKER_RULES.md, AGENTS.md, SOUL.md, etc. are auto-loaded by OpenClaw from worker workspace
         prompt = f"""# Work Assignment
 
 **Project:** {project_id}  
@@ -81,20 +75,22 @@ class Prompter:
 **Kind:** {kind}  
 **ID:** {item_id}
 
+---
+
+## Engineering Rules
+
 """
         
-        # Add worker rules
-        if worker_rules:
-            prompt += f"{worker_rules}\n\n---\n\n"
-        
         # Add engineering rules (global + project)
-        if rules or project_rules:
-            prompt += "## Engineering Rules\n\n"
-            if rules:
-                prompt += f"{rules}\n\n"
-            if project_rules:
-                prompt += f"### Project-Specific ({project_id})\n{project_rules}\n\n"
-            prompt += "---\n\n"
+        if rules:
+            prompt += f"{rules}\n\n"
+        if project_rules:
+            prompt += f"### Project-Specific ({project_id})\n{project_rules}\n\n"
+        
+        if not rules and not project_rules:
+            prompt += "(none)\n\n"
+        
+        prompt += "---\n\n"
         
         # Add product context
         if product_context:
