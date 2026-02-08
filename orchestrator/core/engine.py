@@ -61,8 +61,13 @@ class Orchestrator:
         now = time.time()
         if now - self.last_reconcile > self.reconcile_interval:
             logger.info("Starting periodic reconciliation...")
-            self.reconciler.reconcile(project_ids)
-            self.last_reconcile = now
+            try:
+                self.reconciler.reconcile(project_ids)
+                logger.info("Periodic reconciliation complete.")
+            except Exception as e:
+                logger.error(f"Reconciliation failed: {e}", exc_info=True)
+            finally:
+                self.last_reconcile = now
 
     def process_requests(self, pending_request: bool) -> None:
         """Handle explicit worker requests via provider."""
@@ -175,19 +180,22 @@ class Orchestrator:
                 # Get rules from provider
                 rules = self.provider.get_engineering_rules()
 
-                # Spawn the single worker (will queue if busy)
-                self.worker_manager.spawn_worker(
+                # Spawn the single worker (will return False if busy/queued)
+                spawned = self.worker_manager.spawn_worker(
                     item, project_id, agent_type=agent_type, rules=rules
                 )
 
-                # Notify heartbeat manager
-                self.heartbeat.notify_worker_started(work_id, work_title, project_id)
+                # CRITICAL FIX: Only update state if worker was actually spawned (not queued)
+                # This prevents tasks from getting stuck in "in_progress" when worker is busy
+                if spawned:
+                    # Notify heartbeat manager
+                    self.heartbeat.notify_worker_started(work_id, work_title, project_id)
 
-                # Update state to in_progress via provider
-                if kind == "task":
-                    self.provider.update_task(work_id, {"workState": "in_progress"})
-                else:
-                    self.provider.update_task(work_id, {"status": "in_progress"})
+                    # Update state to in_progress via provider
+                    if kind == "task":
+                        self.provider.update_task(work_id, {"workState": "in_progress"})
+                    else:
+                        self.provider.update_task(work_id, {"status": "in_progress"})
 
         return activity
 

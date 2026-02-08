@@ -58,6 +58,12 @@ class WorkerManager:
         # Agent manager for provisioning workers
         template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
         self.agent_manager = AgentManager(template_dir)
+        
+        # Track if worker agent has been provisioned (avoid repeated gateway restarts)
+        self._worker_provisioned = False
+        
+        # Cache for project repo paths
+        self._repo_path_cache = {}
 
         # Ollama client for diagnostic/analysis tasks
         from orchestrator.utils.settings import get_setting
@@ -139,6 +145,38 @@ class WorkerManager:
         # Invalidate cache
         self._lock_cache[project_id] = (time.time(), False)
 
+    def _get_repo_path(self, project_id: str) -> Path:
+        """
+        Get the repository path for a project.
+        
+        Looks up repoPath from projects.json, falls back to BASE_DIR / project_id.
+        Caches results to avoid repeated file reads.
+        """
+        if project_id in self._repo_path_cache:
+            return self._repo_path_cache[project_id]
+        
+        # Try to load from projects.json
+        from orchestrator.config import PROJECTS_FILE
+        if PROJECTS_FILE.exists():
+            try:
+                import json
+                with open(PROJECTS_FILE, "r") as f:
+                    data = json.load(f)
+                    for project in data.get("projects", []):
+                        if project.get("id") == project_id:
+                            repo_path = project.get("repoPath")
+                            if repo_path:
+                                path = Path(repo_path)
+                                self._repo_path_cache[project_id] = path
+                                return path
+            except Exception as e:
+                logger.warning(f"Failed to read repoPath for {project_id} from projects.json: {e}")
+        
+        # Fallback to BASE_DIR / project_id
+        path = BASE_DIR / project_id
+        self._repo_path_cache[project_id] = path
+        return path
+
     def _determine_runtime(self, task: dict[str, Any]) -> str:
         """
         Determine which runtime to use for this task.
@@ -170,15 +208,18 @@ class WorkerManager:
 
     def spawn_worker(
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
-    ) -> None:
+    ) -> bool:
         """
         Spawn a worker for the given task.
 
-        QUEUEING: If a worker is already active or pending, this method returns immediately.
+        QUEUEING: If a worker is already active or pending, this method returns False.
         The task remains in the provider's queue and will be picked up in the next
         orchestrator loop iteration when the worker becomes free.
 
         This implements automatic queueing without needing a separate queue data structure.
+
+        Returns:
+            True if worker was spawned, False if task was queued (worker busy)
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
@@ -187,12 +228,12 @@ class WorkerManager:
         if self.active_workers or self.pending_workers:
             active_task = list(self.active_workers.keys())[0] if self.active_workers else list(self.pending_workers)[0]
             logger.info(f"[QUEUE] Worker busy with {active_task}. Queueing task {task_id} ({task_title})")
-            return
+            return False
 
         # We don't use cache here to be absolutely sure
         if self._check_lock_file(self.lock_dir / f"{project_id}.lock", project_id):
             logger.info(f"Domain {project_id} is locked. Skipping.")
-            return
+            return False
 
         # Acquire lock early in "syncing" state
         self.acquire_lock(project_id, status="syncing")
@@ -207,6 +248,9 @@ class WorkerManager:
             self.executor.submit(self._async_spawn_ollama_flow, task, project_id, agent_type, rules)
         else:
             self.executor.submit(self._async_spawn_openclaw_flow, task, project_id, agent_type, rules)
+        
+        # Return True to indicate worker was actually spawned (not queued)
+        return True
 
     def _async_spawn_ollama_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         """
@@ -219,7 +263,7 @@ class WorkerManager:
         - Still tracks as active worker for queueing
         """
         task_id = task["id"]
-        workspace = BASE_DIR / project_id
+        workspace = self._get_repo_path(project_id)
 
         try:
             # Step 1: Sync Repo
@@ -296,7 +340,7 @@ class WorkerManager:
 
     def _async_spawn_openclaw_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
-        workspace = BASE_DIR / project_id
+        workspace = self._get_repo_path(project_id)
 
         try:
             # Step 1: ALWAYS use the single shared "worker" agent
@@ -306,25 +350,29 @@ class WorkerManager:
             logger.info(f"[WORKER] Using shared worker agent: {agent_id} (type: {agent_type})")
 
             # Check if worker agent exists and is registered (one-time setup)
-            needs_provision = not self.agent_manager.worker_exists("worker")
-            needs_registration = not self.agent_manager.is_agent_registered("worker")
+            # CRITICAL: Only do this check ONCE to avoid repeated gateway restarts
+            if not self._worker_provisioned:
+                needs_provision = not self.agent_manager.worker_exists("worker")
+                needs_registration = not self.agent_manager.is_agent_registered("worker")
 
-            if needs_provision or needs_registration:
-                logger.info(f"Provisioning shared worker agent...")
-                if not self.agent_manager.provision_worker("worker", register=True):
-                    raise Exception(f"Failed to provision worker agent")
+                if needs_provision or needs_registration:
+                    logger.info(f"Provisioning shared worker agent...")
+                    if not self.agent_manager.provision_worker("worker", register=True):
+                        raise Exception(f"Failed to provision worker agent")
 
-                # If we just registered a new agent, restart gateway
-                if needs_registration:
-                    logger.warning(f"New worker registered: {agent_id} - restarting gateway...")
-                    if not self.agent_manager.restart_gateway():
-                        logger.error("Failed to restart gateway - worker may not be available")
-                        raise Exception("Gateway restart failed after agent registration")
+                    # If we just registered a new agent, restart gateway
+                    if needs_registration:
+                        logger.warning(f"New worker registered: {agent_id} - restarting gateway...")
+                        if not self.agent_manager.restart_gateway():
+                            logger.error("Failed to restart gateway - worker may not be available")
+                            raise Exception("Gateway restart failed after agent registration")
 
-                    # Wait for gateway to come back online
-                    import time
-                    time.sleep(3)
-                    logger.info("Gateway restarted, worker should now be available")
+                        # Wait for gateway to come back online
+                        time.sleep(3)
+                        logger.info("Gateway restarted, worker should now be available")
+                
+                # Mark as provisioned so we never check again
+                self._worker_provisioned = True
             
             # Step 2: Sync Repo
             logger.info(f"Syncing project repo {project_id}...")
@@ -451,7 +499,7 @@ class WorkerManager:
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
         """Commits and pushes changes in the project repository."""
-        project_path = BASE_DIR / project_id
+        project_path = self._get_repo_path(project_id)
         try:
             # Check if there are changes
             status = subprocess.run(
@@ -496,6 +544,7 @@ class WorkerManager:
         - Does not affect any other sessions in the system
         - Safe to run after each task completion
         """
+        logger.info(f"[WORKER] Cleaning up session for agent {agent_id}...")
         try:
             # Delete worker session files directly
             # Worker sessions are stored in ~/.openclaw/agents/worker/sessions/
@@ -505,9 +554,9 @@ class WorkerManager:
                 logger.debug(f"No session directory found for agent {agent_id}")
                 return
 
-            # Delete all session files (JSONL transcripts and sessions.json store)
+            # Delete all session files (JSONL transcripts, lock files, and sessions.json store)
             deleted_count = 0
-            for session_file in agent_sessions_dir.glob("*.jsonl"):
+            for session_file in agent_sessions_dir.glob("*.jsonl*"):
                 try:
                     session_file.unlink()
                     deleted_count += 1
@@ -524,7 +573,7 @@ class WorkerManager:
                     logger.warning(f"Failed to delete sessions store: {e}")
 
             if deleted_count > 0:
-                logger.info(f"[WORKER] Cleared {deleted_count} session file(s) for agent {agent_id}")
+                logger.info(f"[WORKER] Cleared {deleted_count} session file(s) for agent {agent_id} - fresh session ready for next task")
             else:
                 logger.debug(f"No session files to clean for agent {agent_id}")
 
