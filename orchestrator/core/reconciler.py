@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 from orchestrator.providers.base import TaskProvider
-from orchestrator.config import BASE_DIR, TASKS_DIR, CONTROL_REPO_PATH
+from orchestrator.config import BASE_DIR, TASKS_DIR, CONTROL_REPO_PATH, PROJECTS_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,37 @@ class Reconciler:
         self.provider = provider
         self.stuck_task_timeout = 3600  # 1 hour - tasks stuck in_progress for this long get reset
         self.failed_task_cooldown = 300  # 5 minutes - wait this long before retrying failed tasks
+        self._repo_path_cache = {}
+    
+    def _get_repo_path(self, project_id: str) -> Path:
+        """
+        Get the repository path for a project.
+        
+        Looks up repoPath from projects.json, falls back to BASE_DIR / project_id.
+        Caches results to avoid repeated file reads.
+        """
+        if project_id in self._repo_path_cache:
+            return self._repo_path_cache[project_id]
+        
+        # Try to load from projects.json
+        if PROJECTS_FILE.exists():
+            try:
+                with open(PROJECTS_FILE, "r") as f:
+                    data = json.load(f)
+                    for project in data.get("projects", []):
+                        if project.get("id") == project_id:
+                            repo_path = project.get("repoPath")
+                            if repo_path:
+                                path = Path(repo_path)
+                                self._repo_path_cache[project_id] = path
+                                return path
+            except Exception as e:
+                logger.warning(f"Failed to read repoPath for {project_id} from projects.json: {e}")
+        
+        # Fallback to BASE_DIR / project_id
+        path = BASE_DIR / project_id
+        self._repo_path_cache[project_id] = path
+        return path
 
     def reconcile(self, project_ids: list[str]) -> None:
         """
@@ -38,7 +69,7 @@ class Reconciler:
         self._reset_stuck_tasks()
 
     def _reconcile_project(self, project_id: str) -> None:
-        project_path = BASE_DIR / project_id
+        project_path = self._get_repo_path(project_id)
         if not project_path.exists():
             return
 
@@ -50,6 +81,7 @@ class Reconciler:
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=10,  # 10 second timeout
             )
             commits = result.stdout.split("\n")
 
@@ -84,6 +116,7 @@ class Reconciler:
         - Tasks failed for > failed_task_cooldown: reset to not_started
         - This ensures the orchestrator always has work to do
         """
+        logger.debug("[RECONCILER] Starting stuck task scan...")
         tasks_dir = CONTROL_REPO_PATH / "state" / "tasks"
         if not tasks_dir.exists():
             return
