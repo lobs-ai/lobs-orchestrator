@@ -60,12 +60,12 @@ class Prompter:
             except Exception:
                 pass
 
-        # 3. Agent Rules from orchestrator
-        agent_rules = ""
-        agents_rules_path = (ORCHESTRATOR_REPO_PATH / "AGENTS.md").resolve()
-        if agents_rules_path.exists():
+        # 3. Worker Rules from orchestrator
+        worker_rules = ""
+        worker_rules_path = (ORCHESTRATOR_REPO_PATH / "WORKER_RULES.md").resolve()
+        if worker_rules_path.exists():
             try:
-                agent_rules = agents_rules_path.read_text()
+                worker_rules = worker_rules_path.read_text()
             except Exception:
                 pass
 
@@ -74,125 +74,115 @@ class Prompter:
 
         # 4. Build the prompt
         # Note: AGENTS.md, SOUL.md, etc. are auto-loaded by OpenClaw for --agent workers
-        prompt = f"""# TASK ASSIGNMENT
+        prompt = f"""# Work Assignment
 
-Execute the assigned work precisely.
-
-## Orchestrator Rules
-{agent_rules}
-
-## Global Engineering Rules
-{rules}
-
-## Project Engineering Rules ({project_id})
-{project_rules}
-
-## Product Context ({project_id})
-{product_context}
-
-## Work Assignment
-- **Kind:** {kind}
-- **ID:** {item_id}
-- **Project:** {project_id}
-- **Workspace:** {project_path}
-- **Control Repo:** {CONTROL_REPO_PATH.resolve()}
+**Project:** {project_id}  
+**Workspace:** `{project_path}`  
+**Kind:** {kind}  
+**ID:** {item_id}
 
 """
+        
+        # Add worker rules
+        if worker_rules:
+            prompt += f"{worker_rules}\n\n---\n\n"
+        
+        # Add engineering rules (global + project)
+        if rules or project_rules:
+            prompt += "## Engineering Rules\n\n"
+            if rules:
+                prompt += f"{rules}\n\n"
+            if project_rules:
+                prompt += f"### Project-Specific ({project_id})\n{project_rules}\n\n"
+            prompt += "---\n\n"
+        
+        # Add product context
+        if product_context:
+            prompt += f"## Product Context\n\n{product_context}---\n\n"
+        
+        prompt += "## Your Task\n\n"
         
         # Add work-specific details
         agent_type = item.get("agentType")
         if agent_type == "diagnostic":
-            prompt += f"""## DIAGNOSTIC TASK
-This is a high-priority diagnostic mission.
+            prompt += f"""**Diagnostic Mission (High Priority)**
 
-**Title:** {item.get("title")}
-**Context/Error:**
+{item.get("title")}
+
+**Error/Context:**
+```
 {item.get("notes")}
+```
 
-### Your Goal
-1. Analyze the workspace and the reported error
-2. Attempt to fix the issue if it is a configuration or code error
-3. If fixed, verify it works
-4. If not fixable, provide a detailed root cause analysis
+**Goal:** Analyze the error, fix if possible, or provide root cause analysis.
 
 """
         elif kind == "task":
-            prompt += f"""## TASK
-**Title:** {item.get("title")}
+            prompt += f"""**{item.get("title")}**
 
-**Notes:**
-{item.get("notes", "(no notes)")}
+{item.get("notes", "(no additional notes)")}
 
 """
         elif kind == "research_request":
-            prompt += f"""## RESEARCH REQUEST
-**Prompt:**
+            prompt += f"""**Research Request**
+
 {item.get("prompt")}
 
-### Instructions
-1. Research the topic thoroughly
-2. Write findings to `state/research/{project_id}/docs/`
-3. Be comprehensive but concise
+Write findings to `state/research/{project_id}/docs/`. Be comprehensive but concise.
 
 """
         elif kind == "inbox_response":
-            prompt += f"""## INBOX RESPONSE
-**Document:** {item.get("docId")}
-**Last Message:**
-{item.get("lastMessage")}
+            prompt += f"""**Inbox Response**
 
-### Instructions
-1. Process the inbox response
-2. Create tasks if needed using control-ops
-3. Mark as acknowledged when done
+Document: {item.get("docId")}
+
+Last message:
+```
+{item.get("lastMessage")}
+```
+
+Process the response, create tasks if needed (via control-ops), mark as acknowledged.
 
 """
         elif kind == "text_dump":
-            prompt += f"""## TEXT DUMP PROCESSING
-**Project:** {item.get("projectId")}
-**Preview:**
-{item.get("textPreview")}
+            prompt += f"""**Text Dump Processing**
 
-### Instructions
-1. Process the text dump
-2. Extract actionable items
-3. Create tasks or inbox items as needed
+Preview:
+```
+{item.get("textPreview")}
+```
+
+Extract actionable items, create tasks/inbox items as needed.
 
 """
         else:
-            prompt += f"""## WORK ITEM
-```json
+            prompt += f"""```json
 {json.dumps(item, indent=2)}
 ```
 
 """
 
-        # Output contract
-        prompt += f"""## Output Contract
-1. Work in the `{project_id}` repository at `{project_path}`
-2. Use `git pull --rebase` before making changes
-3. Produce clean, idiomatic code with relevant tests
-4. Commit your changes with clear messages
-5. Do NOT push - the orchestrator handles that
+        # Control operations (if needed)
+        control_ops_dir = CONTROL_REPO_PATH / "state" / "control-ops"
+        prompt += f"""---
 
-### Control Operations
-To request state changes, create a JSON file in `{CONTROL_REPO_PATH / "state" / "control-ops"}`:
+## Control Operations (if needed)
+
+To update task state or add suggestions, write JSON to `{control_ops_dir}/`:
 
 **Update task:**
 ```json
 {{"type": "update_task", "task_id": "{item_id}", "updates": {{"workState": "completed"}}}}
 ```
 
-**Add inbox suggestion:**
+**Add inbox item:**
 ```json
 {{"type": "add_inbox_item", "item": {{"title": "...", "body": "...", "type": "suggestion", "projectId": "{project_id}"}}}}
 ```
 
-## Constraints
-- Focus strictly on this work item
-- Do not work on unrelated files
-- Do not invent new tasks
-- Stop and report if blocked
+---
+
+**Remember:** Pull before changes, commit after. Don't push (orchestrator handles that).
 
 Begin.
 """
