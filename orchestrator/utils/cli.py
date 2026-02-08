@@ -11,8 +11,14 @@ def parse_args():
     parser.add_argument("--orchestrator-repo", help="Set the path to the orchestrator repository")
     parser.add_argument("--poll-interval", type=int, help="Polling interval in seconds")
     parser.add_argument("--openclaw-executable", help="Path to openclaw executable")
+
+    # Ollama settings
+    parser.add_argument("--ollama-url", help="Ollama API URL (default: http://localhost:11434)")
+    parser.add_argument("--ollama-model", help="Ollama model to use (e.g., llama3.1, codellama)")
+    parser.add_argument("--ollama-keep-alive", help="How long to keep model loaded (e.g., 5m, 1h, -1)")
+
     parser.add_argument("--show", action="store_true", help="Show current settings")
-    
+
     return parser.parse_args()
 
 def show_settings():
@@ -24,7 +30,31 @@ def show_settings():
     print(f"  Orchestrator Repo:    {config.ORCHESTRATOR_REPO_PATH}")
     print(f"  Poll Interval:        {config.POLL_INTERVAL}s")
     print(f"  Locks Directory:      {config.LOCKS_DIR}")
-    print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'Not set')}")
+    print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'openclaw')}")
+    print("")
+    print("Ollama Configuration:")
+    print(f"  Ollama URL:           {get_setting('ollama_url', 'http://localhost:11434')}")
+    print(f"  Ollama Model:         {get_setting('ollama_model', 'llama3.1')}")
+    print(f"  Keep Alive:           {get_setting('ollama_keep_alive', '5m')}")
+
+    # Check if Ollama is available (optional - requires requests module)
+    try:
+        from orchestrator.core.ollama_client import OllamaClient
+        client = OllamaClient(
+            base_url=get_setting('ollama_url', 'http://localhost:11434'),
+            model=get_setting('ollama_model', 'llama3.1')
+        )
+        if client.is_available():
+            models = client.list_models()
+            print(f"  Status:               ✅ Running")
+            print(f"  Available Models:     {', '.join(models) if models else 'None'}")
+        else:
+            print(f"  Status:               ❌ Not running")
+            print(f"  Note:                 Install from https://ollama.com")
+    except ImportError:
+        print(f"  Status:               (install 'requests' to check)")
+    except Exception as e:
+        print(f"  Status:               Error checking: {str(e)[:50]}")
     print("")
 
 def apply_args(args):
@@ -52,6 +82,19 @@ def apply_args(args):
     if args.openclaw_executable:
         set_setting("openclaw_executable", args.openclaw_executable)
         logging.info(f"OpenClaw executable set to: {args.openclaw_executable}")
+
+    # Ollama settings
+    if args.ollama_url:
+        set_setting("ollama_url", args.ollama_url)
+        logging.info(f"Ollama URL set to: {args.ollama_url}")
+
+    if args.ollama_model:
+        set_setting("ollama_model", args.ollama_model)
+        logging.info(f"Ollama model set to: {args.ollama_model}")
+
+    if args.ollama_keep_alive:
+        set_setting("ollama_keep_alive", args.ollama_keep_alive)
+        logging.info(f"Ollama keep_alive set to: {args.ollama_keep_alive}")
 
 def setup_orchestrator():
     args = parse_args()

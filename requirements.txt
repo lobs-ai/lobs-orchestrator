@@ -1,0 +1,4 @@
+# Lobs Orchestrator Dependencies
+
+# HTTP client for Ollama API
+requests>=2.31.0

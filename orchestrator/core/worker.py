@@ -18,6 +18,7 @@ from orchestrator.config import (
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
 from orchestrator.core.agents import AgentManager
+from orchestrator.core.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,18 @@ class WorkerManager:
         # Agent manager for provisioning workers
         template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
         self.agent_manager = AgentManager(template_dir)
-        
+
+        # Ollama client for diagnostic/analysis tasks
+        from orchestrator.utils.settings import get_setting
+        ollama_url = get_setting("ollama_url", "http://localhost:11434")
+        ollama_model = get_setting("ollama_model", "llama3.1")
+        ollama_keep_alive = get_setting("ollama_keep_alive", "5m")
+        self.ollama = OllamaClient(
+            base_url=ollama_url,
+            model=ollama_model,
+            keep_alive=ollama_keep_alive
+        )
+
         # Cache for lock status to avoid redundant disk I/O within a single loop
         self._lock_cache: dict[str, tuple[float, bool]] = {}
 
@@ -127,6 +139,35 @@ class WorkerManager:
         # Invalidate cache
         self._lock_cache[project_id] = (time.time(), False)
 
+    def _determine_runtime(self, task: dict[str, Any]) -> str:
+        """
+        Determine which runtime to use for this task.
+
+        Rules:
+        - All regular tasks (kind="task") → OpenClaw
+        - Error fixing/diagnostics (agentType="diagnostic") → Ollama
+        - Explicit runtime field overrides default behavior
+
+        Returns:
+            "ollama" for diagnostic/error-fixing tasks, "openclaw" for all other work
+        """
+        # Check explicit runtime field first
+        if "runtime" in task:
+            return task["runtime"]
+
+        # Check agentType for diagnostics/error fixing
+        agent_type = task.get("agentType", "")
+        if agent_type == "diagnostic":
+            # Use Ollama for diagnostics if available
+            if self.ollama.is_available():
+                return "ollama"
+            else:
+                logger.warning("Ollama not available, falling back to OpenClaw for diagnostic task")
+                return "openclaw"
+
+        # Default to OpenClaw for all regular tasks
+        return "openclaw"
+
     def spawn_worker(
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> None:
@@ -157,10 +198,103 @@ class WorkerManager:
         self.acquire_lock(project_id, status="syncing")
         self.pending_workers.add(task_id)
 
-        # Start async spawn
-        self.executor.submit(self._async_spawn_flow, task, project_id, agent_type, rules)
+        # Determine runtime (Ollama vs OpenClaw)
+        runtime = self._determine_runtime(task)
+        logger.info(f"[WORKER] Task {task_id} will use runtime: {runtime}")
 
-    def _async_spawn_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
+        # Start async spawn based on runtime
+        if runtime == "ollama":
+            self.executor.submit(self._async_spawn_ollama_flow, task, project_id, agent_type, rules)
+        else:
+            self.executor.submit(self._async_spawn_openclaw_flow, task, project_id, agent_type, rules)
+
+    def _async_spawn_ollama_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
+        """
+        Spawn an Ollama worker for diagnostic/analysis tasks.
+
+        Simpler flow than OpenClaw:
+        - No agent provisioning needed
+        - No workspace management
+        - Direct API calls to Ollama
+        - Still tracks as active worker for queueing
+        """
+        task_id = task["id"]
+        workspace = BASE_DIR / project_id
+
+        try:
+            # Step 1: Sync Repo
+            logger.info(f"Syncing project repo {project_id}...")
+            subprocess.run(
+                ["git", "pull", "--rebase"],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                timeout=60
+            )
+
+            # Step 2: Build Prompt
+            from orchestrator.services.prompter import Prompter
+            prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
+
+            # Step 3: Run Ollama
+            logger.info(f"Running Ollama for {task_id} with model {self.ollama.model}")
+
+            WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+            log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+
+            # Use a pseudo-process for tracking (Ollama runs synchronously)
+            # We'll create a marker file to track completion
+            with open(log_file_path, "w") as log_file:
+                log_file.write(f"=== Ollama Task Execution ===\n")
+                log_file.write(f"Task ID: {task_id}\n")
+                log_file.write(f"Model: {self.ollama.model}\n")
+                log_file.write(f"Project: {project_id}\n")
+                log_file.write(f"Agent Type: {agent_type}\n")
+                log_file.write(f"\n=== Prompt ===\n{prompt}\n\n")
+                log_file.write(f"=== Response ===\n")
+                log_file.flush()
+
+                # Run Ollama with streaming
+                try:
+                    full_response = ""
+                    for chunk in self.ollama.generate(prompt, stream=True, temperature=0.3):
+                        if "response" in chunk:
+                            text = chunk["response"]
+                            full_response += text
+                            log_file.write(text)
+                            log_file.flush()
+
+                        if chunk.get("done", False):
+                            break
+
+                    log_file.write(f"\n\n=== Completed ===\n")
+
+                    # Update lock to "finalizing"
+                    self.acquire_lock(project_id, status="finalizing")
+
+                    # Finalize changes
+                    success = self.finalize_project_changes(task_id, project_id)
+
+                    if success:
+                        self.handle_worker_success(task_id, project_id, "ollama")
+                    else:
+                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", "ollama")
+
+                except Exception as e:
+                    error_msg = f"Ollama execution failed: {e}"
+                    logger.error(error_msg)
+                    log_file.write(f"\n\n=== ERROR ===\n{error_msg}\n")
+                    self.handle_worker_failure(task_id, project_id, error_msg, "ollama")
+
+        except Exception as e:
+            logger.error(f"Failed to async spawn Ollama worker for {task_id}: {e}")
+            self.handle_worker_failure(task_id, project_id, str(e), "ollama")
+        finally:
+            self.release_lock(project_id)
+            if task_id in self.pending_workers:
+                self.pending_workers.remove(task_id)
+
+    def _async_spawn_openclaw_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         task_id = task["id"]
         workspace = BASE_DIR / project_id
 
