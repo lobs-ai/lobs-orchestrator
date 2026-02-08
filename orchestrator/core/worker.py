@@ -587,7 +587,29 @@ class WorkerManager:
 
     def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
         logger.info(f"Worker success for task {task_id}. Updating state.")
-        self.provider.update_task(task_id, {"workState": "completed", "status": "completed"})
+        
+        # Check if worker already marked task as completed via complete-task script
+        # If so, don't duplicate the update
+        from orchestrator.config import TASKS_DIR
+        task_file = TASKS_DIR / f"{task_id}.json"
+        if task_file.exists():
+            try:
+                with open(task_file, "r") as f:
+                    task_data = json.load(f)
+                    if task_data.get("workState") == "completed":
+                        logger.info(f"Task {task_id} already marked completed by worker")
+                        self._cleanup_worker_session(agent_id)
+                        return
+            except Exception:
+                pass
+        
+        # Auto-complete if worker didn't do it
+        self.provider.update_task(task_id, {
+            "workState": "completed",
+            "status": "completed",
+            "action": "complete",
+            "summary": f"Task completed successfully"
+        })
         
         # Reset the worker session for next task
         self._cleanup_worker_session(agent_id)

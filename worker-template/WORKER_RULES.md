@@ -65,3 +65,24 @@ git add <files>
 git commit -m "clear message"
 # Do NOT push - orchestrator handles that
 ```
+
+## Updating Task State
+
+Use the provided scripts instead of writing JSON manually:
+
+**Mark task as complete:**
+```bash
+~/lobs-control/bin/complete-task <task-id> --summary "Brief description of work"
+```
+
+**Update task state:**
+```bash
+~/lobs-control/bin/update-task <task-id> --state blocked --summary "Reason for block"
+```
+
+**Add a suggestion:**
+```bash
+~/lobs-control/bin/add-suggestion --title "Title" --body "Details" --project <project-id>
+```
+
+These scripts queue operations that the orchestrator will commit with meaningful messages.

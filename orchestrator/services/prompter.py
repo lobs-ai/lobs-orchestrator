@@ -158,27 +158,31 @@ Extract actionable items, create tasks/inbox items as needed.
 
 """
 
-        # Control operations (if needed)
-        control_ops_dir = CONTROL_REPO_PATH / "state" / "control-ops"
+        # Control operations
+        control_bin = CONTROL_REPO_PATH / "bin"
         prompt += f"""---
 
-## Control Operations (if needed)
+## Updating Task State
 
-To update task state or add suggestions, write JSON to `{control_ops_dir}/`:
+When you finish, mark the task as complete:
 
-**Update task:**
-```json
-{{"type": "update_task", "task_id": "{item_id}", "updates": {{"workState": "completed"}}}}
+```bash
+{control_bin}/complete-task {item_id} --summary "Brief description of work"
 ```
 
-**Add inbox item:**
-```json
-{{"type": "add_inbox_item", "item": {{"title": "...", "body": "...", "type": "suggestion", "projectId": "{project_id}"}}}}
+If blocked or need to update state:
+
+```bash
+{control_bin}/update-task {item_id} --state blocked --summary "Reason"
+```
+
+To add suggestions:
+
+```bash
+{control_bin}/add-suggestion --title "Title" --body "Details" --project {project_id}
 ```
 
 ---
-
-**Remember:** Pull before changes, commit after. Don't push (orchestrator handles that).
 
 Begin.
 """

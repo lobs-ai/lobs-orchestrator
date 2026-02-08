@@ -84,6 +84,8 @@ class ControlManager:
 
         applied_ops = []
         messages = []
+        op_summaries = []
+        
         for op_file in ops_files:
             try:
                 with open(op_file, "r") as f:
@@ -93,7 +95,9 @@ class ControlManager:
                     messages.append(op)
                 else:
                     self.apply_op(op)
-                applied_ops.append(op_file)
+                    applied_ops.append(op_file)
+                    # Track summary for commit message
+                    op_summaries.append(self._summarize_op(op))
             except Exception as e:
                 logger.error(f"Failed to apply op {op_file}: {e}")
 
@@ -101,8 +105,9 @@ class ControlManager:
             for op_file in applied_ops:
                 op_file.unlink()
 
-            # Commit and push control state updates
-            self.push(f"lobs: apply {len(applied_ops)} control ops")
+            # Generate meaningful commit message
+            commit_msg = self._build_commit_message(op_summaries)
+            self.push(commit_msg)
         
         return messages
 
@@ -277,6 +282,63 @@ class ControlManager:
         status.update(updates)
         with open(WORKER_STATUS_JSON, "w") as f:
             json.dump(status, f, indent=2)
+
+    def _summarize_op(self, op: dict[str, Any]) -> str:
+        """Generate a human-readable summary of an operation."""
+        op_type = op.get("type")
+        
+        # Check for explicit summary first
+        if "summary" in op and op["summary"]:
+            return op["summary"]
+        
+        # Check for action hint
+        action = op.get("action", "")
+        
+        if op_type == "update_task":
+            task_id = op.get("task_id", "unknown")[:8]
+            updates = op.get("updates", {})
+            
+            if action == "complete":
+                return f"complete task {task_id}"
+            elif action.startswith("update_state_"):
+                state = action.split("_")[-1]
+                return f"mark task {task_id} as {state}"
+            elif "workState" in updates:
+                return f"update task {task_id} state to {updates['workState']}"
+            else:
+                fields = ", ".join(updates.keys())
+                return f"update task {task_id} ({fields})"
+        
+        elif op_type == "add_inbox_item":
+            item = op.get("item", {})
+            title = item.get("title", "unknown")
+            if action == "add_suggestion":
+                return f"add suggestion: {title}"
+            return f"add inbox item: {title}"
+        
+        elif op_type == "update_worker_status":
+            return "update worker status"
+        
+        elif op_type == "update_project":
+            project_id = op.get("project_id", "unknown")
+            return f"update project {project_id}"
+        
+        else:
+            return f"{op_type} operation"
+    
+    def _build_commit_message(self, summaries: list[str]) -> str:
+        """Build a meaningful commit message from operation summaries."""
+        if not summaries:
+            return "lobs: update control state"
+        
+        if len(summaries) == 1:
+            return f"lobs: {summaries[0]}"
+        
+        # Multiple operations - use first as headline, rest as body
+        headline = summaries[0]
+        body = "\n".join(f"- {s}" for s in summaries[1:])
+        
+        return f"lobs: {headline}\n\n{body}"
 
     @staticmethod
     def request_op(op: dict[str, Any]) -> None:
