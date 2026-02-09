@@ -149,14 +149,15 @@ class WorkerManager:
         """
         Get the repository path for a project.
         
-        Looks up repoPath from projects.json, falls back to BASE_DIR / project_id.
+        Looks up repoPath from projects.json, auto-discovers if missing, 
+        falls back to BASE_DIR / project_id.
         Caches results to avoid repeated file reads.
         """
         if project_id in self._repo_path_cache:
             return self._repo_path_cache[project_id]
         
         # Try to load from projects.json
-        from orchestrator.config import PROJECTS_FILE
+        from orchestrator.config import PROJECTS_FILE, CONTROL_REPO_PATH
         if PROJECTS_FILE.exists():
             try:
                 import json
@@ -169,10 +170,38 @@ class WorkerManager:
                                 path = Path(repo_path)
                                 self._repo_path_cache[project_id] = path
                                 return path
+                            else:
+                                # Project exists but has no repoPath - try auto-discovery
+                                logger.info(f"Project {project_id} missing repoPath, running auto-discovery...")
+                                try:
+                                    # Run discover-repos to populate missing paths
+                                    result = subprocess.run(
+                                        ["python3", "bin/discover-repos"],
+                                        cwd=CONTROL_REPO_PATH,
+                                        check=True,
+                                        capture_output=True,
+                                        timeout=10
+                                    )
+                                    logger.info(f"Auto-discovery output: {result.stdout.decode().strip()}")
+                                    
+                                    # Reload projects.json and try again
+                                    with open(PROJECTS_FILE, "r") as f2:
+                                        data2 = json.load(f2)
+                                        for p2 in data2.get("projects", []):
+                                            if p2.get("id") == project_id:
+                                                repo_path2 = p2.get("repoPath")
+                                                if repo_path2:
+                                                    path = Path(repo_path2)
+                                                    self._repo_path_cache[project_id] = path
+                                                    logger.info(f"Auto-discovered repo for {project_id}: {path}")
+                                                    return path
+                                except Exception as e:
+                                    logger.warning(f"Auto-discovery failed for {project_id}: {e}")
             except Exception as e:
                 logger.warning(f"Failed to read repoPath for {project_id} from projects.json: {e}")
         
         # Fallback to BASE_DIR / project_id
+        logger.warning(f"No repoPath found for {project_id}, using fallback: {BASE_DIR / project_id}")
         path = BASE_DIR / project_id
         self._repo_path_cache[project_id] = path
         return path
