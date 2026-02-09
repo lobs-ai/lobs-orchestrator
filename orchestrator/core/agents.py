@@ -127,6 +127,61 @@ class AgentManager:
             logger.error(f"Failed to provision worker {agent_id}: {e}")
             return False
     
+    def aux_agent_exists(self, agent_id: str) -> bool:
+        """Check if a non-worker agent (e.g. suggester) exists."""
+        agent_dir = self.agents_dir / agent_id
+        workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
+        return agent_dir.exists() and workspace_dir.exists()
+
+    def provision_aux_agent(
+        self,
+        agent_id: str,
+        *,
+        name: str,
+        model: str,
+        emoji: str = "💡",
+        force: bool = False,
+        register: bool = True,
+    ) -> bool:
+        """Provision a lightweight auxiliary agent.
+
+        This is used for cheap/fast background analysis (e.g. proactive suggestions).
+        """
+        agent_dir = self.agents_dir / agent_id
+        workspace_dir = self.openclaw_dir / f"workspace-{agent_id}"
+
+        if not force and self.aux_agent_exists(agent_id) and (not register or self.is_agent_registered_by_id(agent_id)):
+            return True
+
+        try:
+            agent_dir.mkdir(parents=True, exist_ok=True)
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+
+            # Minimal workspace context (avoid copying WORKER_RULES.md).
+            identity_path = workspace_dir / "IDENTITY.md"
+            if not identity_path.exists() or force:
+                identity_path.write_text(
+                    f"# IDENTITY\n\n- **Name:** {name}\n- **Emoji:** {emoji}\n\n"
+                )
+
+            if register:
+                if not self.register_agent_by_id(
+                    agent_id=agent_id,
+                    name=name,
+                    workspace=str(workspace_dir),
+                    model=model,
+                    identity_name=name,
+                    identity_emoji=emoji,
+                ):
+                    return False
+
+            logger.info(f"✅ Provisioned aux agent: {agent_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to provision aux agent {agent_id}: {e}")
+            return False
+
     def sync_worker_templates(self, project_id: str) -> bool:
         """
         Sync template files to the shared worker.
@@ -234,28 +289,39 @@ class AgentManager:
     
     def is_agent_registered(self, project_id: str) -> bool:
         """Check if worker agent is registered in openclaw.json."""
+        return self.is_agent_registered_by_id(self._get_agent_id(project_id))
+
+    def is_agent_registered_by_id(self, agent_id: str) -> bool:
+        """Check if an agent is registered in openclaw.json."""
         try:
             config = self._read_config()
-            agent_id = self._get_agent_id(project_id)
             agents_list = config.get("agents", {}).get("list", [])
             return any(agent.get("id") == agent_id for agent in agents_list)
         except Exception as e:
             logger.error(f"Failed to check agent registration: {e}")
             return False
-    
+
     def register_agent(self, project_id: str, model: Optional[str] = None) -> bool:
-        """
-        Register worker agent in openclaw.json.
+        """Register the shared worker agent in openclaw.json."""
+        return self.register_agent_by_id(
+            agent_id=self._get_agent_id(project_id),
+            name="Lobs Worker",
+            workspace=str(self.openclaw_dir / f"workspace-{self._get_agent_id(project_id)}"),
+            model=model or "anthropic/claude-sonnet-4-5",
+            identity_name="Lobs Worker",
+            identity_emoji="🔧",
+        )
 
-        Args:
-            project_id: Project identifier (used for compatibility)
-            model: Optional model override (defaults to sonnet)
-
-        Returns:
-            True if registered successfully
-        """
-        agent_id = self._get_agent_id(project_id)
-
+    def register_agent_by_id(
+        self,
+        agent_id: str,
+        name: str,
+        workspace: str,
+        model: str,
+        identity_name: Optional[str] = None,
+        identity_emoji: Optional[str] = None,
+    ) -> bool:
+        """Register an agent in openclaw.json."""
         try:
             config = self._read_config()
 
@@ -272,17 +338,18 @@ class AgentManager:
                 logger.debug(f"Agent {agent_id} already registered")
                 return True
 
-            # Add new agent
-            new_agent = {
+            new_agent: dict = {
                 "id": agent_id,
-                "name": "Lobs Worker",
-                "workspace": str(self.openclaw_dir / f"workspace-{agent_id}"),
-                "model": model or "anthropic/claude-sonnet-4-5",
-                "identity": {
-                    "name": "Lobs Worker",
-                    "emoji": "🔧"
-                }
+                "name": name,
+                "workspace": workspace,
+                "model": model,
             }
+
+            if identity_name or identity_emoji:
+                new_agent["identity"] = {
+                    "name": identity_name or name,
+                    "emoji": identity_emoji or "",
+                }
 
             agents_list.append(new_agent)
             self._write_config(config)
