@@ -604,25 +604,74 @@ class WorkerManager:
     # =========================================================================
 
     def _cleanup_worker_session(self, agent_id: str):
-        """Clean up worker agent's session files after task completion."""
+        """Clean up worker agent's session via OpenClaw gateway API."""
         logger.info(f"[WORKER] Cleaning up session for agent {agent_id}...")
+        try:
+            from orchestrator.utils.settings import get_setting
+            executable = get_setting("openclaw_executable", "openclaw")
+            
+            # Use the gateway API to properly delete the session
+            # This archives the transcript and removes the session entry
+            session_key = f"agent:{agent_id}:main"
+            result = subprocess.run(
+                [executable, "gateway", "call", "sessions.delete", 
+                 "--params", f'{{"key":"{session_key}"}}'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"[WORKER] Deleted session {session_key} via gateway API")
+                # Parse result to log archived files
+                try:
+                    import json
+                    data = json.loads(result.stdout)
+                    if data.get("archived"):
+                        logger.debug(f"[WORKER] Archived: {data['archived']}")
+                except Exception:
+                    pass
+            else:
+                logger.warning(f"[WORKER] Gateway session delete failed: {result.stderr}")
+                # Fall back to file-based cleanup
+                self._cleanup_worker_session_files(agent_id)
+                
+        except subprocess.TimeoutExpired:
+            logger.warning(f"[WORKER] Session cleanup timed out, falling back to file cleanup")
+            self._cleanup_worker_session_files(agent_id)
+        except Exception as e:
+            logger.warning(f"Error cleaning worker sessions via API: {e}")
+            self._cleanup_worker_session_files(agent_id)
+
+    def _cleanup_worker_session_files(self, agent_id: str):
+        """Fallback: Clean up worker agent's session files directly."""
         try:
             sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
             if not sessions_dir.exists():
                 return
 
             deleted = 0
-            for f in sessions_dir.glob("*.jsonl*"):
+            for f in sessions_dir.glob("*.jsonl"):
                 try:
                     f.unlink()
                     deleted += 1
                 except Exception:
                     pass
-
-            store = sessions_dir / "sessions.json"
-            if store.exists():
+            
+            # Also clean up lock files
+            for f in sessions_dir.glob("*.jsonl.lock"):
                 try:
-                    store.unlink()
+                    f.unlink()
+                except Exception:
+                    pass
+
+            # Clean up archived deleted files older than 1 hour
+            import time
+            cutoff = time.time() - 3600
+            for f in sessions_dir.glob("*.deleted.*"):
+                try:
+                    if f.stat().st_mtime < cutoff:
+                        f.unlink()
                 except Exception:
                     pass
 
@@ -630,7 +679,7 @@ class WorkerManager:
                 logger.info(f"[WORKER] Cleared {deleted} session file(s) for agent {agent_id}")
 
         except Exception as e:
-            logger.warning(f"Error cleaning worker sessions: {e}")
+            logger.warning(f"Error cleaning worker session files: {e}")
 
     # =========================================================================
     # Success/Failure Handlers
