@@ -3,6 +3,7 @@ import logging
 import json
 import time
 import os
+import sys
 import signal
 from datetime import datetime, timezone
 from pathlib import Path
@@ -286,6 +287,7 @@ class WorkerManager:
         task_title = task.get("title", task_id[:8])
         workspace = self._get_repo_path(project_id)
         agent_id = "ollama"
+        start_time = time.time()
 
         try:
             # Sync repo
@@ -327,7 +329,7 @@ class WorkerManager:
 
                     success = self.finalize_project_changes(task_id, project_id)
                     if success:
-                        self.handle_worker_success(task_id, project_id, agent_id)
+                        self.handle_worker_success(task_id, project_id, agent_id, start_time)
                     else:
                         self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", agent_id)
 
@@ -343,6 +345,7 @@ class WorkerManager:
         finally:
             self._clear_state()
             self.pending_workers.discard(task_id)
+            self._update_provider_status()
 
     def _async_spawn_openclaw_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
         """Spawn an OpenClaw worker."""
@@ -436,6 +439,7 @@ class WorkerManager:
             self._clear_state()
             self.handle_worker_failure(task_id, project_id, str(e), agent_id)
             self.pending_workers.discard(task_id)
+            self._update_provider_status()
 
     # =========================================================================
     # Worker Lifecycle
@@ -450,14 +454,14 @@ class WorkerManager:
                 elapsed = time.time() - start_time
                 logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished.append((task_id, project_id, agent_id, retcode))
+                finished.append((task_id, project_id, agent_id, retcode, start_time))
 
-        for task_id, project_id, agent_id, retcode in finished:
+        for task_id, project_id, agent_id, retcode, start_time in finished:
             del self.active_workers[task_id]
             
             if retcode == 0:
                 self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
-                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id)
+                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time)
             else:
                 self._handle_immediate_failure(task_id, project_id, agent_id)
 
@@ -478,12 +482,12 @@ class WorkerManager:
         self.handle_worker_failure(task_id, project_id, error_tail, agent_id)
         self._clear_state()
 
-    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str):
+    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float):
         """Finalize worker completion (commit, push, update state)."""
         try:
             success = self.finalize_project_changes(task_id, project_id)
             if success:
-                self.handle_worker_success(task_id, project_id, agent_id)
+                self.handle_worker_success(task_id, project_id, agent_id, start_time)
             else:
                 self.handle_worker_failure(task_id, project_id, "Project repo push failed", agent_id)
         except Exception as e:
@@ -491,6 +495,8 @@ class WorkerManager:
             self.handle_worker_failure(task_id, project_id, str(e), agent_id)
         finally:
             self._clear_state()
+            self.pending_workers.discard(task_id)
+            self._update_provider_status()
 
     # =========================================================================
     # Git Operations
@@ -561,8 +567,91 @@ class WorkerManager:
             logger.warning(f"Failed to generate commit message from diff: {e}")
             return f"Complete task {task_id}\n\nProject: {project_id}"
 
+    def _finalize_all_repo_changes(self, task_id: str) -> list[str]:
+        """Scan all known repos for uncommitted/unpushed changes and finalize them.
+        
+        Returns list of repos that had changes committed/pushed.
+        """
+        finalized_repos = []
+        
+        # Get all project repos from projects.json
+        try:
+            import json
+            from pathlib import Path
+            state_dir = Path.home() / "lobs-control" / "state"
+            projects_file = state_dir / "projects.json"
+            
+            if not projects_file.exists():
+                logger.warning("projects.json not found, skipping cross-repo finalization")
+                return finalized_repos
+            
+            with open(projects_file) as f:
+                projects_data = json.load(f)
+            
+            # Include orchestrator and control repos explicitly
+            repos_to_check = [
+                str(Path.home() / "lobs-orchestrator"),
+                str(Path.home() / "lobs-control"),
+            ]
+            
+            # Add all project repos
+            for project in projects_data.get("projects", []):
+                repo_path = project.get("repoPath")
+                if repo_path and Path(repo_path).exists():
+                    repos_to_check.append(repo_path)
+            
+            # Check each repo for changes
+            for repo_path in repos_to_check:
+                try:
+                    # Check for uncommitted changes
+                    status_result = subprocess.run(
+                        ["git", "status", "--porcelain"],
+                        cwd=repo_path,
+                        capture_output=True,
+                        timeout=5
+                    )
+                    has_uncommitted = bool(status_result.stdout.decode().strip())
+                    
+                    # Check for unpushed commits
+                    unpushed_result = subprocess.run(
+                        ["git", "log", "origin/HEAD..HEAD", "--oneline"],
+                        cwd=repo_path,
+                        capture_output=True,
+                        timeout=5
+                    )
+                    has_unpushed = bool(unpushed_result.stdout.decode().strip())
+                    
+                    if has_uncommitted:
+                        # Commit changes
+                        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
+                        commit_msg = f"Auto-finalize: changes from task {task_id[:8]}"
+                        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_path, check=True)
+                        logger.info(f"Auto-committed changes in {Path(repo_path).name}")
+                        finalized_repos.append(repo_path)
+                        has_unpushed = True  # Now we have commits to push
+                    
+                    if has_unpushed:
+                        # Push commits
+                        subprocess.run(["git", "push"], cwd=repo_path, check=True)
+                        logger.info(f"Auto-pushed changes in {Path(repo_path).name}")
+                        if repo_path not in finalized_repos:
+                            finalized_repos.append(repo_path)
+                    
+                except subprocess.CalledProcessError as e:
+                    logger.warning(f"Git operation failed for {Path(repo_path).name}: {e}")
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Git operation timed out for {Path(repo_path).name}")
+                except Exception as e:
+                    logger.warning(f"Failed to check/finalize {Path(repo_path).name}: {e}")
+            
+            return finalized_repos
+            
+        except Exception as e:
+            logger.error(f"Failed to scan repos for finalization: {e}")
+            return finalized_repos
+
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
-        """Commit and push changes in the project repository."""
+        """Commit and push changes in the project repository, then scan all other repos."""
         project_path = self._get_repo_path(project_id)
         
         try:
@@ -572,7 +661,7 @@ class WorkerManager:
                 logger.warning(f"Worker indicated task {task_id} is blocked: {work_summary}")
                 return False
             
-            # Check for changes
+            # Check for changes in project repo
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
                 cwd=project_path,
@@ -580,19 +669,24 @@ class WorkerManager:
                 capture_output=True,
             ).stdout.decode()
             
-            if not status:
-                logger.info(f"No changes to commit for task {task_id}")
-                return True
+            if status:
+                # Stage and commit
+                subprocess.run(["git", "add", "."], cwd=project_path, check=True)
+                commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary)
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
+                logger.info(f"Committed changes for task {task_id}")
 
-            # Stage and commit
-            subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-            commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary)
-            subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
-            logger.info(f"Committed changes for task {task_id}")
-
-            # Push
-            subprocess.run(["git", "push"], cwd=project_path, check=True)
-            logger.info(f"Pushed changes for task {task_id} to {project_id}")
+                # Push
+                subprocess.run(["git", "push"], cwd=project_path, check=True)
+                logger.info(f"Pushed changes for task {task_id} to {project_id}")
+            else:
+                logger.info(f"No changes to commit for task {task_id} in project repo")
+            
+            # Now check and finalize ALL other repos with changes
+            finalized_repos = self._finalize_all_repo_changes(task_id)
+            if finalized_repos:
+                logger.info(f"Auto-finalized {len(finalized_repos)} additional repos")
+            
             return True
             
         except subprocess.CalledProcessError as e:
@@ -682,12 +776,143 @@ class WorkerManager:
             logger.warning(f"Error cleaning worker session files: {e}")
 
     # =========================================================================
+    # Usage Tracking
+    # =========================================================================
+
+    def _capture_worker_usage(self, agent_id: str, task_id: str, start_time: float):
+        """Capture and log worker session usage stats."""
+        try:
+            from orchestrator.utils.settings import get_setting
+            executable = get_setting("openclaw_executable", "openclaw")
+            
+            # Get session status via OpenClaw
+            result = subprocess.run(
+                [executable, "session-status", "--agent", agent_id],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.warning(f"Failed to get session status for {agent_id}")
+                return
+            
+            # Parse token counts and model from output
+            output = result.stdout
+            import re
+            
+            # Extract: "Tokens: 1.4k in / 239 out"
+            tok_match = re.search(r"Tokens:\s*([0-9\.,kKmM]+)\s*in\s*/\s*([0-9\.,kKmM]+)\s*out", output)
+            if not tok_match:
+                logger.warning("Could not parse token counts from session status")
+                return
+            
+            input_tokens = self._parse_token_num(tok_match.group(1))
+            output_tokens = self._parse_token_num(tok_match.group(2))
+            
+            # Extract model
+            model = "claude-opus-4-5"  # default
+            model_match = re.search(r"Model:\s+([^\s]+)", output)
+            if model_match:
+                model = model_match.group(1).strip().split("/")[-1]  # Get model ID only
+            
+            # Calculate cost
+            sys.path.insert(0, str(ORCHESTRATOR_REPO_PATH / "lobs-control" / "bin"))
+            try:
+                from lib.pricing import compute_cost
+                cost_usd = compute_cost(input_tokens, output_tokens, model)
+            except ImportError:
+                logger.warning("Could not import pricing module, estimating cost")
+                # Fallback: rough estimate for opus
+                cost_usd = (input_tokens / 1_000_000 * 5.0) + (output_tokens / 1_000_000 * 25.0)
+            
+            # Read worker status to get workerId and startedAt
+            worker_status_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-status.json"
+            worker_id = None
+            started_at = datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat()
+            
+            if worker_status_path.exists():
+                try:
+                    with open(worker_status_path) as f:
+                        status_data = json.load(f)
+                        worker_id = status_data.get("workerId")
+                        if status_data.get("startedAt"):
+                            started_at = status_data["startedAt"]
+                except Exception:
+                    pass
+            
+            # Append to worker history
+            history_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-history.json"
+            history_data = {"runs": []}
+            
+            if history_path.exists():
+                try:
+                    with open(history_path) as f:
+                        history_data = json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to read worker history: {e}")
+            
+            # Create new entry
+            new_run = {
+                "workerId": worker_id or str(int(time.time())),
+                "startedAt": started_at,
+                "endedAt": datetime.now(timezone.utc).isoformat(),
+                "tasksCompleted": 1,
+                "timeoutReason": None,
+                "model": model,
+                "inputTokens": input_tokens,
+                "outputTokens": output_tokens,
+                "totalTokens": input_tokens + output_tokens,
+                "totalCostUSD": round(cost_usd, 4),
+            }
+            
+            history_data["runs"].append(new_run)
+            
+            # Write back
+            with open(history_path, "w") as f:
+                json.dump(history_data, f, indent=2)
+            
+            logger.info(f"Logged worker usage: {input_tokens + output_tokens} tokens, ${cost_usd:.4f}")
+            
+            # Commit and push to control repo
+            try:
+                subprocess.run(["git", "add", "state/worker-history.json"], 
+                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
+                subprocess.run(["git", "commit", "-m", f"Log worker usage for task {task_id[:8]}"],
+                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
+                subprocess.run(["git", "push"],
+                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
+                logger.info("Pushed worker usage to control repo")
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Failed to commit worker usage: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error capturing worker usage: {e}")
+
+    def _parse_token_num(self, s: str) -> int:
+        """Parse token number with k/M suffix."""
+        s = s.strip().replace(",", "")
+        m = __import__('re').fullmatch(r"(\d+(?:\.\d+)?)([kKmM]?)", s)
+        if not m:
+            return 0
+        val = float(m.group(1))
+        suf = m.group(2).lower()
+        if suf == "k":
+            val *= 1_000
+        elif suf == "m":
+            val *= 1_000_000
+        return int(round(val))
+
+    # =========================================================================
     # Success/Failure Handlers
     # =========================================================================
 
-    def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
+    def handle_worker_success(self, task_id: str, project_id: str, agent_id: str, start_time: float):
         """Handle successful worker completion."""
         logger.info(f"Worker success for task {task_id[:8]}. Marking complete.")
+        
+        # Capture usage stats before cleaning up session
+        self._capture_worker_usage(agent_id, task_id, start_time)
         
         self.provider.update_task(task_id, {
             "workState": "completed",
