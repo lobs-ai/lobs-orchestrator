@@ -169,33 +169,32 @@ class Orchestrator:
             work_id = item["id"]
             work_title = item.get("title", item.get("prompt", work_id[:8]))
 
-            if not self.worker_manager.is_domain_locked(project_id):
-                activity = True
-                logger.info(f"Assigning {kind} {work_id} to project {project_id}")
+            # Try to assign work (spawn_worker handles queueing if busy)
+            activity = True
+            logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-                # NOTE: Single shared "worker" agent handles ALL work types
-                # agentType is metadata used to customize the prompt, not to select different agents
-                agent_type = item.get("agentType") or "worker"
+            # NOTE: Single shared "worker" agent handles ALL work types
+            # agentType is metadata used to customize the prompt, not to select different agents
+            agent_type = item.get("agentType") or "worker"
 
-                # Get rules from provider
-                rules = self.provider.get_engineering_rules()
+            # Get rules from provider
+            rules = self.provider.get_engineering_rules()
 
-                # Spawn the single worker (will return False if busy/queued)
-                spawned = self.worker_manager.spawn_worker(
-                    item, project_id, agent_type=agent_type, rules=rules
-                )
+            # Spawn the single worker (will return False if busy/queued)
+            spawned = self.worker_manager.spawn_worker(
+                item, project_id, agent_type=agent_type, rules=rules
+            )
 
-                # CRITICAL FIX: Only update state if worker was actually spawned (not queued)
-                # This prevents tasks from getting stuck in "in_progress" when worker is busy
-                if spawned:
-                    # Notify heartbeat manager
-                    self.heartbeat.notify_worker_started(work_id, work_title, project_id)
+            # Only update state if worker was actually spawned (not queued)
+            if spawned:
+                # Notify heartbeat manager
+                self.heartbeat.notify_worker_started(work_id, work_title, project_id)
 
-                    # Update state to in_progress via provider
-                    if kind == "task":
-                        self.provider.update_task(work_id, {"workState": "in_progress"})
-                    else:
-                        self.provider.update_task(work_id, {"status": "in_progress"})
+                # Update state to in_progress via provider
+                if kind == "task":
+                    self.provider.update_task(work_id, {"workState": "in_progress"})
+                else:
+                    self.provider.update_task(work_id, {"status": "in_progress"})
 
         return activity
 
