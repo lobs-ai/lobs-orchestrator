@@ -4,7 +4,7 @@ Description=Lobs Orchestrator Service
 [Service]
 Type=simple
 WorkingDirectory=/home/rafe/lobs-orchestrator
-ExecStart=/home/rafe/lobs-orchestrator/.venv/bin/python3 /home/rafe/lobs-orchestrator/main.py
+ExecStart=/bin/bash -c 'source .venv/bin/activate && exec python3 main.py'
 Restart=always
 RestartSec=10
 StandardOutput=append:/home/rafe/.openclaw/logs/lobs-orchestrator.log

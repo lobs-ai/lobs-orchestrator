@@ -271,6 +271,10 @@ class ControlManager:
             logger.error(f"Failed to add inbox item: {e}")
 
     def _update_worker_status(self, updates: dict[str, Any]) -> None:
+        """
+        Update worker status file (local only, never pushed to git).
+        This is runtime state, not canonical control state.
+        """
         from orchestrator.config import WORKER_STATUS_JSON
 
         if not WORKER_STATUS_JSON.exists():
@@ -282,6 +286,8 @@ class ControlManager:
         status.update(updates)
         with open(WORKER_STATUS_JSON, "w") as f:
             json.dump(status, f, indent=2)
+        
+        # Note: worker status is NOT pushed to git (it's in .gitignore)
 
     def _get_task_title(self, task_id: str) -> str:
         """Look up task title from the task file."""
