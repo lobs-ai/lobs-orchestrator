@@ -132,6 +132,8 @@ class ControlManager:
             self._update_inbox_item(op["item_id"], op["updates"])
         elif op_type == "add_inbox_item":
             self._add_inbox_item(op["item"])
+        elif op_type == "log_worker_usage":
+            self._log_worker_usage(op["usage_data"])
         else:
             logger.warning(f"Unknown op type: {op_type}")
 
@@ -296,6 +298,36 @@ class ControlManager:
         
         # Note: worker status is NOT pushed to git (it's in .gitignore)
 
+    def _log_worker_usage(self, usage_data: dict[str, Any]) -> None:
+        """
+        Append worker usage data to worker-history.json.
+        This is pushed to git as part of control state.
+        """
+        history_path = CONTROL_REPO_PATH / "state" / "worker-history.json"
+        
+        # Load existing history
+        if history_path.exists():
+            try:
+                with open(history_path, "r") as f:
+                    history = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to read worker history: {e}")
+                history = {"runs": []}
+        else:
+            history = {"runs": []}
+        
+        # Append new run
+        history["runs"].append(usage_data)
+        
+        # Write back
+        try:
+            with open(history_path, "w") as f:
+                json.dump(history, f, indent=2)
+                f.write("\n")
+            logger.info(f"Logged worker usage: {usage_data.get('totalTokens', 0)} tokens, ${usage_data.get('totalCostUSD', 0):.4f}")
+        except Exception as e:
+            logger.error(f"Failed to write worker history: {e}")
+
     def _get_task_title(self, task_id: str) -> str:
         """Look up task title from the task file."""
         task_file = TASKS_DIR / f"{task_id}.json"
@@ -344,6 +376,12 @@ class ControlManager:
         
         elif op_type == "update_worker_status":
             return "update worker status"
+        
+        elif op_type == "log_worker_usage":
+            usage = op.get("usage_data", {})
+            tokens = usage.get("totalTokens", 0)
+            cost = usage.get("totalCostUSD", 0)
+            return f"log worker usage: {tokens:,} tokens, ${cost:.4f}"
         
         elif op_type == "update_project":
             project_id = op.get("project_id", "unknown")

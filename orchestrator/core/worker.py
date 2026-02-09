@@ -1080,19 +1080,8 @@ class WorkerManager:
                 except Exception:
                     pass
             
-            # Append to worker history
-            history_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-history.json"
-            history_data = {"runs": []}
-            
-            if history_path.exists():
-                try:
-                    with open(history_path) as f:
-                        history_data = json.load(f)
-                except Exception as e:
-                    logger.warning(f"Failed to read worker history: {e}")
-            
-            # Create new entry
-            new_run = {
+            # Create usage entry
+            usage_data = {
                 "workerId": worker_id or str(int(time.time())),
                 "startedAt": started_at,
                 "endedAt": datetime.now(timezone.utc).isoformat(),
@@ -1105,25 +1094,15 @@ class WorkerManager:
                 "totalCostUSD": round(cost_usd, 4),
             }
             
-            history_data["runs"].append(new_run)
+            # Request control-op to log usage (single-writer pattern)
+            from orchestrator.services.control import ControlManager
+            ControlManager.request_op({
+                "type": "log_worker_usage",
+                "usage_data": usage_data,
+                "summary": f"log worker usage for task {task_id[:8]}"
+            })
             
-            # Write back
-            with open(history_path, "w") as f:
-                json.dump(history_data, f, indent=2)
-            
-            logger.info(f"Logged worker usage: {input_tokens + output_tokens} tokens, ${cost_usd:.4f}")
-            
-            # Commit and push to control repo
-            try:
-                subprocess.run(["git", "add", "state/worker-history.json"], 
-                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
-                subprocess.run(["git", "commit", "-m", f"Log worker usage for task {task_id[:8]}"],
-                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
-                subprocess.run(["git", "push"],
-                             cwd=ORCHESTRATOR_REPO_PATH / "lobs-control", check=True)
-                logger.info("Pushed worker usage to control repo")
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to commit worker usage: {e}")
+            logger.info(f"Requested worker usage log: {input_tokens + output_tokens} tokens, ${cost_usd:.4f}")
             
         except Exception as e:
             logger.error(f"Error capturing worker usage: {e}")
