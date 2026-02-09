@@ -60,15 +60,26 @@ That's it.
 
 ---
 
-## Work Summary (Optional)
+## Work Summary (Required)
 
-Write a brief summary to `.work-summary` for a better commit message:
+Write a git-style commit message to `.work-summary`:
 
 ```
-echo "Implemented JWT authentication middleware" > .work-summary
+echo 'Add JWT authentication middleware
+
+- Implement token validation in auth.py
+- Add middleware to protected routes' > .work-summary
 ```
 
-If you don't write this, the orchestrator generates a message from the diff.
+**Format:**
+- Line 1: Short subject (<72 chars) - what changed, imperative mood
+- Line 2: Blank
+- Lines 3+: Optional body with details
+
+**Good:** `Add user settings migration to ~/.lobs/`  
+**Bad:** `Update files` / `Made changes` / `Task complete`
+
+If you don't write this, the orchestrator will use the task title as the commit message.
 
 ---
 

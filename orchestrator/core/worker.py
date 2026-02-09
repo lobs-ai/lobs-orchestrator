@@ -79,8 +79,8 @@ class WorkerManager:
         self.escalation = EscalationManager(provider)
 
         # In-memory tracking (primary source of truth while running)
-        # task_id -> (process, project_id, log_file, start_time, agent_id)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
 
         # Single-threaded executor ensures one spawn at a time
@@ -370,7 +370,7 @@ class WorkerManager:
                     log_file.write(f"\n\n=== Completed ===\n")
                     self._save_state(task_id, project_id, state="finalizing", task_title=task_title, agent_id=agent_id)
 
-                    success = self.finalize_project_changes(task_id, project_id)
+                    success = self.finalize_project_changes(task_id, project_id, task_title)
                     if success:
                         self.handle_worker_success(task_id, project_id, agent_id, start_time)
                     else:
@@ -466,7 +466,7 @@ class WorkerManager:
                 raise RuntimeError("Single-worker constraint violated")
 
             # Track active worker
-            self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id)
+            self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id, task_title)
             self.pending_workers.discard(task_id)
             
             # Update provider status
@@ -494,20 +494,20 @@ class WorkerManager:
     def check_workers(self):
         """Check status of active workers and handle completion."""
         finished = []
-        for task_id, (process, project_id, log_file, start_time, agent_id) in list(self.active_workers.items()):
+        for task_id, (process, project_id, log_file, start_time, agent_id, task_title) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
                 elapsed = time.time() - start_time
                 logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished.append((task_id, project_id, agent_id, retcode, start_time))
+                finished.append((task_id, project_id, agent_id, retcode, start_time, task_title))
 
-        for task_id, project_id, agent_id, retcode, start_time in finished:
+        for task_id, project_id, agent_id, retcode, start_time, task_title in finished:
             del self.active_workers[task_id]
             
             if retcode == 0:
                 self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
-                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time)
+                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time, task_title)
             else:
                 self._handle_immediate_failure(task_id, project_id, agent_id)
 
@@ -528,10 +528,10 @@ class WorkerManager:
         self.handle_worker_failure(task_id, project_id, error_tail, agent_id)
         self._clear_state()
 
-    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float):
+    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float, task_title: str = ""):
         """Finalize worker completion (commit, push, update state)."""
         try:
-            success = self.finalize_project_changes(task_id, project_id)
+            success = self.finalize_project_changes(task_id, project_id, task_title)
             if success:
                 self.handle_worker_success(task_id, project_id, agent_id, start_time)
             else:
@@ -759,8 +759,8 @@ class WorkerManager:
         
         return summary, was_blocked
 
-    def _generate_commit_message(self, task_id: str, project_id: str, project_path: Path, work_summary: str) -> str:
-        """Generate commit message from work summary or git diff."""
+    def _generate_commit_message(self, task_id: str, project_id: str, project_path: Path, work_summary: str, task_title: str = "") -> str:
+        """Generate commit message from work summary, task title, or git diff."""
         if work_summary:
             lines = work_summary.split('\n')
             subject = lines[0][:72]
@@ -771,6 +771,11 @@ class WorkerManager:
                 msg += f"{body}\n\n"
             msg += f"Task: {task_id}\nProject: {project_id}"
             return msg
+        
+        # Use task title if available
+        if task_title:
+            subject = task_title[:72]
+            return f"{subject}\n\nTask: {task_id}\nProject: {project_id}"
         
         # Generate from diff
         try:
@@ -889,7 +894,7 @@ class WorkerManager:
             logger.error(f"Failed to scan repos for finalization: {e}")
             return finalized_repos
 
-    def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
+    def finalize_project_changes(self, task_id: str, project_id: str, task_title: str = "") -> bool:
         """Commit and push changes in the project repository, then scan all other repos."""
         project_path = self._get_repo_path(project_id)
         
@@ -911,7 +916,7 @@ class WorkerManager:
             if status:
                 # Stage and commit
                 subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-                commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary)
+                commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary, task_title)
                 subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
                 logger.info(f"Committed changes for task {task_id}")
 

@@ -11,6 +11,20 @@
 
 ---
 
+## Communication Style
+
+**Do the work. Don't narrate it.**
+
+- Minimize commentary and explanations
+- Do NOT summarize what you did at the end
+- Do NOT write progress reports
+- Your code changes speak for themselves
+- Only speak up when blocked or asking a clarifying question
+
+Save tokens. Get work done.
+
+---
+
 ## Your Role
 
 You are acting as:
@@ -46,15 +60,26 @@ That's it.
 
 ---
 
-## Work Summary (Optional)
+## Work Summary (Required)
 
-Write a **very short** summary (1-2 lines max) to `.work-summary`:
+Write a git-style commit message to `.work-summary`:
 
 ```
-echo "Add JWT auth middleware" > .work-summary
+echo 'Add JWT authentication middleware
+
+- Implement token validation in auth.py
+- Add middleware to protected routes' > .work-summary
 ```
 
-Keep it minimal - just what changed, not how or why. The orchestrator auto-generates a message from the diff if you don't write this.
+**Format:**
+- Line 1: Short subject (<72 chars) - what changed, imperative mood
+- Line 2: Blank
+- Lines 3+: Optional body with details
+
+**Good:** `Add user settings migration to ~/.lobs/`  
+**Bad:** `Update files` / `Made changes` / `Task complete`
+
+If you don't write this, the orchestrator will use the task title as the commit message.
 
 ---
 
