@@ -45,8 +45,8 @@ def test_worker_manager_uses_custom_openclaw(mock_run, mock_popen, temp_control_
     
     # We need to mock Prompter.build_task_prompt as well
     with patch("orchestrator.services.prompter.Prompter.build_task_prompt", return_value="fake prompt"):
-        # We need to call the internal _async_spawn_flow directly to avoid threading for testing
-        wm._async_spawn_flow(task, project_id, "task-runner", "fake rules")
+        # We need to call the internal _async_spawn_openclaw_flow directly to avoid threading for testing
+        wm._async_spawn_openclaw_flow(task, project_id, "task-runner", "fake rules")
         
         # Check if Popen was called with the custom path
         args, kwargs = mock_popen.call_args
@@ -54,7 +54,7 @@ def test_worker_manager_uses_custom_openclaw(mock_run, mock_popen, temp_control_
         assert cmd[0] == custom_path
         assert cmd[1] == "agent"
         assert "--agent" in cmd
-        assert "--message" in cmd
+        assert "-m" in cmd  # -m is short for --message
 
 @patch("subprocess.Popen")
 @patch("subprocess.run")
@@ -74,7 +74,7 @@ def test_worker_manager_openclaw_not_found(mock_run, mock_popen, temp_control_re
     mock_popen.side_effect = FileNotFoundError("[Errno 2] No such file or directory: '/non/existent/path'")
     
     with patch("orchestrator.services.prompter.Prompter.build_task_prompt", return_value="fake prompt"):
-        wm._async_spawn_flow(task, project_id, "task-runner", "fake rules")
+        wm._async_spawn_openclaw_flow(task, project_id, "task-runner", "fake rules")
         
         # Verify failure was handled
         provider.update_task.assert_called_with("test-task-fail", {"workState": "failed"})

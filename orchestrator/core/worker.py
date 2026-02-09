@@ -475,7 +475,7 @@ class WorkerManager:
         except Exception as e:
             logger.error(f"Failed to async spawn worker for {task_id}: {e}")
             self.release_lock(project_id)
-            self.handle_worker_failure(task_id, project_id, str(e))
+            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
         finally:
             if task_id in self.pending_workers:
                 self.pending_workers.remove(task_id)
@@ -531,10 +531,115 @@ class WorkerManager:
         finally:
             self.release_lock(project_id)
 
-    def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
-        """Commits and pushes changes in the project repository."""
-        project_path = self._get_repo_path(project_id)
+    def _read_work_summary(self, project_path: Path) -> tuple[str, bool]:
+        """
+        Read and clean up the .work-summary file if it exists.
+        
+        Returns:
+            tuple of (summary_text, was_blocked)
+            - summary_text: The content of .work-summary, or empty string
+            - was_blocked: True if summary indicates worker was blocked
+        """
+        summary_file = project_path / ".work-summary"
+        summary = ""
+        was_blocked = False
+        
+        if summary_file.exists():
+            try:
+                summary = summary_file.read_text().strip()
+                # Check if worker indicated they were blocked
+                if summary.upper().startswith("BLOCKED:"):
+                    was_blocked = True
+                # Clean up the file
+                summary_file.unlink()
+                logger.debug(f"Read and cleaned up .work-summary")
+            except Exception as e:
+                logger.warning(f"Failed to read .work-summary: {e}")
+        
+        return summary, was_blocked
+
+    def _generate_commit_message(self, task_id: str, project_id: str, project_path: Path, work_summary: str) -> str:
+        """
+        Generate a commit message from work summary or git diff.
+        
+        Args:
+            task_id: The task ID
+            project_id: The project ID  
+            project_path: Path to the project repo
+            work_summary: Content from .work-summary (may be empty)
+            
+        Returns:
+            A formatted commit message
+        """
+        # If we have a work summary, use it
+        if work_summary:
+            # Use first line as subject, rest as body
+            lines = work_summary.split('\n')
+            subject = lines[0][:72]  # Git subject line limit
+            body = '\n'.join(lines[1:]).strip() if len(lines) > 1 else ""
+            
+            msg = f"{subject}\n\n"
+            if body:
+                msg += f"{body}\n\n"
+            msg += f"Task: {task_id}\nProject: {project_id}"
+            return msg
+        
+        # No summary - generate from diff
         try:
+            # Get list of changed files
+            diff_stat = subprocess.run(
+                ["git", "diff", "--cached", "--stat"],
+                cwd=project_path,
+                capture_output=True,
+                timeout=10
+            ).stdout.decode().strip()
+            
+            # Get file names only
+            files_result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=project_path,
+                capture_output=True,
+                timeout=10
+            )
+            files = files_result.stdout.decode().strip().split('\n')
+            files = [f for f in files if f]  # Remove empty strings
+            
+            if len(files) == 1:
+                subject = f"Update {files[0]}"
+            elif len(files) <= 3:
+                subject = f"Update {', '.join(files)}"
+            else:
+                # Try to find common directory
+                dirs = set(str(Path(f).parent) for f in files)
+                if len(dirs) == 1 and list(dirs)[0] != '.':
+                    subject = f"Update {list(dirs)[0]}/ ({len(files)} files)"
+                else:
+                    subject = f"Update {len(files)} files"
+            
+            return f"{subject}\n\nTask: {task_id}\nProject: {project_id}\n\n{diff_stat}"
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate commit message from diff: {e}")
+            return f"Complete task {task_id}\n\nProject: {project_id}"
+
+    def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
+        """
+        Commits and pushes changes in the project repository.
+        
+        Reads .work-summary for commit message if available, otherwise
+        generates message from the git diff.
+        """
+        project_path = self._get_repo_path(project_id)
+        
+        try:
+            # Read work summary first (before checking status, since it might be the only change)
+            work_summary, was_blocked = self._read_work_summary(project_path)
+            
+            if was_blocked:
+                logger.warning(f"Worker indicated task {task_id} is blocked: {work_summary}")
+                # Return False to trigger failure handling
+                return False
+            
             # Check if there are changes
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -542,23 +647,30 @@ class WorkerManager:
                 check=True,
                 capture_output=True,
             ).stdout.decode()
+            
             if not status:
                 logger.info(f"No changes to commit for task {task_id} in {project_id}")
                 return True
 
-            # Commit
+            # Stage all changes
             subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-            commit_msg = f"lobs: complete task {task_id}\n\nProject: {project_id}"
+            
+            # Generate commit message
+            commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary)
+            
+            # Commit
             subprocess.run(
-                ["git", "commit", "-m", commit_msg], cwd=project_path, check=True
+                ["git", "commit", "-m", commit_msg], 
+                cwd=project_path, 
+                check=True
             )
+            logger.info(f"Committed changes for task {task_id}")
 
             # Push
             subprocess.run(["git", "push"], cwd=project_path, check=True)
-            logger.info(
-                f"Successfully pushed changes for task {task_id} to {project_id}"
-            )
+            logger.info(f"Successfully pushed changes for task {task_id} to {project_id}")
             return True
+            
         except subprocess.CalledProcessError as e:
             logger.error(
                 f"Git operation failed for {project_id}: {e.stderr.decode() if e.stderr else str(e)}"
@@ -615,32 +727,23 @@ class WorkerManager:
             logger.warning(f"Error cleaning worker sessions for {agent_id}: {e}")
 
     def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
-        logger.info(f"Worker success for task {task_id}. Updating state.")
+        """
+        Handle successful worker completion.
         
-        # Check if worker already marked task as completed via complete-task script
-        # If so, don't duplicate the update
-        from orchestrator.config import TASKS_DIR
-        task_file = TASKS_DIR / f"{task_id}.json"
-        if task_file.exists():
-            try:
-                with open(task_file, "r") as f:
-                    task_data = json.load(f)
-                    if task_data.get("workState") == "completed":
-                        logger.info(f"Task {task_id} already marked completed by worker")
-                        self._cleanup_worker_session(agent_id)
-                        return
-            except Exception:
-                pass
+        Workers are NOT expected to update task state themselves.
+        The orchestrator handles all state transitions automatically.
+        """
+        logger.info(f"Worker success for task {task_id}. Marking complete.")
         
-        # Auto-complete if worker didn't do it
+        # Mark task as completed
         self.provider.update_task(task_id, {
             "workState": "completed",
             "status": "completed",
             "action": "complete",
-            "summary": f"Task completed successfully"
+            "summary": "Task completed successfully"
         })
         
-        # Reset the worker session for next task
+        # Clean up worker session for next task
         self._cleanup_worker_session(agent_id)
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str, agent_id: str):

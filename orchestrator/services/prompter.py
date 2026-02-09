@@ -158,28 +158,23 @@ Extract actionable items, create tasks/inbox items as needed.
 
 """
 
-        # Control operations
-        control_bin = CONTROL_REPO_PATH / "bin"
-        prompt += f"""---
+        prompt += """---
 
-## Updating Task State
+## When You're Done
 
-When you finish, mark the task as complete:
+Just stop. The orchestrator handles git commits, pushes, and state updates automatically.
 
-```bash
-{control_bin}/complete-task {item_id} --summary "Brief description of work"
+**Optional:** Write a brief summary to `.work-summary` to provide context for the commit message:
+
+```
+echo "Added user authentication middleware" > .work-summary
 ```
 
-If blocked or need to update state:
+**If blocked:** Write your blocker to `.work-summary` and exit with error:
 
-```bash
-{control_bin}/update-task {item_id} --state blocked --summary "Reason"
 ```
-
-To add suggestions:
-
-```bash
-{control_bin}/add-suggestion --title "Title" --body "Details" --project {project_id}
+echo "BLOCKED: Cannot proceed - missing database schema" > .work-summary
+exit 1
 ```
 
 ---

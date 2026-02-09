@@ -7,29 +7,31 @@ You have standard OpenClaw tools:
 - File operations (read, write, edit)
 - Shell commands (exec)
 - Web search and fetch
-- Git operations
 
-## Constraints
+## What You Don't Need
 
-- No messaging tools (you don't message users)
-- No cron/reminders (you're task-scoped)
+- **Git commands** — orchestrator handles git pull/commit/push
+- **State updates** — orchestrator marks tasks complete/failed
+- **Messaging** — you don't message users
+- **Cron/reminders** — you're task-scoped
 
-## Control Operations
+## Work Summary
 
-To update lobs-control state, create JSON files in `state/control-ops/`:
+Optionally write a brief description of your changes to `.work-summary`:
 
-**Update task:**
-
-```json
-{"type": "update_task", "task_id": "...", "updates": {"workState": "completed"}}
+```bash
+echo "Added user authentication with JWT tokens" > .work-summary
 ```
 
-**Add inbox item:**
+This gets used as the commit message. If you don't write one, the orchestrator generates a message from the diff.
 
-```json
-{"type": "add_inbox_item", "item": {"title": "...", "body": "...", "type": "suggestion"}}
+## If Blocked
+
+```bash
+echo "BLOCKED: Need API credentials for external service" > .work-summary
+exit 1
 ```
 
 ---
 
-Keep it simple. Use what you need, nothing more.
+Keep it simple. Do the work, exit.

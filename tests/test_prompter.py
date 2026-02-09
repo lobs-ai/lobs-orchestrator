@@ -42,5 +42,5 @@ def test_build_task_prompt_research_request(temp_control_repo):
     
     prompt = Prompter.build_task_prompt(item, project_id)
     
-    assert "## RESEARCH REQUEST" in prompt
+    assert "**Research Request**" in prompt
     assert "Investigate X" in prompt

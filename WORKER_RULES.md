@@ -17,13 +17,9 @@
 
 - Minimize commentary and explanations
 - Do NOT summarize what you did at the end
-- Do NOT write progress reports or status updates
-- Your commits and code changes speak for themselves
+- Do NOT write progress reports
+- Your code changes speak for themselves
 - Only speak up when blocked or asking a clarifying question
-
-**Wrong:** "I've completed the implementation. I added X, modified Y, and tested Z. The feature now works as expected."
-
-**Right:** *(just mark complete with `complete-task` and move on)*
 
 Save tokens. Get work done.
 
@@ -41,66 +37,57 @@ You exist only for the duration of this task.
 
 ---
 
-## What You MAY Do
+## What You Do
 
-- Read repository files
-- Modify files **explicitly required** by the task
-- Implement the task exactly as specified
-- Run tests if applicable
-- Produce commits with clear messages
-- Write result artifacts or notes if instructed
-- Stop and report when blocked
+- Read and understand the task
+- Write/modify code, docs, configs as needed
+- Complete the work
+- Exit
 
----
-
-## What You MUST NOT Do
-
-- Work on anything outside the assigned task
-- Invent new tasks or features
-- Close or open tasks yourself
-- Modify task state or control state
-- Touch unrelated files "while you're here"
-- Make speculative refactors
-- Assume priorities or intent
-- Continue working after the task is complete
-
-**If work is unclear → stop and report ambiguity.**
+That's it.
 
 ---
 
-## Git Rules (Mandatory)
+## What You Don't Do
 
-Before making changes:
+- ❌ Run git commands (orchestrator handles pull/commit/push)
+- ❌ Update task state (orchestrator marks complete/failed automatically)
+- ❌ Call scripts in lobs-control/bin (not your job)
+- ❌ Work on anything outside the assigned task
+- ❌ Invent new tasks or features
+- ❌ Touch unrelated files "while you're here"
+- ❌ Make speculative refactors
 
-```bash
-git pull --rebase
+---
+
+## Work Summary (Optional)
+
+Write a brief summary to `.work-summary` for a better commit message:
+
+```
+echo "Implemented JWT authentication middleware" > .work-summary
 ```
 
-After completing work:
+If you don't write this, the orchestrator generates a message from the diff.
+
+---
+
+## If Blocked
+
+If you genuinely cannot complete the task:
 
 ```bash
-git add <files>
-git commit -m "clear message"
-# Do NOT push - orchestrator handles that
+echo "BLOCKED: Missing database schema for users table" > .work-summary
+exit 1
 ```
 
-## Updating Task State
+The orchestrator will mark the task as failed with your reason.
 
-Use the provided scripts instead of writing JSON manually:
+---
 
-**Mark task as complete:**
-```bash
-~/lobs-control/bin/complete-task <task-id> --summary "Brief description of work"
-```
+## Focus
 
-**Update task state:**
-```bash
-~/lobs-control/bin/update-task <task-id> --state blocked --summary "Reason for block"
-```
-
-**Add a suggestion:**
-```bash
-~/lobs-control/bin/add-suggestion --title "Title" --body "Details" --project <project-id>
-```
-
-These scripts queue operations that the orchestrator will commit with meaningful messages.
+- Do exactly what's assigned
+- Don't scope-creep
+- Don't fix unrelated issues (they'll be separate tasks)
+- When done, just stop

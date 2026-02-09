@@ -32,6 +32,9 @@ def test_apply_args(temp_settings):
         orchestrator_repo = None
         poll_interval = 15
         openclaw_executable = None
+        ollama_url = None
+        ollama_model = None
+        ollama_keep_alive = None
         show = False
 
     apply_args(Args())
