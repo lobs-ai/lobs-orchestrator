@@ -340,6 +340,9 @@ class WorkerManager:
                 timeout=60
             )
 
+            # Mark GitHub issue as in-progress if this is a GitHub-tracked task
+            self._mark_github_in_progress(task, project_id)
+
             # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
@@ -428,6 +431,9 @@ class WorkerManager:
                 capture_output=True,
                 timeout=60
             )
+            
+            # Mark GitHub issue as in-progress if this is a GitHub-tracked task
+            self._mark_github_in_progress(task, project_id)
             
             # Build prompt
             from orchestrator.services.prompter import Prompter
@@ -537,6 +543,50 @@ class WorkerManager:
             self._clear_state()
             self.pending_workers.discard(task_id)
             self._update_provider_status()
+
+    # =========================================================================
+    # GitHub Integration
+    # =========================================================================
+
+    def _mark_github_in_progress(self, task: dict[str, Any], project_id: str):
+        """Mark a GitHub issue as in-progress if this is a GitHub-tracked task."""
+        github_meta = task.get("githubMeta")
+        if not github_meta:
+            return  # Not a GitHub task
+        
+        issue_number = github_meta.get("number")
+        if not issue_number:
+            logger.warning(f"GitHub task {task['id']} missing issue number")
+            return
+        
+        from orchestrator.config import CONTROL_REPO_PATH
+        script_path = CONTROL_REPO_PATH / "bin" / "gh-mark-in-progress"
+        
+        if not script_path.exists():
+            logger.warning(f"gh-mark-in-progress script not found at {script_path}")
+            return
+        
+        try:
+            logger.info(f"Marking GitHub issue #{issue_number} as in-progress for project {project_id}")
+            result = subprocess.run(
+                [str(script_path), project_id, str(issue_number)],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully marked issue #{issue_number} as in-progress")
+            else:
+                # Log warning but don't fail the task
+                error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+                logger.warning(f"Failed to mark GitHub issue in-progress: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout marking GitHub issue #{issue_number} as in-progress")
+        except Exception as e:
+            logger.warning(f"Error marking GitHub issue #{issue_number} as in-progress: {e}")
 
     # =========================================================================
     # Git Operations
