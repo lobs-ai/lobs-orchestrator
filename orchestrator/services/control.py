@@ -96,8 +96,11 @@ class ControlManager:
                 else:
                     self.apply_op(op)
                     applied_ops.append(op_file)
-                    # Track summary for commit message
-                    op_summaries.append(self._summarize_op(op))
+                    
+                    # Only include meaningful ops in commit message
+                    # Worker status updates are applied but don't trigger standalone commits
+                    if op.get("type") != "update_worker_status":
+                        op_summaries.append(self._summarize_op(op))
             except Exception as e:
                 logger.error(f"Failed to apply op {op_file}: {e}")
 
@@ -105,9 +108,13 @@ class ControlManager:
             for op_file in applied_ops:
                 op_file.unlink()
 
-            # Generate meaningful commit message
-            commit_msg = self._build_commit_message(op_summaries)
-            self.push(commit_msg)
+            # Only push if there are meaningful changes (not just worker status)
+            if op_summaries:
+                commit_msg = self._build_commit_message(op_summaries)
+                self.push(commit_msg)
+            else:
+                # Worker status changed but no other updates - don't create a commit
+                logger.debug("Only worker status updated, skipping commit")
         
         return messages
 
