@@ -128,14 +128,28 @@ Write findings to `state/research/{project_id}/docs/`. Be comprehensive but conc
 
 """
         elif kind == "inbox_response":
+            # Format full conversation chain
+            messages = item.get("messages", [])
+            conversation_text = ""
+            if messages:
+                for msg in messages:
+                    author = msg.get("author", "unknown")
+                    text = msg.get("text", "")
+                    timestamp = msg.get("timestamp", "")
+                    ts_str = f" ({timestamp})" if timestamp else ""
+                    conversation_text += f"**{author}**{ts_str}:\n{text}\n\n"
+            else:
+                # Fallback to lastMessage if no messages array
+                conversation_text = f"**rafe**:\n{item.get('lastMessage', '')}\n"
+            
             prompt += f"""**Inbox Response**
 
 Document: {item.get("docId")}
 
-Last message:
-```
-{item.get("lastMessage")}
-```
+## Conversation Thread
+
+{conversation_text}
+---
 
 Process the response, create tasks if needed (via control-ops), mark as acknowledged.
 
