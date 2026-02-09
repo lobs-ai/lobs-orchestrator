@@ -20,6 +20,22 @@ class LocalTaskProvider(TaskProvider):
     def get_tasks(self) -> list[dict[str, Any]]:
         return self.scanner.get_eligible_tasks()
 
+    def get_task(self, task_id: str) -> dict[str, Any] | None:
+        """Fetch a specific task by ID from the filesystem."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        task_file = CONTROL_REPO_PATH / "state" / "tasks" / f"{task_id}.json"
+        
+        if not task_file.exists():
+            logger.warning(f"Task file not found: {task_id}")
+            return None
+        
+        try:
+            with open(task_file, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load task {task_id}: {e}")
+            return None
+
     def get_projects(self) -> list[dict[str, Any]]:
         return self.scanner.get_projects()
 

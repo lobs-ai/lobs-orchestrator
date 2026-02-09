@@ -14,6 +14,11 @@ class TaskProvider(ABC):
         pass
 
     @abstractmethod
+    def get_task(self, task_id: str) -> dict[str, Any] | None:
+        """Fetch a specific task by ID."""
+        pass
+
+    @abstractmethod
     def get_projects(self) -> list[dict[str, Any]]:
         """Fetch all registered projects."""
         pass

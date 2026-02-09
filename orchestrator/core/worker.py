@@ -588,6 +588,155 @@ class WorkerManager:
         except Exception as e:
             logger.warning(f"Error marking GitHub issue #{issue_number} as in-progress: {e}")
 
+    def _close_github_issue_if_needed(self, task: dict[str, Any], project_id: str, task_id: str):
+        """Close GitHub issue if this is a GitHub-tracked task."""
+        github_meta = task.get("githubMeta")
+        if not github_meta:
+            return  # Not a GitHub task
+        
+        issue_number = github_meta.get("number")
+        if not issue_number:
+            logger.warning(f"GitHub task {task_id} missing issue number")
+            return
+        
+        from orchestrator.config import CONTROL_REPO_PATH
+        script_path = CONTROL_REPO_PATH / "bin" / "gh-close-issue"
+        
+        if not script_path.exists():
+            logger.warning(f"gh-close-issue script not found at {script_path}")
+            return
+        
+        try:
+            # Extract worker summary from log file
+            summary = self._extract_worker_summary(task_id)
+            
+            # Get recent commit hashes from project repo
+            commits = self._get_recent_commits(project_id, limit=3)
+            
+            # Format comment
+            comment = "✅ Completed by Lobs\n\n"
+            
+            if summary:
+                comment += f"{summary}\n\n"
+            
+            if commits:
+                commit_list = "\n".join([f"- {c}" for c in commits])
+                comment += f"Commits:\n{commit_list}"
+            
+            logger.info(f"Closing GitHub issue #{issue_number} for project {project_id}")
+            result = subprocess.run(
+                [str(script_path), project_id, str(issue_number), "--comment", comment],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully closed GitHub issue #{issue_number}")
+                # Refresh GitHub cache
+                self._refresh_github_cache(project_id)
+            else:
+                error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+                logger.warning(f"Failed to close GitHub issue: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout closing GitHub issue #{issue_number}")
+        except Exception as e:
+            logger.warning(f"Error closing GitHub issue #{issue_number}: {e}")
+
+    def _extract_worker_summary(self, task_id: str) -> str:
+        """Extract worker summary from task log file."""
+        log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+        
+        if not log_file_path.exists():
+            return ""
+        
+        try:
+            with open(log_file_path, "r") as f:
+                content = f.read()
+            
+            # Look for common summary patterns:
+            # 1. Content after "Summary:" marker
+            # 2. Last substantive paragraph before completion
+            # 3. Extract last 500 chars as fallback
+            
+            lines = content.split('\n')
+            summary_lines = []
+            found_summary = False
+            
+            for line in lines:
+                if 'summary:' in line.lower() or 'completed' in line.lower():
+                    found_summary = True
+                    continue
+                if found_summary and line.strip():
+                    summary_lines.append(line.strip())
+                    if len(summary_lines) >= 10:  # Cap at 10 lines
+                        break
+            
+            if summary_lines:
+                return '\n'.join(summary_lines)
+            
+            # Fallback: last 500 chars
+            return content[-500:].strip()
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract worker summary: {e}")
+            return ""
+
+    def _get_recent_commits(self, project_id: str, limit: int = 3) -> list[str]:
+        """Get recent commit hashes from project repo."""
+        project_path = self._get_repo_path(project_id)
+        
+        try:
+            result = subprocess.run(
+                ["git", "log", f"-{limit}", "--oneline", "--no-decorate"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                commits = result.stdout.strip().split('\n')
+                return [c.strip() for c in commits if c.strip()]
+            
+            return []
+            
+        except Exception as e:
+            logger.warning(f"Failed to get recent commits: {e}")
+            return []
+
+    def _refresh_github_cache(self, project_id: str):
+        """Refresh GitHub issue cache for a project."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        script_path = CONTROL_REPO_PATH / "bin" / "gh-sync"
+        
+        if not script_path.exists():
+            logger.warning(f"gh-sync script not found at {script_path}")
+            return
+        
+        try:
+            logger.info(f"Refreshing GitHub cache for project {project_id}")
+            result = subprocess.run(
+                [str(script_path), project_id],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully refreshed GitHub cache")
+            else:
+                error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+                logger.warning(f"Failed to refresh GitHub cache: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout refreshing GitHub cache for {project_id}")
+        except Exception as e:
+            logger.warning(f"Error refreshing GitHub cache: {e}")
+
     # =========================================================================
     # Git Operations
     # =========================================================================
@@ -1004,12 +1153,19 @@ class WorkerManager:
         # Capture usage stats before cleaning up session
         self._capture_worker_usage(agent_id, task_id, start_time)
         
+        # Get task data to check for GitHub integration
+        task = self.provider.get_task(task_id)
+        
         self.provider.update_task(task_id, {
             "workState": "completed",
             "status": "completed",
             "action": "complete",
             "summary": "Task completed successfully"
         })
+        
+        # Close GitHub issue if this is a GitHub-tracked task
+        if task:
+            self._close_github_issue_if_needed(task, project_id, task_id)
         
         self._cleanup_worker_session(agent_id)
 
