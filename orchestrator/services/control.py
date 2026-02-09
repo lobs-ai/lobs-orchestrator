@@ -283,6 +283,18 @@ class ControlManager:
         with open(WORKER_STATUS_JSON, "w") as f:
             json.dump(status, f, indent=2)
 
+    def _get_task_title(self, task_id: str) -> str:
+        """Look up task title from the task file."""
+        task_file = TASKS_DIR / f"{task_id}.json"
+        if task_file.exists():
+            try:
+                with open(task_file, "r") as f:
+                    task = json.load(f)
+                    return task.get("title", task_id[:8])
+            except Exception:
+                pass
+        return task_id[:8]
+
     def _summarize_op(self, op: dict[str, Any]) -> str:
         """Generate a human-readable summary of an operation."""
         op_type = op.get("type")
@@ -295,19 +307,20 @@ class ControlManager:
         action = op.get("action", "")
         
         if op_type == "update_task":
-            task_id = op.get("task_id", "unknown")[:8]
+            task_id = op.get("task_id", "unknown")
+            task_title = self._get_task_title(task_id)
             updates = op.get("updates", {})
             
             if action == "complete":
-                return f"complete task {task_id}"
+                return f"complete task: {task_title}"
             elif action.startswith("update_state_"):
                 state = action.split("_")[-1]
-                return f"mark task {task_id} as {state}"
+                return f"mark task as {state}: {task_title}"
             elif "workState" in updates:
-                return f"update task {task_id} state to {updates['workState']}"
+                return f"update task state to {updates['workState']}: {task_title}"
             else:
                 fields = ", ".join(updates.keys())
-                return f"update task {task_id} ({fields})"
+                return f"update task ({fields}): {task_title}"
         
         elif op_type == "add_inbox_item":
             item = op.get("item", {})
