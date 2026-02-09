@@ -2,11 +2,10 @@
 Heartbeat manager for the orchestrator.
 
 The orchestrator itself IS the heartbeat - it handles periodic checks,
-worker spawning, and system monitoring. This module adds optional
-integration with the main chat session for:
-- Morning briefs
-- Proactive suggestion reviews
-- Important notifications
+worker spawning, and system monitoring. This module provides optional
+hooks for notifications on important events.
+
+Note: Daily briefs removed - not appropriate for multi-user deployments.
 """
 
 import logging
@@ -21,48 +20,15 @@ logger = logging.getLogger(__name__)
 
 class HeartbeatManager:
     """
-    Manages periodic interactions with the main chat session.
+    Manages notifications and periodic interactions.
     """
 
     def __init__(self):
         self.chat = get_chat_service()
-        self.last_morning_brief = 0
-        self.last_proactive_ping = 0
-        
-        # Intervals (in seconds)
-        self.morning_brief_hour = get_setting("morning_brief_hour", 7)  # 7 AM
-        self.proactive_interval = get_setting("proactive_interval", 3600 * 4)  # 4 hours
 
     def tick(self) -> None:
-        """Called periodically by the engine."""
-        now = time.time()
-        current_hour = datetime.now().hour
-        
-        # Morning brief check (once per day at configured hour)
-        if self._should_send_morning_brief(current_hour):
-            self._send_morning_brief()
-            self.last_morning_brief = now
-
-    def _should_send_morning_brief(self, current_hour: int) -> bool:
-        """Check if we should send the morning brief."""
-        if current_hour != self.morning_brief_hour:
-            return False
-        
-        # Only send once per day
-        last_brief_date = datetime.fromtimestamp(self.last_morning_brief).date() if self.last_morning_brief else None
-        today = datetime.now().date()
-        
-        return last_brief_date != today
-
-    def _send_morning_brief(self) -> None:
-        """
-        Trigger a morning brief.
-        This is handled by a cron job in OpenClaw, so we just log here.
-        The orchestrator could optionally trigger it directly.
-        """
-        logger.info("Morning brief time - handled by OpenClaw cron job")
-        # If we want to trigger it from here:
-        # self.chat.send_system_event("Generate and deliver the morning brief.")
+        """Called periodically by the engine. Currently a no-op."""
+        pass
 
     def notify_work_available(self, count: int) -> None:
         """
@@ -70,9 +36,6 @@ class HeartbeatManager:
         Usually silent - just logs.
         """
         logger.info(f"Work available: {count} items")
-        # Could notify if configured:
-        # if get_setting("notify_work_available", False):
-        #     self.chat.send_message(f"📋 {count} tasks available for processing")
 
     def notify_worker_started(self, task_id: str, task_title: str, project_id: str) -> None:
         """Log worker start - usually silent."""

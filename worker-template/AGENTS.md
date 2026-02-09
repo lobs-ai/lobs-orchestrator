@@ -40,23 +40,13 @@ These files contain project-specific rules that override general guidance. Read 
 
 ## Work Summary (Optional)
 
-If you want to provide context for the commit message, write a brief summary to:
+Write a **very short** summary (1-2 lines max) to `.work-summary`:
 
 ```
-.work-summary
+echo "Add user auth middleware" > .work-summary
 ```
 
-Just a few lines describing what you changed and why. The orchestrator will use this for the commit message and then delete the file.
-
-Example:
-```
-Added user authentication middleware
-- Created auth.py with JWT validation
-- Updated routes.py to use @require_auth decorator
-- Added tests for auth flow
-```
-
-If you don't write this file, the orchestrator will generate a commit message from the diff.
+Keep it minimal. The orchestrator auto-generates a commit message from the diff if you skip this.
 
 ## If You Get Stuck
 

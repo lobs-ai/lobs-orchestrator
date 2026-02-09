@@ -24,6 +24,26 @@ from orchestrator.core.ollama_client import OllamaClient
 logger = logging.getLogger(__name__)
 
 
+class _PidMonitor:
+    """
+    Lightweight wrapper to monitor an existing PID.
+    Used when re-adopting workers after orchestrator restart.
+    Mimics the subset of subprocess.Popen interface we need.
+    """
+    def __init__(self, pid: int):
+        self.pid = pid
+    
+    def poll(self) -> Optional[int]:
+        """Check if process is still running. Returns None if running, 0 if finished."""
+        try:
+            os.kill(self.pid, 0)
+            return None  # Still running
+        except ProcessLookupError:
+            return 0  # Process finished (assume success)
+        except PermissionError:
+            return None  # Can't check, assume running
+
+
 class WorkerManager:
     """
     Manages spawning and tracking a SINGLE worker subprocess.
@@ -147,8 +167,9 @@ class WorkerManager:
 
     def _cleanup_orphaned_workers(self):
         """
-        On startup, check for orphaned workers from a previous run.
-        Kill them if still running and clean up state.
+        On startup, check for workers from a previous run.
+        If still running, re-adopt them instead of killing.
+        Only clean up if the process is dead.
         """
         state = self._load_state()
         if not state.get("active"):
@@ -156,26 +177,45 @@ class WorkerManager:
 
         pid = state.get("pid")
         task_id = state.get("task_id", "unknown")
+        project_id = state.get("project_id", "unknown")
+        agent_id = state.get("agent_id", "worker")
+        task_title = state.get("task_title", task_id[:8])
+        worker_state = state.get("state", "running")
         
         if pid and self._is_process_alive(pid):
-            logger.warning(f"Found orphaned worker (PID {pid}) for task {task_id}. Killing...")
-            try:
-                os.kill(pid, signal.SIGTERM)
-                time.sleep(1)
-                if self._is_process_alive(pid):
-                    os.kill(pid, signal.SIGKILL)
-                logger.info(f"Killed orphaned worker PID {pid}")
-            except Exception as e:
-                logger.error(f"Failed to kill orphaned worker: {e}")
+            # Worker is still running - re-adopt it instead of killing
+            logger.info(f"Re-adopting running worker (PID {pid}) for task {task_id[:8]} ({worker_state})")
+            
+            if worker_state == "running":
+                # Re-open the log file and track the worker
+                log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+                try:
+                    log_file = open(log_file_path, "a")  # Append mode
+                    # Create a pseudo-process object to track the PID
+                    # We can't get the original Popen object, but we can monitor the PID
+                    self.active_workers[task_id] = (
+                        _PidMonitor(pid),  # Wrapper to monitor PID
+                        project_id,
+                        log_file,
+                        time.time(),  # Approximate - we don't know exact start time
+                        agent_id
+                    )
+                    logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
+                    return  # Don't clear state - worker is still running
+                except Exception as e:
+                    logger.warning(f"Failed to re-adopt worker: {e}")
+            elif worker_state in ("syncing", "finalizing"):
+                # Worker was in a transient state - mark as pending
+                self.pending_workers.add(task_id)
+                logger.info(f"Worker {task_id[:8]} in {worker_state} state, marking as pending")
+                return
         
-        # Also kill any openclaw-agent processes (belt and suspenders)
-        try:
-            subprocess.run(["pkill", "-f", "openclaw-agent"], capture_output=True, timeout=5)
-        except Exception:
-            pass
+        # Process is dead or we couldn't re-adopt - clean up
+        if pid:
+            logger.info(f"Previous worker (PID {pid}) for {task_id[:8]} is no longer running, cleaning up")
         
         self._clear_state()
-        logger.info("Cleaned up orphaned worker state")
+        logger.info("Cleaned up stale worker state")
 
     # =========================================================================
     # Project Repo Path Resolution

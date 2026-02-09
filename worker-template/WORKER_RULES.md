@@ -48,13 +48,13 @@ That's it.
 
 ## Work Summary (Optional)
 
-Write a brief summary to `.work-summary` for a better commit message:
+Write a **very short** summary (1-2 lines max) to `.work-summary`:
 
 ```
-echo "Implemented JWT authentication middleware" > .work-summary
+echo "Add JWT auth middleware" > .work-summary
 ```
 
-If you don't write this, the orchestrator generates a message from the diff.
+Keep it minimal - just what changed, not how or why. The orchestrator auto-generates a message from the diff if you don't write this.
 
 ---
 

@@ -178,16 +178,16 @@ Extract actionable items, create tasks/inbox items as needed.
 
 Just stop. The orchestrator handles git commits, pushes, and state updates automatically.
 
-**Optional:** Write a brief summary to `.work-summary` to provide context for the commit message:
+**Optional:** Write a very short summary (1-2 lines) to `.work-summary`:
 
 ```
-echo "Added user authentication middleware" > .work-summary
+echo "Add auth middleware" > .work-summary
 ```
 
-**If blocked:** Write your blocker to `.work-summary` and exit with error:
+**If blocked:** Write blocker to `.work-summary` and exit 1:
 
 ```
-echo "BLOCKED: Cannot proceed - missing database schema" > .work-summary
+echo "BLOCKED: missing db schema" > .work-summary
 exit 1
 ```
 
