@@ -29,7 +29,7 @@ def show_settings():
     print(f"  Control Repo:         {config.CONTROL_REPO_PATH}")
     print(f"  Orchestrator Repo:    {config.ORCHESTRATOR_REPO_PATH}")
     print(f"  Poll Interval:        {config.POLL_INTERVAL}s")
-    print(f"  Locks Directory:      {config.LOCKS_DIR}")
+    print(f"  Worker State:         ~/.openclaw/worker-state.json")
     print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'openclaw')}")
     print("")
     print("Ollama Configuration:")

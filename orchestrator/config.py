@@ -19,7 +19,7 @@ PROJECTS_FILE = (CONTROL_REPO_PATH / "state" / "projects.json").resolve()
 # Polling interval in seconds
 POLL_INTERVAL = get_setting("poll_interval", 10)
 
-# Domain locks directory
-LOCKS_DIR = (ORCHESTRATOR_REPO_PATH / "locks").resolve()
+# State directory (for compatibility; worker state is in ~/.openclaw/worker-state.json)
+STATE_DIR = (ORCHESTRATOR_REPO_PATH / "state").resolve()
 
 PROJECT_CONTEXT_FILES = ["PRODUCT.md", "UX_PRINCIPLES.md", "ARCHITECTURE.md"]

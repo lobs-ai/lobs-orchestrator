@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from orchestrator.config import POLL_INTERVAL, LOCKS_DIR
+from orchestrator.config import POLL_INTERVAL, STATE_DIR
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
@@ -38,7 +38,7 @@ class Orchestrator:
 
     def __init__(self, provider: TaskProvider):
         self.provider = provider
-        self.worker_manager = WorkerManager(LOCKS_DIR, provider)
+        self.worker_manager = WorkerManager(STATE_DIR, provider)
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
         self.heartbeat = HeartbeatManager()

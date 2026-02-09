@@ -3,6 +3,7 @@ import logging
 import json
 import time
 import os
+import signal
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
@@ -10,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from orchestrator.config import (
     BASE_DIR,
-    LOCKS_DIR,
     WORKER_RESULTS_DIR,
     WORKER_STATUS_JSON,
     ORCHESTRATOR_REPO_PATH
@@ -27,45 +27,53 @@ class WorkerManager:
     """
     Manages spawning and tracking a SINGLE worker subprocess.
 
-    CRITICAL CONSTRAINTS:
-    - Only ONE worker runs at a time globally (enforced by max_workers=1)
-    - All work is queued automatically - tasks are processed sequentially
-    - Worker is spawned via `openclaw agent --agent worker` command
-    - Same worker agent is reused for all tasks (session reset between tasks)
+    State is persisted to a single JSON file for crash recovery.
+    No per-project locks - just one worker at a time, period.
 
-    Queueing Mechanism:
-    - spawn_worker() checks for active/pending workers and returns early if busy
-    - Unprocessed tasks remain in provider's queue
-    - Next engine loop iteration picks up queued work when worker becomes free
+    State file contains:
+    - active: bool
+    - task_id: str
+    - project_id: str
+    - pid: int (of openclaw process)
+    - state: syncing | running | finalizing
+    - started_at: ISO timestamp
+    - agent_id: str
+    - task_title: str (for display)
     """
 
-    def __init__(self, lock_dir: Path, provider: TaskProvider):
-        self.lock_dir = lock_dir
-        self.lock_dir.mkdir(parents=True, exist_ok=True)
+    STATE_FILE = Path.home() / ".openclaw" / "worker-state.json"
+    STALE_TIMEOUT = 600  # 10 minutes
+
+    def __init__(self, state_dir: Path, provider: TaskProvider):
+        """
+        Initialize WorkerManager.
+        
+        Args:
+            state_dir: Directory for state files (kept for compatibility, but we use STATE_FILE)
+            provider: Task provider for state updates
+        """
+        self.state_dir = state_dir
+        self.state_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
 
-        # SINGLE WORKER TRACKING:
+        # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id)
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str]] = {}
-        # task_id -> project_id (workers currently syncing or finalizing)
-        self.pending_workers: set[str] = set()
+        self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
 
-        # ENFORCE SINGLE WORKER: ThreadPoolExecutor with max_workers=1
-        # This ensures only one async spawn can run at a time
+        # Single-threaded executor ensures one spawn at a time
         self.executor = ThreadPoolExecutor(max_workers=1)
         
         # Agent manager for provisioning workers
         template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
         self.agent_manager = AgentManager(template_dir)
-        
-        # Track if worker agent has been provisioned (avoid repeated gateway restarts)
         self._worker_provisioned = False
         
         # Cache for project repo paths
         self._repo_path_cache = {}
 
-        # Ollama client for diagnostic/analysis tasks
+        # Ollama client for diagnostic tasks
         from orchestrator.utils.settings import get_setting
         ollama_url = get_setting("ollama_url", "http://localhost:11434")
         ollama_model = get_setting("ollama_model", "llama3.1")
@@ -76,91 +84,110 @@ class WorkerManager:
             keep_alive=ollama_keep_alive
         )
 
-        # Cache for lock status to avoid redundant disk I/O within a single loop
-        self._lock_cache: dict[str, tuple[float, bool]] = {}
+        # Clean up any orphaned workers from previous run
+        self._cleanup_orphaned_workers()
 
-    def is_domain_locked(self, project_id: str) -> bool:
-        now = time.time()
-        if project_id in self._lock_cache:
-            cache_ts, is_locked = self._lock_cache[project_id]
-            if now - cache_ts < 2:  # 2 second cache for rapid successive calls
-                return is_locked
+    # =========================================================================
+    # State Persistence
+    # =========================================================================
 
-        lock_file = self.lock_dir / f"{project_id}.lock"
-        locked = self._check_lock_file(lock_file, project_id)
-        self._lock_cache[project_id] = (now, locked)
-        return locked
-
-    def _check_lock_file(self, lock_file: Path, project_id: str) -> bool:
-        if not lock_file.exists():
-            return False
-
+    def _load_state(self) -> dict[str, Any]:
+        """Load persisted worker state from disk."""
+        if not self.STATE_FILE.exists():
+            return {"active": False}
         try:
-            with open(lock_file, "r") as f:
-                data = json.load(f)
-                pid = data.get("pid")
-                status = data.get("status", "running")
-                
-                if status in ("syncing", "finalizing"):
-                    # Lock is active during these stages even without a PID
-                    # Check for timeout (e.g. 10 mins)
-                    acquired_at = data.get("acquired_at", 0)
-                    if time.time() - acquired_at > 600:
-                        logger.warning(f"Lock for {project_id} timed out ({status}).")
-                        lock_file.unlink()
-                        return False
-                    return True
-                
-                if pid:
-                    os.kill(pid, 0)
-                    return True
-        except (ProcessLookupError, json.JSONDecodeError, KeyError, FileNotFoundError):
+            with open(self.STATE_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to load worker state: {e}")
+            return {"active": False}
+
+    def _save_state(
+        self,
+        task_id: str,
+        project_id: str,
+        pid: Optional[int] = None,
+        state: str = "running",
+        task_title: str = "",
+        agent_id: str = "worker"
+    ):
+        """Save worker state to disk for crash recovery."""
+        self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "active": True,
+            "task_id": task_id,
+            "project_id": project_id,
+            "pid": pid,
+            "state": state,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "agent_id": agent_id,
+            "task_title": task_title,
+        }
+        with open(self.STATE_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+        logger.debug(f"Saved worker state: {state} for {task_id}")
+
+    def _clear_state(self):
+        """Clear persisted worker state."""
+        if self.STATE_FILE.exists():
             try:
-                lock_file.unlink()
-            except:
-                pass
+                self.STATE_FILE.unlink()
+                logger.debug("Cleared worker state file")
+            except IOError as e:
+                logger.warning(f"Failed to clear worker state: {e}")
+
+    def _is_process_alive(self, pid: int) -> bool:
+        """Check if a process is still running."""
+        try:
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError):
             return False
 
-        return False
+    def _cleanup_orphaned_workers(self):
+        """
+        On startup, check for orphaned workers from a previous run.
+        Kill them if still running and clean up state.
+        """
+        state = self._load_state()
+        if not state.get("active"):
+            return
 
-    def acquire_lock(self, project_id: str, pid: Optional[int] = None, status: str = "running"):
-        lock_file = self.lock_dir / f"{project_id}.lock"
-        data = {
-            "pid": pid,
-            "status": status,
-            "acquired_at": time.time()
-        }
-        with open(lock_file, "w") as f:
-            json.dump(data, f)
-        # Invalidate cache
-        self._lock_cache[project_id] = (time.time(), True)
-
-    def release_lock(self, project_id: str):
-        lock_file = self.lock_dir / f"{project_id}.lock"
-        if lock_file.exists():
+        pid = state.get("pid")
+        task_id = state.get("task_id", "unknown")
+        
+        if pid and self._is_process_alive(pid):
+            logger.warning(f"Found orphaned worker (PID {pid}) for task {task_id}. Killing...")
             try:
-                lock_file.unlink()
-            except:
-                pass
-        # Invalidate cache
-        self._lock_cache[project_id] = (time.time(), False)
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(1)
+                if self._is_process_alive(pid):
+                    os.kill(pid, signal.SIGKILL)
+                logger.info(f"Killed orphaned worker PID {pid}")
+            except Exception as e:
+                logger.error(f"Failed to kill orphaned worker: {e}")
+        
+        # Also kill any openclaw-agent processes (belt and suspenders)
+        try:
+            subprocess.run(["pkill", "-f", "openclaw-agent"], capture_output=True, timeout=5)
+        except Exception:
+            pass
+        
+        self._clear_state()
+        logger.info("Cleaned up orphaned worker state")
+
+    # =========================================================================
+    # Project Repo Path Resolution
+    # =========================================================================
 
     def _get_repo_path(self, project_id: str) -> Path:
-        """
-        Get the repository path for a project.
-        
-        Looks up repoPath from projects.json, auto-discovers if missing, 
-        falls back to BASE_DIR / project_id.
-        Caches results to avoid repeated file reads.
-        """
+        """Get the repository path for a project."""
         if project_id in self._repo_path_cache:
             return self._repo_path_cache[project_id]
         
-        # Try to load from projects.json
         from orchestrator.config import PROJECTS_FILE, CONTROL_REPO_PATH
         if PROJECTS_FILE.exists():
             try:
-                import json
                 with open(PROJECTS_FILE, "r") as f:
                     data = json.load(f)
                     for project in data.get("projects", []):
@@ -171,20 +198,16 @@ class WorkerManager:
                                 self._repo_path_cache[project_id] = path
                                 return path
                             else:
-                                # Project exists but has no repoPath - try auto-discovery
+                                # Try auto-discovery
                                 logger.info(f"Project {project_id} missing repoPath, running auto-discovery...")
                                 try:
-                                    # Run discover-repos to populate missing paths
-                                    result = subprocess.run(
+                                    subprocess.run(
                                         ["python3", "bin/discover-repos"],
                                         cwd=CONTROL_REPO_PATH,
                                         check=True,
                                         capture_output=True,
                                         timeout=10
                                     )
-                                    logger.info(f"Auto-discovery output: {result.stdout.decode().strip()}")
-                                    
-                                    # Reload projects.json and try again
                                     with open(PROJECTS_FILE, "r") as f2:
                                         data2 = json.load(f2)
                                         for p2 in data2.get("projects", []):
@@ -193,109 +216,79 @@ class WorkerManager:
                                                 if repo_path2:
                                                     path = Path(repo_path2)
                                                     self._repo_path_cache[project_id] = path
-                                                    logger.info(f"Auto-discovered repo for {project_id}: {path}")
                                                     return path
                                 except Exception as e:
                                     logger.warning(f"Auto-discovery failed for {project_id}: {e}")
             except Exception as e:
-                logger.warning(f"Failed to read repoPath for {project_id} from projects.json: {e}")
+                logger.warning(f"Failed to read repoPath for {project_id}: {e}")
         
-        # Fallback to BASE_DIR / project_id
+        # Fallback
         logger.warning(f"No repoPath found for {project_id}, using fallback: {BASE_DIR / project_id}")
         path = BASE_DIR / project_id
         self._repo_path_cache[project_id] = path
         return path
 
+    # =========================================================================
+    # Runtime Selection
+    # =========================================================================
+
     def _determine_runtime(self, task: dict[str, Any]) -> str:
-        """
-        Determine which runtime to use for this task.
-
-        Rules:
-        - All regular tasks (kind="task") → OpenClaw
-        - Error fixing/diagnostics (agentType="diagnostic") → Ollama
-        - Explicit runtime field overrides default behavior
-
-        Returns:
-            "ollama" for diagnostic/error-fixing tasks, "openclaw" for all other work
-        """
-        # Check explicit runtime field first
+        """Determine which runtime to use (openclaw or ollama)."""
         if "runtime" in task:
             return task["runtime"]
 
-        # Check agentType for diagnostics/error fixing
         agent_type = task.get("agentType", "")
         if agent_type == "diagnostic":
-            # Use Ollama for diagnostics if available
             if self.ollama.is_available():
                 return "ollama"
-            else:
-                logger.warning("Ollama not available, falling back to OpenClaw for diagnostic task")
-                return "openclaw"
-
-        # Default to OpenClaw for all regular tasks
+            logger.warning("Ollama not available, falling back to OpenClaw")
+        
         return "openclaw"
+
+    # =========================================================================
+    # Worker Spawning
+    # =========================================================================
 
     def spawn_worker(
         self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
     ) -> bool:
         """
         Spawn a worker for the given task.
-
-        QUEUEING: If a worker is already active or pending, this method returns False.
-        The task remains in the provider's queue and will be picked up in the next
-        orchestrator loop iteration when the worker becomes free.
-
-        This implements automatic queueing without needing a separate queue data structure.
-
-        Returns:
-            True if worker was spawned, False if task was queued (worker busy)
+        Returns True if spawned, False if queued (worker busy).
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
 
-        # QUEUE CHECK: Enforce single worker - reject if any worker is active/pending
+        # Check if worker is busy
         if self.active_workers or self.pending_workers:
-            active_task = list(self.active_workers.keys())[0] if self.active_workers else list(self.pending_workers)[0]
-            logger.info(f"[QUEUE] Worker busy with {active_task}. Queueing task {task_id} ({task_title})")
+            active = list(self.active_workers.keys())[0] if self.active_workers else list(self.pending_workers)[0]
+            logger.info(f"[QUEUE] Worker busy with {active[:8]}. Queueing task {task_id[:8]} ({task_title})")
             return False
 
-        # We don't use cache here to be absolutely sure
-        if self._check_lock_file(self.lock_dir / f"{project_id}.lock", project_id):
-            logger.info(f"Domain {project_id} is locked. Skipping.")
-            return False
-
-        # Acquire lock early in "syncing" state
-        self.acquire_lock(project_id, status="syncing")
+        # Mark as pending and save state
         self.pending_workers.add(task_id)
+        self._save_state(task_id, project_id, state="syncing", task_title=task_title)
 
-        # Determine runtime (Ollama vs OpenClaw)
+        # Determine runtime and spawn
         runtime = self._determine_runtime(task)
-        logger.info(f"[WORKER] Task {task_id} will use runtime: {runtime}")
+        logger.info(f"[WORKER] Task {task_id[:8]} will use runtime: {runtime}")
 
-        # Start async spawn based on runtime
         if runtime == "ollama":
             self.executor.submit(self._async_spawn_ollama_flow, task, project_id, agent_type, rules)
         else:
             self.executor.submit(self._async_spawn_openclaw_flow, task, project_id, agent_type, rules)
         
-        # Return True to indicate worker was actually spawned (not queued)
         return True
 
     def _async_spawn_ollama_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
-        """
-        Spawn an Ollama worker for diagnostic/analysis tasks.
-
-        Simpler flow than OpenClaw:
-        - No agent provisioning needed
-        - No workspace management
-        - Direct API calls to Ollama
-        - Still tracks as active worker for queueing
-        """
+        """Spawn an Ollama worker for diagnostic/analysis tasks."""
         task_id = task["id"]
+        task_title = task.get("title", task_id[:8])
         workspace = self._get_repo_path(project_id)
+        agent_id = "ollama"
 
         try:
-            # Step 1: Sync Repo
+            # Sync repo
             logger.info(f"Syncing project repo {project_id}...")
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -305,110 +298,85 @@ class WorkerManager:
                 timeout=60
             )
 
-            # Step 2: Build Prompt
+            # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
-            # Step 3: Run Ollama
-            logger.info(f"Running Ollama for {task_id} with model {self.ollama.model}")
-
+            # Run Ollama
+            logger.info(f"Running Ollama for {task_id[:8]} with model {self.ollama.model}")
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
 
-            # Use a pseudo-process for tracking (Ollama runs synchronously)
-            # We'll create a marker file to track completion
             with open(log_file_path, "w") as log_file:
                 log_file.write(f"=== Ollama Task Execution ===\n")
-                log_file.write(f"Task ID: {task_id}\n")
-                log_file.write(f"Model: {self.ollama.model}\n")
-                log_file.write(f"Project: {project_id}\n")
-                log_file.write(f"Agent Type: {agent_type}\n")
-                log_file.write(f"\n=== Prompt ===\n{prompt}\n\n")
-                log_file.write(f"=== Response ===\n")
+                log_file.write(f"Task ID: {task_id}\nModel: {self.ollama.model}\n")
+                log_file.write(f"Project: {project_id}\nAgent Type: {agent_type}\n\n")
+                log_file.write(f"=== Prompt ===\n{prompt}\n\n=== Response ===\n")
                 log_file.flush()
 
-                # Run Ollama with streaming
                 try:
-                    full_response = ""
                     for chunk in self.ollama.generate(prompt, stream=True, temperature=0.3):
                         if "response" in chunk:
-                            text = chunk["response"]
-                            full_response += text
-                            log_file.write(text)
+                            log_file.write(chunk["response"])
                             log_file.flush()
-
                         if chunk.get("done", False):
                             break
 
                     log_file.write(f"\n\n=== Completed ===\n")
+                    self._save_state(task_id, project_id, state="finalizing", task_title=task_title, agent_id=agent_id)
 
-                    # Update lock to "finalizing"
-                    self.acquire_lock(project_id, status="finalizing")
-
-                    # Finalize changes
                     success = self.finalize_project_changes(task_id, project_id)
-
                     if success:
-                        self.handle_worker_success(task_id, project_id, "ollama")
+                        self.handle_worker_success(task_id, project_id, agent_id)
                     else:
-                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", "ollama")
+                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", agent_id)
 
                 except Exception as e:
                     error_msg = f"Ollama execution failed: {e}"
                     logger.error(error_msg)
                     log_file.write(f"\n\n=== ERROR ===\n{error_msg}\n")
-                    self.handle_worker_failure(task_id, project_id, error_msg, "ollama")
+                    self.handle_worker_failure(task_id, project_id, error_msg, agent_id)
 
         except Exception as e:
-            logger.error(f"Failed to async spawn Ollama worker for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e), "ollama")
+            logger.error(f"Failed to spawn Ollama worker for {task_id}: {e}")
+            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
         finally:
-            self.release_lock(project_id)
-            if task_id in self.pending_workers:
-                self.pending_workers.remove(task_id)
+            self._clear_state()
+            self.pending_workers.discard(task_id)
 
     def _async_spawn_openclaw_flow(self, task: dict[str, Any], project_id: str, agent_type: str, rules: str):
+        """Spawn an OpenClaw worker."""
         task_id = task["id"]
+        task_title = task.get("title", task_id[:8])
         workspace = self._get_repo_path(project_id)
+        agent_id = "worker"
 
         try:
-            # Step 1: ALWAYS use the single shared "worker" agent
-            # Note: agent_type parameter is just metadata for prompts/logging
-            # The actual OpenClaw agent is ALWAYS "worker" - no other agents exist
-            agent_id = "worker"
             logger.info(f"[WORKER] Using shared worker agent: {agent_id} (type: {agent_type})")
 
-            # Check if worker agent exists and is registered (one-time setup)
-            # CRITICAL: Only do this check ONCE to avoid repeated gateway restarts
+            # One-time provisioning
             if not self._worker_provisioned:
                 needs_provision = not self.agent_manager.worker_exists("worker")
                 needs_registration = not self.agent_manager.is_agent_registered("worker")
 
                 if needs_provision or needs_registration:
-                    logger.info(f"Provisioning shared worker agent...")
+                    logger.info("Provisioning shared worker agent...")
                     if not self.agent_manager.provision_worker("worker", register=True):
-                        raise Exception(f"Failed to provision worker agent")
+                        raise Exception("Failed to provision worker agent")
 
-                    # If we just registered a new agent, restart gateway
                     if needs_registration:
-                        logger.warning(f"New worker registered: {agent_id} - restarting gateway...")
+                        logger.warning("New worker registered - restarting gateway...")
                         if not self.agent_manager.restart_gateway():
-                            logger.error("Failed to restart gateway - worker may not be available")
                             raise Exception("Gateway restart failed after agent registration")
-
-                        # Wait for gateway to come back online
                         time.sleep(3)
-                        logger.info("Gateway restarted, worker should now be available")
                 
-                # Mark as provisioned so we never check again
                 self._worker_provisioned = True
             
-            # Sync worker template files before each task (ensures WORKER_RULES.md etc. are up to date)
-            logger.debug(f"Syncing worker template files...")
+            # Sync templates
             if not self.agent_manager.sync_worker_templates("worker"):
                 logger.warning("Failed to sync worker templates - continuing anyway")
             
-            # Step 2: Sync Repo
+            # Sync repo
             logger.info(f"Syncing project repo {project_id}...")
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -418,50 +386,41 @@ class WorkerManager:
                 timeout=60
             )
             
-            # Step 3: Build Prompt
+            # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
 
-            # Step 4: Launch OpenClaw agent with shared worker
+            # Launch OpenClaw
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
-
-            # Spawn with shared worker agent (always "worker")
-            # Single worker at a time across all projects
-            cmd = [
-                executable, "agent",
-                "--agent", agent_id,
-                "-m", prompt,
-            ]
+            cmd = [executable, "agent", "--agent", agent_id, "-m", prompt]
             
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
             log_file = open(log_file_path, "w")
 
-            logger.info(f"Invoking OpenClaw for {task_id} with agent {agent_id}")
+            logger.info(f"Invoking OpenClaw for {task_id[:8]} with agent {agent_id}")
             process = subprocess.Popen(
                 cmd, 
                 stdout=log_file, 
                 stderr=subprocess.STDOUT, 
                 text=True,
                 start_new_session=True,
-                cwd=workspace  # Run in the project directory
+                cwd=workspace
             )
 
-            # Update lock to "running" with PID
-            self.acquire_lock(project_id, pid=process.pid, status="running")
+            # Update state with PID
+            self._save_state(task_id, project_id, pid=process.pid, state="running", task_title=task_title, agent_id=agent_id)
 
-            # VALIDATION: Ensure single-worker constraint is never violated
-            if len(self.active_workers) > 0:
-                logger.error(
-                    f"CRITICAL: Single-worker constraint violated! "
-                    f"Active workers: {list(self.active_workers.keys())}"
-                )
+            # Validation
+            if self.active_workers:
                 raise RuntimeError("Single-worker constraint violated")
 
-            # Store process info with agent_id
+            # Track active worker
             self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id)
+            self.pending_workers.discard(task_id)
             
+            # Update provider status
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.provider.update_worker_status({
                 "active": True,
@@ -473,52 +432,54 @@ class WorkerManager:
             })
 
         except Exception as e:
-            logger.error(f"Failed to async spawn worker for {task_id}: {e}")
-            self.release_lock(project_id)
+            logger.error(f"Failed to spawn worker for {task_id}: {e}")
+            self._clear_state()
             self.handle_worker_failure(task_id, project_id, str(e), agent_id)
-        finally:
-            if task_id in self.pending_workers:
-                self.pending_workers.remove(task_id)
+            self.pending_workers.discard(task_id)
+
+    # =========================================================================
+    # Worker Lifecycle
+    # =========================================================================
 
     def check_workers(self):
-        """Check status of active workers and release locks on completion."""
-        finished_tasks = []
+        """Check status of active workers and handle completion."""
+        finished = []
         for task_id, (process, project_id, log_file, start_time, agent_id) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
                 elapsed = time.time() - start_time
-                logger.info(f"Worker for {task_id} on {project_id} finished with code {retcode} ({elapsed:.1f}s)")
+                logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished_tasks.append((task_id, agent_id))
-                
-                if retcode == 0:
-                    # Transition to "finalizing" state
-                    self.acquire_lock(project_id, status="finalizing")
-                    self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id)
-                else:
-                    self._handle_immediate_failure(task_id, project_id, agent_id)
+                finished.append((task_id, project_id, agent_id, retcode))
 
-        for task_id, agent_id in finished_tasks:
-            if task_id in self.active_workers:
-                del self.active_workers[task_id]
+        for task_id, project_id, agent_id, retcode in finished:
+            del self.active_workers[task_id]
+            
+            if retcode == 0:
+                self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
+                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id)
+            else:
+                self._handle_immediate_failure(task_id, project_id, agent_id)
 
-        if finished_tasks:
-            self.update_active_worker_status()
+        if finished:
+            self._update_provider_status()
 
     def _handle_immediate_failure(self, task_id: str, project_id: str, agent_id: str):
+        """Handle worker failure (non-zero exit)."""
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
             with open(log_file_path, "r") as f:
                 lines = f.readlines()
                 error_tail = "".join(lines[-50:])
-        except:
+        except Exception:
             pass
         
         self.handle_worker_failure(task_id, project_id, error_tail, agent_id)
-        self.release_lock(project_id)
+        self._clear_state()
 
     def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str):
+        """Finalize worker completion (commit, push, update state)."""
         try:
             success = self.finalize_project_changes(task_id, project_id)
             if success:
@@ -529,17 +490,14 @@ class WorkerManager:
             logger.error(f"Error in finalization for {task_id}: {e}")
             self.handle_worker_failure(task_id, project_id, str(e), agent_id)
         finally:
-            self.release_lock(project_id)
+            self._clear_state()
+
+    # =========================================================================
+    # Git Operations
+    # =========================================================================
 
     def _read_work_summary(self, project_path: Path) -> tuple[str, bool]:
-        """
-        Read and clean up the .work-summary file if it exists.
-        
-        Returns:
-            tuple of (summary_text, was_blocked)
-            - summary_text: The content of .work-summary, or empty string
-            - was_blocked: True if summary indicates worker was blocked
-        """
+        """Read and clean up .work-summary file if it exists."""
         summary_file = project_path / ".work-summary"
         summary = ""
         was_blocked = False
@@ -547,35 +505,20 @@ class WorkerManager:
         if summary_file.exists():
             try:
                 summary = summary_file.read_text().strip()
-                # Check if worker indicated they were blocked
                 if summary.upper().startswith("BLOCKED:"):
                     was_blocked = True
-                # Clean up the file
                 summary_file.unlink()
-                logger.debug(f"Read and cleaned up .work-summary")
+                logger.debug("Read and cleaned up .work-summary")
             except Exception as e:
                 logger.warning(f"Failed to read .work-summary: {e}")
         
         return summary, was_blocked
 
     def _generate_commit_message(self, task_id: str, project_id: str, project_path: Path, work_summary: str) -> str:
-        """
-        Generate a commit message from work summary or git diff.
-        
-        Args:
-            task_id: The task ID
-            project_id: The project ID  
-            project_path: Path to the project repo
-            work_summary: Content from .work-summary (may be empty)
-            
-        Returns:
-            A formatted commit message
-        """
-        # If we have a work summary, use it
+        """Generate commit message from work summary or git diff."""
         if work_summary:
-            # Use first line as subject, rest as body
             lines = work_summary.split('\n')
-            subject = lines[0][:72]  # Git subject line limit
+            subject = lines[0][:72]
             body = '\n'.join(lines[1:]).strip() if len(lines) > 1 else ""
             
             msg = f"{subject}\n\n"
@@ -584,37 +527,33 @@ class WorkerManager:
             msg += f"Task: {task_id}\nProject: {project_id}"
             return msg
         
-        # No summary - generate from diff
+        # Generate from diff
         try:
-            # Get list of changed files
-            diff_stat = subprocess.run(
-                ["git", "diff", "--cached", "--stat"],
-                cwd=project_path,
-                capture_output=True,
-                timeout=10
-            ).stdout.decode().strip()
-            
-            # Get file names only
             files_result = subprocess.run(
                 ["git", "diff", "--cached", "--name-only"],
                 cwd=project_path,
                 capture_output=True,
                 timeout=10
             )
-            files = files_result.stdout.decode().strip().split('\n')
-            files = [f for f in files if f]  # Remove empty strings
+            files = [f for f in files_result.stdout.decode().strip().split('\n') if f]
             
             if len(files) == 1:
                 subject = f"Update {files[0]}"
             elif len(files) <= 3:
                 subject = f"Update {', '.join(files)}"
             else:
-                # Try to find common directory
                 dirs = set(str(Path(f).parent) for f in files)
                 if len(dirs) == 1 and list(dirs)[0] != '.':
                     subject = f"Update {list(dirs)[0]}/ ({len(files)} files)"
                 else:
                     subject = f"Update {len(files)} files"
+            
+            diff_stat = subprocess.run(
+                ["git", "diff", "--cached", "--stat"],
+                cwd=project_path,
+                capture_output=True,
+                timeout=10
+            ).stdout.decode().strip()
             
             return f"{subject}\n\nTask: {task_id}\nProject: {project_id}\n\n{diff_stat}"
             
@@ -623,24 +562,17 @@ class WorkerManager:
             return f"Complete task {task_id}\n\nProject: {project_id}"
 
     def finalize_project_changes(self, task_id: str, project_id: str) -> bool:
-        """
-        Commits and pushes changes in the project repository.
-        
-        Reads .work-summary for commit message if available, otherwise
-        generates message from the git diff.
-        """
+        """Commit and push changes in the project repository."""
         project_path = self._get_repo_path(project_id)
         
         try:
-            # Read work summary first (before checking status, since it might be the only change)
             work_summary, was_blocked = self._read_work_summary(project_path)
             
             if was_blocked:
                 logger.warning(f"Worker indicated task {task_id} is blocked: {work_summary}")
-                # Return False to trigger failure handling
                 return False
             
-            # Check if there are changes
+            # Check for changes
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
                 cwd=project_path,
@@ -649,93 +581,65 @@ class WorkerManager:
             ).stdout.decode()
             
             if not status:
-                logger.info(f"No changes to commit for task {task_id} in {project_id}")
+                logger.info(f"No changes to commit for task {task_id}")
                 return True
 
-            # Stage all changes
+            # Stage and commit
             subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-            
-            # Generate commit message
             commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary)
-            
-            # Commit
-            subprocess.run(
-                ["git", "commit", "-m", commit_msg], 
-                cwd=project_path, 
-                check=True
-            )
+            subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
             logger.info(f"Committed changes for task {task_id}")
 
             # Push
             subprocess.run(["git", "push"], cwd=project_path, check=True)
-            logger.info(f"Successfully pushed changes for task {task_id} to {project_id}")
+            logger.info(f"Pushed changes for task {task_id} to {project_id}")
             return True
             
         except subprocess.CalledProcessError as e:
-            logger.error(
-                f"Git operation failed for {project_id}: {e.stderr.decode() if e.stderr else str(e)}"
-            )
+            logger.error(f"Git operation failed for {project_id}: {e.stderr.decode() if e.stderr else str(e)}")
             return False
 
+    # =========================================================================
+    # Session Cleanup
+    # =========================================================================
+
     def _cleanup_worker_session(self, agent_id: str):
-        """
-        Clean up the worker agent's session files after task completion.
-
-        IMPORTANT: We do NOT use sessions.reset with agentId because that would
-        reset ALL sessions for the agent. Instead, we delete the specific session
-        files for the worker agent to clear its context between tasks.
-
-        This approach:
-        - Clears worker context between tasks (fresh start)
-        - Does not affect any other sessions in the system
-        - Safe to run after each task completion
-        """
+        """Clean up worker agent's session files after task completion."""
         logger.info(f"[WORKER] Cleaning up session for agent {agent_id}...")
         try:
-            # Delete worker session files directly
-            # Worker sessions are stored in ~/.openclaw/agents/worker/sessions/
-            agent_sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
-
-            if not agent_sessions_dir.exists():
-                logger.debug(f"No session directory found for agent {agent_id}")
+            sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
+            if not sessions_dir.exists():
                 return
 
-            # Delete all session files (JSONL transcripts, lock files, and sessions.json store)
-            deleted_count = 0
-            for session_file in agent_sessions_dir.glob("*.jsonl*"):
+            deleted = 0
+            for f in sessions_dir.glob("*.jsonl*"):
                 try:
-                    session_file.unlink()
-                    deleted_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to delete session file {session_file}: {e}")
+                    f.unlink()
+                    deleted += 1
+                except Exception:
+                    pass
 
-            # Also clear the sessions store (sessions.json)
-            store_file = agent_sessions_dir / "sessions.json"
-            if store_file.exists():
+            store = sessions_dir / "sessions.json"
+            if store.exists():
                 try:
-                    store_file.unlink()
-                    logger.debug(f"Deleted sessions store for agent {agent_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete sessions store: {e}")
+                    store.unlink()
+                except Exception:
+                    pass
 
-            if deleted_count > 0:
-                logger.info(f"[WORKER] Cleared {deleted_count} session file(s) for agent {agent_id} - fresh session ready for next task")
-            else:
-                logger.debug(f"No session files to clean for agent {agent_id}")
+            if deleted > 0:
+                logger.info(f"[WORKER] Cleared {deleted} session file(s) for agent {agent_id}")
 
         except Exception as e:
-            logger.warning(f"Error cleaning worker sessions for {agent_id}: {e}")
+            logger.warning(f"Error cleaning worker sessions: {e}")
+
+    # =========================================================================
+    # Success/Failure Handlers
+    # =========================================================================
 
     def handle_worker_success(self, task_id: str, project_id: str, agent_id: str):
-        """
-        Handle successful worker completion.
+        """Handle successful worker completion."""
+        logger.info(f"Worker success for task {task_id[:8]}. Marking complete.")
         
-        Workers are NOT expected to update task state themselves.
-        The orchestrator handles all state transitions automatically.
-        """
-        logger.info(f"Worker success for task {task_id}. Marking complete.")
-        
-        # Mark task as completed
         self.provider.update_task(task_id, {
             "workState": "completed",
             "status": "completed",
@@ -743,66 +647,38 @@ class WorkerManager:
             "summary": "Task completed successfully"
         })
         
-        # Clean up worker session for next task
         self._cleanup_worker_session(agent_id)
 
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str, agent_id: str):
-        logger.error(f"Worker failure for task {task_id} on {project_id}")
+        """Handle worker failure."""
+        logger.error(f"Worker failure for task {task_id[:8]} on {project_id}")
         self.escalation.process_failure(task_id, project_id, error_log)
-        
-        # Still update task to failed so it doesn't get re-run immediately by scanner
         self.provider.update_task(task_id, {"workState": "failed"})
-        
-        # Reset the worker session for next task
         self._cleanup_worker_session(agent_id)
 
-    def update_active_worker_status(self):
+    def _update_provider_status(self):
+        """Update provider with current worker status."""
         self.provider.update_worker_status({
             "active": len(self.active_workers) > 0,
-            "currentTask": None
-            if not self.active_workers
-            else list(self.active_workers.keys())[0],
-            "lastHeartbeat": datetime.now(timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            ),
+            "currentTask": list(self.active_workers.keys())[0] if self.active_workers else None,
+            "lastHeartbeat": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         })
 
-    def is_worker_busy(self) -> bool:
-        """
-        Check if the single worker is currently busy.
+    # =========================================================================
+    # Status Queries
+    # =========================================================================
 
-        Returns:
-            True if worker is active or pending (syncing/finalizing)
-        """
+    def is_worker_busy(self) -> bool:
+        """Check if the worker is currently busy."""
         return bool(self.active_workers or self.pending_workers)
 
     def get_worker_status(self) -> dict[str, Any]:
-        """
-        Get detailed worker status for logging/monitoring.
-
-        Returns:
-            Dict with worker status including:
-            - busy: whether worker is active
-            - current_task: ID of current task (if any)
-            - state: 'idle', 'syncing', 'running', or 'finalizing'
-        """
+        """Get detailed worker status for logging/monitoring."""
         if self.pending_workers:
             task_id = list(self.pending_workers)[0]
-            return {
-                "busy": True,
-                "current_task": task_id,
-                "state": "syncing/finalizing",
-            }
+            return {"busy": True, "current_task": task_id, "state": "syncing/finalizing"}
         elif self.active_workers:
             task_id = list(self.active_workers.keys())[0]
-            return {
-                "busy": True,
-                "current_task": task_id,
-                "state": "running",
-            }
+            return {"busy": True, "current_task": task_id, "state": "running"}
         else:
-            return {
-                "busy": False,
-                "current_task": None,
-                "state": "idle",
-            }
+            return {"busy": False, "current_task": None, "state": "idle"}
