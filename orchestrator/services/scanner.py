@@ -51,6 +51,19 @@ class Scanner:
             return self._projects_cache or []
 
     def get_eligible_tasks(self) -> list[dict[str, Any]]:
+        """Get eligible tasks from both local state and GitHub projects."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        
+        # Get local tasks
+        local_tasks = self._get_local_eligible_tasks()
+        
+        # Get GitHub tasks from all GitHub-tracked projects
+        github_tasks = self._get_github_eligible_tasks()
+        
+        return local_tasks + github_tasks
+    
+    def _get_local_eligible_tasks(self) -> list[dict[str, Any]]:
+        """Get eligible tasks from local state/tasks."""
         from orchestrator.config import CONTROL_REPO_PATH
         
         script_path = CONTROL_REPO_PATH / "bin" / "open-work"
@@ -84,3 +97,149 @@ class Scanner:
         except Exception as e:
             logger.error(f"Failed to run open-work: {e}")
             return []
+    
+    def _get_github_eligible_tasks(self) -> list[dict[str, Any]]:
+        """Get eligible tasks from GitHub-tracked projects."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        
+        eligible = []
+        projects = self.get_projects()
+        
+        for project in projects:
+            # Skip non-GitHub projects
+            if project.get("tracking") != "github":
+                continue
+            
+            # Skip archived projects
+            if project.get("archived"):
+                continue
+            
+            project_id = project.get("id")
+            if not project_id:
+                continue
+            
+            try:
+                # Sync GitHub issues to cache
+                self._sync_github_project(project_id)
+                
+                # Read cached issues
+                issues = self._read_github_cache(project)
+                
+                # Convert eligible issues to task format
+                for issue in issues:
+                    # Skip closed issues
+                    if issue.get("state") != "open":
+                        continue
+                    
+                    # Skip issues with "in-progress" label
+                    labels = issue.get("labels", [])
+                    if "in-progress" in labels:
+                        continue
+                    
+                    # Parse GitHub repo from repoPath if available
+                    repo_path = project.get("repoPath", "")
+                    github_repo = self._extract_github_repo(repo_path)
+                    
+                    # Create synthetic task
+                    task = {
+                        "id": f"github-{github_repo.replace('/', '-')}-{issue['number']}",
+                        "kind": "task",
+                        "title": issue.get("title", ""),
+                        "notes": issue.get("body", ""),
+                        "projectId": project_id,
+                        "status": "active",
+                        "workState": "not_started",
+                        "githubMeta": {
+                            "repo": github_repo,
+                            "number": issue["number"]
+                        }
+                    }
+                    eligible.append(task)
+                    
+            except Exception as e:
+                logger.error(f"Failed to get GitHub tasks for project {project_id}: {e}")
+                continue
+        
+        return eligible
+    
+    def _sync_github_project(self, project_id: str):
+        """Run gh-sync to refresh GitHub issue cache for a project."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        
+        script_path = CONTROL_REPO_PATH / "bin" / "gh-sync"
+        if not script_path.exists():
+            logger.warning(f"gh-sync script not found at {script_path}")
+            return
+        
+        try:
+            subprocess.run(
+                [str(script_path), project_id],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(f"gh-sync timed out for project {project_id}")
+        except Exception as e:
+            logger.error(f"Failed to sync GitHub project {project_id}: {e}")
+    
+    def _read_github_cache(self, project: dict[str, Any]) -> list[dict[str, Any]]:
+        """Read cached GitHub issues for a project."""
+        from orchestrator.config import CONTROL_REPO_PATH
+        
+        repo_path = project.get("repoPath")
+        if not repo_path:
+            return []
+        
+        # Extract GitHub repo from repoPath
+        github_repo = self._extract_github_repo(repo_path)
+        if not github_repo:
+            return []
+        
+        # Construct cache path
+        cache_key = github_repo.replace("/", "-")
+        cache_file = CONTROL_REPO_PATH / "state" / "cache" / "github" / cache_key / "issues.json"
+        
+        if not cache_file.exists():
+            return []
+        
+        try:
+            with open(cache_file, "r") as f:
+                data = json.load(f)
+                return data.get("issues", [])
+        except Exception as e:
+            logger.error(f"Failed to read GitHub cache for {github_repo}: {e}")
+            return []
+    
+    def _extract_github_repo(self, repo_path: str) -> str:
+        """Extract GitHub owner/repo from a repo path by reading git remote."""
+        if not repo_path:
+            return ""
+        
+        try:
+            result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+            remote = result.stdout.strip()
+            
+            # Parse GitHub repo from various formats:
+            # - git@github.com:owner/repo.git
+            # - https://github.com/owner/repo.git
+            # - https://github.com/owner/repo
+            import re
+            match = re.search(r'github\.com[:/]([^/]+)/([^/\s]+?)(\.git)?$', remote)
+            if match:
+                owner = match.group(1)
+                repo = match.group(2).replace('.git', '')
+                return f"{owner}/{repo}"
+        except Exception as e:
+            logger.debug(f"Failed to extract GitHub repo from {repo_path}: {e}")
+        
+        return ""
