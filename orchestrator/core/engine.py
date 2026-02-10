@@ -18,6 +18,7 @@ from orchestrator.utils.work_windows import prioritize_tasks_by_work_windows
 
 from orchestrator.config import POLL_INTERVAL, STATE_DIR
 from orchestrator.core.worker import WorkerManager
+from orchestrator.core.router import Router
 from orchestrator.core.failure_rotation import FailureRotation
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
@@ -43,6 +44,7 @@ class Orchestrator:
         self.provider = provider
         self.failure_rotation = FailureRotation(STATE_DIR)
         self.worker_manager = WorkerManager(STATE_DIR, provider, failure_rotation=self.failure_rotation)
+        self.router = Router()
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
         self.heartbeat = HeartbeatManager()
@@ -217,9 +219,22 @@ class Orchestrator:
             activity = True
             logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-            # NOTE: Single shared "worker" agent handles ALL work types
-            # agentType is metadata used to customize the prompt, not to select different agents
-            agent_type = item.get("agentType") or "worker"
+            # Select an agent template for this task.
+            # If an explicit `agent` field is provided on the task, honor it.
+            explicit_agent = (item.get("agent") or "").strip()
+            try:
+                if explicit_agent:
+                    agent_type = explicit_agent
+                    logger.info(f"[ROUTER] Using explicit agent '{agent_type}' for {work_id[:8]}")
+                else:
+                    agent_type = self.router.route(item)
+                    logger.info(f"[ROUTER] Selected agent '{agent_type}' for {work_id[:8]}")
+            except Exception as e:
+                # Router/registry validation shouldn't take down the engine.
+                logger.warning(
+                    f"[ROUTER] Failed to select agent for {work_id[:8]} ({work_title}): {e}. Falling back to 'programmer'."
+                )
+                agent_type = "programmer"
 
             # Get rules from provider
             rules = self.provider.get_engineering_rules()
