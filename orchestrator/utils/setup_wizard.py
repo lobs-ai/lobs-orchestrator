@@ -220,16 +220,26 @@ def show_setup_status() -> None:
     
     print("=" * 60)
     if all_complete:
-        print("✅ All required setup steps are complete!\n")
+        print("✅ All setup steps are complete!\n")
         print("You can now run the orchestrator with: python3 main.py\n")
     else:
-        print("⚠️  Some setup steps are incomplete or invalid.\n")
-        print("Run 'python3 main.py --setup-wizard' to complete setup.\n")
-        print("Or configure individual steps with:")
-        print("  python3 main.py --base-dir <path>")
-        print("  python3 main.py --control-repo <path>")
-        print("  python3 main.py --orchestrator-repo <path>")
-        print("  python3 main.py --openclaw-executable <path>")
+        # Check if any steps are skipped vs incomplete/invalid
+        has_skipped = any(check_step_status(step_id)[0] == "skipped" for step_id, _, _ in steps)
+        has_incomplete = any(check_step_status(step_id)[0] in ("incomplete", "invalid") for step_id, _, _ in steps)
+        
+        if has_skipped and not has_incomplete:
+            print("ℹ️  Some setup steps were skipped.\n")
+            print("You can run the orchestrator with: python3 main.py")
+            print("(It will work with limited functionality until repos are configured)\n")
+        else:
+            print("⚠️  Some setup steps are incomplete or invalid.\n")
+        
+        print("To complete or reconfigure steps:")
+        print("  python3 main.py --setup-wizard      (run full wizard)")
+        print("  python3 main.py --configure base_dir")
+        print("  python3 main.py --configure control_repo")
+        print("  python3 main.py --configure orchestrator_repo")
+        print("  python3 main.py --configure openclaw_executable")
         print()
 
 
@@ -250,6 +260,8 @@ def run_interactive_step(step: str) -> bool:
         print("This is the parent directory where project repositories are located.")
         print("Example: /home/user/projects")
         print()
+        print("ℹ️  Note: You can skip this step and configure it later.")
+        print()
         
         current = get_setting("base_dir")
         if current:
@@ -265,10 +277,11 @@ def run_interactive_step(step: str) -> bool:
                     print(f"⚠️  Invalid: {msg}")
         
         while True:
-            path = input("Enter base directory path (or 'skip' to skip): ").strip()
-            if path.lower() == "skip":
+            path = input("Enter base directory path (or 'skip'/'later' to skip): ").strip()
+            if path.lower() in ("skip", "later"):
                 state.mark_skipped(step)
                 print("⏭️  Skipped base directory setup")
+                print("   You can configure this later with: python3 main.py --configure base_dir")
                 return False
             
             valid, msg = validate_base_dir(path)
@@ -286,6 +299,9 @@ def run_interactive_step(step: str) -> bool:
         print("-" * 60)
         print("Path to the lobs-control repository (must be a git repository).")
         print()
+        print("ℹ️  Note: You can skip this step and add repos later.")
+        print("   The orchestrator will run with limited functionality until repos are configured.")
+        print()
         
         current = get_setting("control_repo_path")
         if current:
@@ -301,10 +317,11 @@ def run_interactive_step(step: str) -> bool:
                     print(f"⚠️  Invalid: {msg}")
         
         while True:
-            path = input("Enter control repo path (or 'skip' to skip): ").strip()
-            if path.lower() == "skip":
+            path = input("Enter control repo path (or 'skip'/'later' to skip): ").strip()
+            if path.lower() in ("skip", "later"):
                 state.mark_skipped(step)
                 print("⏭️  Skipped control repo setup")
+                print("   You can configure this later with: python3 main.py --configure control_repo")
                 return False
             
             valid, msg = validate_git_repo(path)
@@ -321,6 +338,8 @@ def run_interactive_step(step: str) -> bool:
         print("Step 3: Orchestrator Repository")
         print("-" * 60)
         print("Path to this repository (lobs-orchestrator).")
+        print()
+        print("ℹ️  Note: You can skip this step and configure it later if needed.")
         print()
         
         # Default to current directory
@@ -340,10 +359,11 @@ def run_interactive_step(step: str) -> bool:
                 print(f"⚠️  Invalid: {msg}")
         
         while True:
-            path = input("Enter orchestrator repo path (or 'skip' to skip): ").strip()
-            if path.lower() == "skip":
+            path = input("Enter orchestrator repo path (or 'skip'/'later' to skip): ").strip()
+            if path.lower() in ("skip", "later"):
                 state.mark_skipped(step)
                 print("⏭️  Skipped orchestrator repo setup")
+                print("   You can configure this later with: python3 main.py --configure orchestrator_repo")
                 return False
             
             valid, msg = validate_git_repo(path)
@@ -361,6 +381,8 @@ def run_interactive_step(step: str) -> bool:
         print("-" * 60)
         print("Path to the openclaw executable (or 'openclaw' if in PATH).")
         print()
+        print("ℹ️  Note: You can skip this step and configure it later.")
+        print()
         
         current = get_setting("openclaw_executable", "openclaw")
         print(f"Current value: {current}")
@@ -376,10 +398,11 @@ def run_interactive_step(step: str) -> bool:
             print(f"⚠️  Not found: {msg}")
         
         while True:
-            path = input("Enter openclaw executable path (or 'skip' to skip): ").strip()
-            if path.lower() == "skip":
+            path = input("Enter openclaw executable path (or 'skip'/'later' to skip): ").strip()
+            if path.lower() in ("skip", "later"):
                 state.mark_skipped(step)
                 print("⏭️  Skipped openclaw executable setup")
+                print("   You can configure this later with: python3 main.py --configure openclaw_executable")
                 return False
             
             valid, msg = validate_openclaw_executable(path)
@@ -401,7 +424,11 @@ def run_setup_wizard() -> None:
     print("Lobs Orchestrator Setup Wizard")
     print("=" * 60)
     print("\nWelcome! This wizard will guide you through setting up the orchestrator.")
-    print("You can skip any step and complete it later.\n")
+    print("You can skip any step and complete it later.")
+    print()
+    print("ℹ️  The orchestrator will work with limited functionality if you skip")
+    print("   repository setup - it just won't have any projects to work on until")
+    print("   repos are configured.\n")
     
     input("Press Enter to begin...")
     

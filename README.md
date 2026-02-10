@@ -85,10 +85,15 @@ python3 main.py --configure orchestrator_repo
 python3 main.py --configure openclaw_executable
 ```
 
+**Skipping Setup Steps:**
+
+The setup wizard allows you to skip any step by entering `skip` or `later` when prompted. The orchestrator will work with limited functionality without repository configuration - it just won't have any projects to work on until repos are added later.
+
 The setup wizard tracks completion state persistently in `.lobs_setup_state.json`, so you can:
 - Skip steps during initial setup and complete them later
 - Re-run individual configuration steps without redoing everything
 - Check what's configured vs missing at any time
+- Run the orchestrator with partial configuration (e.g., without repos)
 
 ### Running the Orchestrator
 
