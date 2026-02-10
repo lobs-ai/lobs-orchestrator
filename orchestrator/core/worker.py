@@ -141,8 +141,8 @@ class WorkerManager:
         self.awareness = awareness_monitor
 
         # In-memory tracking (primary source of truth while running)
-        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
         
         # Per-project worker limiting: track which projects have active workers
@@ -269,8 +269,9 @@ class WorkerManager:
                     # We can't get the original Popen object, but we can monitor the PID
                     # Re-acquire project lock
                     self.project_locks[project_id] = task_id
-                    # Generate worker_id for re-adopted worker
+                    # Generate worker_id and session_label for re-adopted worker
                     worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}-readopted"
+                    session_label = f"worker-{worker_id}"
                     self.active_workers[task_id] = (
                         _PidMonitor(pid),  # Wrapper to monitor PID
                         project_id,
@@ -280,6 +281,7 @@ class WorkerManager:
                         task_title,
                         agent_template,
                         worker_id,
+                        session_label,
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
                     logger.info(f"[PROJECT-LOCK] Re-acquired lock for project {project_id} (re-adopted task {task_id[:8]})")
@@ -585,6 +587,7 @@ class WorkerManager:
                             agent_type,
                             start_time,
                             task_title,
+                            "",  # Ollama doesn't use OpenClaw sessions
                         )
                     else:
                         self.handle_worker_failure(
@@ -595,6 +598,7 @@ class WorkerManager:
                             start_time=start_time,
                             task_title=task_title,
                             failure_reason="finalize_failed",
+                            session_label="",  # Ollama doesn't use OpenClaw sessions
                         )
 
                 except Exception as e:
@@ -609,6 +613,7 @@ class WorkerManager:
                         start_time=start_time,
                         task_title=task_title,
                         failure_reason="ollama_failed",
+                        session_label="",  # Ollama doesn't use OpenClaw sessions
                     )
 
         except Exception as e:
@@ -621,6 +626,7 @@ class WorkerManager:
                 start_time=start_time,
                 task_title=task_title,
                 failure_reason="ollama_spawn_failed",
+                session_label="",  # Ollama doesn't use OpenClaw sessions
             )
         finally:
             # Release project lock
@@ -643,8 +649,9 @@ class WorkerManager:
         template_type = _normalize_agent_template_type(agent_type)
         agent_id = template_type  # e.g., "programmer", "architect", "researcher"
         
-        # Generate unique worker ID
+        # Generate unique worker ID and session label for session isolation
         worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}"
+        session_label = f"worker-{worker_id}"  # Unique label for this worker's session
 
         try:
             logger.info(f"[WORKER] Using agent: {agent_id}")
@@ -688,7 +695,7 @@ class WorkerManager:
             # Optional global model override for cost control
             model_override = (get_setting("openclaw_model_override", "") or "").strip()
 
-            cmd = [executable, "agent", "--agent", agent_id]
+            cmd = [executable, "agent", "--agent", agent_id, "--label", session_label]
             if model_override:
                 cmd.extend(["--model", model_override])
             cmd.extend(["-m", prompt])
@@ -730,6 +737,7 @@ class WorkerManager:
                 task_title,
                 template_type,
                 worker_id,
+                session_label,
             )
             self.pending_workers.discard(task_id)
             
@@ -779,15 +787,16 @@ class WorkerManager:
             task_title,
             agent_template,
             worker_id,
+            session_label,
         ) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
                 elapsed = time.time() - start_time
                 logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title))
+                finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label))
 
-        for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title in finished:
+        for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label in finished:
             # Release project lock
             if project_id in self.project_locks and self.project_locks[project_id] == task_id:
                 del self.project_locks[project_id]
@@ -811,9 +820,10 @@ class WorkerManager:
                     agent_template,
                     start_time,
                     task_title,
+                    session_label,
                 )
             else:
-                self._handle_immediate_failure(task_id, project_id, agent_id, start_time, task_title)
+                self._handle_immediate_failure(task_id, project_id, agent_id, start_time, task_title, session_label)
 
         if finished:
             self._update_provider_status()
@@ -825,6 +835,7 @@ class WorkerManager:
         agent_id: str,
         start_time: float | None = None,
         task_title: str = "",
+        session_label: str = "",
     ):
         """Handle worker failure (non-zero exit).
 
@@ -858,6 +869,7 @@ class WorkerManager:
             start_time=start_time,
             task_title=task_title,
             failure_reason="worker_nonzero_exit",
+            session_label=session_label,
         )
         self._clear_state()
 
@@ -869,6 +881,7 @@ class WorkerManager:
         agent_template: str,
         start_time: float,
         task_title: str = "",
+        session_label: str = "",
     ):
         """Finalize worker completion (commit, push, update state)."""
         try:
@@ -881,6 +894,7 @@ class WorkerManager:
                     agent_template,
                     start_time,
                     task_title,
+                    session_label,
                 )
             else:
                 self.handle_worker_failure(
@@ -891,6 +905,7 @@ class WorkerManager:
                     start_time=start_time,
                     task_title=task_title,
                     failure_reason="finalize_failed",
+                    session_label=session_label,
                 )
         except Exception as e:
             logger.error(f"Error in finalization for {task_id}: {e}")
@@ -902,6 +917,7 @@ class WorkerManager:
                 start_time=start_time,
                 task_title=task_title,
                 failure_reason="finalize_exception",
+                session_label=session_label,
             )
         finally:
             self._clear_state()
@@ -1526,16 +1542,26 @@ class WorkerManager:
     # Session Cleanup
     # =========================================================================
 
-    def _cleanup_worker_session(self, agent_id: str):
-        """Clean up worker agent's session via OpenClaw gateway API."""
-        logger.info(f"[WORKER] Cleaning up session for agent {agent_id}...")
+    def _cleanup_worker_session(self, agent_id: str, session_label: str = ""):
+        """Clean up worker agent's session via OpenClaw gateway API.
+        
+        Uses session_label to target the specific worker session when provided,
+        allowing multiple workers of the same agent type to coexist safely.
+        Falls back to the main session if no label provided (legacy behavior).
+        """
+        if session_label:
+            session_key = f"agent:{agent_id}:{session_label}"
+            logger.info(f"[WORKER] Cleaning up session {session_label} for agent {agent_id}...")
+        else:
+            session_key = f"agent:{agent_id}:main"
+            logger.info(f"[WORKER] Cleaning up main session for agent {agent_id}...")
+        
         try:
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
             # Use the gateway API to properly delete the session
             # This archives the transcript and removes the session entry
-            session_key = f"agent:{agent_id}:main"
             result = subprocess.run(
                 [executable, "gateway", "call", "sessions.delete", 
                  "--params", f'{{"key":"{session_key}"}}'],
@@ -1557,36 +1583,72 @@ class WorkerManager:
             else:
                 logger.warning(f"[WORKER] Gateway session delete failed: {result.stderr}")
                 # Fall back to file-based cleanup
-                self._cleanup_worker_session_files(agent_id)
+                self._cleanup_worker_session_files(agent_id, session_label)
                 
         except subprocess.TimeoutExpired:
             logger.warning(f"[WORKER] Session cleanup timed out, falling back to file cleanup")
-            self._cleanup_worker_session_files(agent_id)
+            self._cleanup_worker_session_files(agent_id, session_label)
         except Exception as e:
             logger.warning(f"Error cleaning worker sessions via API: {e}")
-            self._cleanup_worker_session_files(agent_id)
+            self._cleanup_worker_session_files(agent_id, session_label)
 
-    def _cleanup_worker_session_files(self, agent_id: str):
-        """Fallback: Clean up worker agent's session files directly."""
+    def _cleanup_worker_session_files(self, agent_id: str, session_label: str = ""):
+        """Fallback: Clean up worker agent's session files directly.
+        
+        If session_label is provided, only removes files for that specific session.
+        Otherwise, removes all sessions (legacy behavior for backward compatibility).
+        """
         try:
             sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
             if not sessions_dir.exists():
                 return
 
             deleted = 0
-            for f in sessions_dir.glob("*.jsonl"):
-                try:
-                    f.unlink()
-                    deleted += 1
-                except Exception:
-                    pass
             
-            # Also clean up lock files
-            for f in sessions_dir.glob("*.jsonl.lock"):
-                try:
-                    f.unlink()
-                except Exception:
-                    pass
+            if session_label:
+                # Only clean up the specific labeled session
+                # Session files are stored with session IDs, so we need to look up
+                # the session ID from sessions.json first
+                sessions_json = sessions_dir / "sessions.json"
+                if sessions_json.exists():
+                    try:
+                        sessions_data = json.loads(sessions_json.read_text())
+                        session_key = f"agent:{agent_id}:{session_label}"
+                        session_meta = sessions_data.get(session_key, {})
+                        session_id = session_meta.get("sessionId")
+                        
+                        if session_id:
+                            # Remove specific session files
+                            for pattern in [f"{session_id}.jsonl", f"{session_id}.jsonl.lock"]:
+                                target = sessions_dir / pattern
+                                if target.exists():
+                                    try:
+                                        target.unlink()
+                                        deleted += 1
+                                    except Exception:
+                                        pass
+                            
+                            # Update sessions.json to remove the entry
+                            if session_key in sessions_data:
+                                del sessions_data[session_key]
+                                sessions_json.write_text(json.dumps(sessions_data, indent=2))
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up specific session {session_label}: {e}")
+            else:
+                # Legacy: clean up all sessions for this agent
+                for f in sessions_dir.glob("*.jsonl"):
+                    try:
+                        f.unlink()
+                        deleted += 1
+                    except Exception:
+                        pass
+                
+                # Also clean up lock files
+                for f in sessions_dir.glob("*.jsonl.lock"):
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
 
             # Clean up archived deleted files older than 1 hour
             import time
@@ -1599,7 +1661,8 @@ class WorkerManager:
                     pass
 
             if deleted > 0:
-                logger.info(f"[WORKER] Cleared {deleted} session file(s) for agent {agent_id}")
+                label_str = f" (label: {session_label})" if session_label else ""
+                logger.info(f"[WORKER] Cleared {deleted} session file(s) for agent {agent_id}{label_str}")
 
         except Exception as e:
             logger.warning(f"Error cleaning worker session files: {e}")
@@ -1932,6 +1995,7 @@ class WorkerManager:
         agent_template: str,
         start_time: float,
         task_title: str = "",
+        session_label: str = "",
     ):
         """Handle successful worker completion.
 
@@ -1994,7 +2058,7 @@ class WorkerManager:
             duration = time.time() - start_time if start_time else None
             self.awareness.track_work_completed(task_id, duration)
 
-        self._cleanup_worker_session(agent_id)
+        self._cleanup_worker_session(agent_id, session_label)
 
     def handle_worker_failure(
         self,
@@ -2006,6 +2070,7 @@ class WorkerManager:
         *,
         task_title: str = "",
         failure_reason: str = "worker_failed",
+        session_label: str = "",
     ):
         """Handle worker failure.
 
@@ -2059,7 +2124,7 @@ class WorkerManager:
             duration = time.time() - start_time if start_time else None
             self.awareness.track_work_failed(task_id, duration)
         
-        self._cleanup_worker_session(agent_id)
+        self._cleanup_worker_session(agent_id, session_label)
 
     def _update_provider_status(self):
         """Update provider with current worker status using multi-worker schema."""
@@ -2076,6 +2141,7 @@ class WorkerManager:
             task_title,
             agent_template,
             worker_id,
+            session_label,
         ) in self.active_workers.items():
             active_workers_list.append({
                 "workerId": worker_id,
