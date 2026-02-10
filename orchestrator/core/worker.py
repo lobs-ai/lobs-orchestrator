@@ -20,6 +20,7 @@ from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
 from orchestrator.core.agents import AgentManager
 from orchestrator.core.ollama_client import OllamaClient
+from orchestrator.core.registry import AgentRegistry, AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,40 @@ class _PidMonitor:
 
 
 from orchestrator.core.failure_rotation import FailureRotation
+
+
+def _normalize_agent_template_type(agent_type: str) -> str:
+    """Normalize legacy agent_type values to agent template types.
+
+    Historically, `agentType` was metadata (e.g. 'worker', 'task-runner').
+    With agent templates living under `agents/<type>/`, we treat those legacy
+    values as the default 'programmer' template.
+    """
+
+    t = (agent_type or "").strip().lower()
+    if not t:
+        return "programmer"
+
+    legacy_to_programmer = {
+        "worker",
+        "task-runner",
+        "worker-template",
+    }
+    if t in legacy_to_programmer:
+        return "programmer"
+
+    return t
+
+
+def _write_agent_template_files(workspace_dir: Path, cfg: AgentConfig) -> None:
+    """Write agent template context files into the worker workspace."""
+
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    (workspace_dir / "AGENTS.md").write_text(cfg.agents_md, encoding="utf-8")
+    (workspace_dir / "SOUL.md").write_text(cfg.soul_md, encoding="utf-8")
+    (workspace_dir / "TOOLS.md").write_text(cfg.tools_md, encoding="utf-8")
+    (workspace_dir / "USER.md").write_text(cfg.user_md, encoding="utf-8")
+    (workspace_dir / "IDENTITY.md").write_text(cfg.identity_md, encoding="utf-8")
 
 
 class WorkerManager:
@@ -90,10 +125,15 @@ class WorkerManager:
         # Single-threaded executor ensures one spawn at a time
         self.executor = ThreadPoolExecutor(max_workers=1)
         
-        # Agent manager for provisioning workers
+        # Agent manager for provisioning the shared OpenClaw agent + legacy worker rules.
+        # NOTE: `worker-template/` remains the source of WORKER_RULES.md (and fallback context)
+        # for backwards compatibility.
         template_dir = ORCHESTRATOR_REPO_PATH / "worker-template"
         self.agent_manager = AgentManager(template_dir)
         self._worker_provisioned = False
+
+        # Agent registry for per-task agent templates (agents/<type>/...)
+        self.registry = AgentRegistry()
         
         # Cache for project repo paths
         self._repo_path_cache = {}
@@ -202,7 +242,8 @@ class WorkerManager:
                         project_id,
                         log_file,
                         time.time(),  # Approximate - we don't know exact start time
-                        agent_id
+                        agent_id,
+                        task_title,
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
                     return  # Don't clear state - worker is still running
@@ -323,12 +364,55 @@ class WorkerManager:
         
         return "openclaw"
 
+    def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
+        """Sync the shared worker workspace to match the selected agent template.
+
+        Returns the effective template type used (may fall back to 'programmer').
+        """
+
+        workspace_dir = self.agent_manager.openclaw_dir / "workspace-worker"
+
+        # Always ensure WORKER_RULES.md exists (legacy behavior).
+        worker_rules_src = self.agent_manager.template_dir / "WORKER_RULES.md"
+        if worker_rules_src.exists():
+            (workspace_dir / "WORKER_RULES.md").write_text(
+                worker_rules_src.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+        requested = (agent_template_type or "").strip().lower() or "programmer"
+
+        def _try_sync(t: str) -> bool:
+            try:
+                cfg = self.registry.get_agent(t)
+                _write_agent_template_files(workspace_dir, cfg)
+                logger.info(f"[WORKER] Synced worker workspace to agent template: {t}")
+                return True
+            except Exception as e:
+                logger.warning(f"[WORKER] Failed to sync agent template '{t}': {e}")
+                return False
+
+        # Primary: agents/<type>/
+        if _try_sync(requested):
+            return requested
+
+        # Fallback: programmer
+        if requested != "programmer" and _try_sync("programmer"):
+            return "programmer"
+
+        # Last resort: legacy worker-template/ sync (includes AGENTS/SOUL/etc).
+        logger.warning("[WORKER] Falling back to legacy worker-template/ workspace sync")
+        if not self.agent_manager.sync_worker_templates("worker"):
+            logger.warning("[WORKER] Legacy template sync failed")
+
+        return "programmer"
+
     # =========================================================================
     # Worker Spawning
     # =========================================================================
 
     def spawn_worker(
-        self, task: dict[str, Any], project_id: str, agent_type: str = "task-runner", rules: str = ""
+        self, task: dict[str, Any], project_id: str, agent_type: str = "programmer", rules: str = ""
     ) -> bool:
         """
         Spawn a worker for the given task.
@@ -457,7 +541,7 @@ class WorkerManager:
         agent_id = "worker"
 
         try:
-            logger.info(f"[WORKER] Using shared worker agent: {agent_id} (type: {agent_type})")
+            logger.info(f"[WORKER] Using shared worker agent: {agent_id} (template: {_normalize_agent_template_type(agent_type)})")
 
             # One-time provisioning
             if not self._worker_provisioned:
@@ -477,9 +561,11 @@ class WorkerManager:
                 
                 self._worker_provisioned = True
             
-            # Sync templates
-            if not self.agent_manager.sync_worker_templates("worker"):
-                logger.warning("Failed to sync worker templates - continuing anyway")
+            # Sync workspace context for this task's agent template.
+            # We always keep WORKER_RULES.md in the workspace (legacy path), but we
+            # swap AGENTS/SOUL/TOOLS/USER/IDENTITY per agent_type.
+            template_type = _normalize_agent_template_type(agent_type)
+            effective_template_type = self._sync_workspace_for_agent_template(template_type)
 
             # Sync repo (skip for research projects without repos)
             from orchestrator.config import CONTROL_REPO_PATH
@@ -531,7 +617,7 @@ class WorkerManager:
             self.provider.update_worker_status({
                 "active": True,
                 "currentTask": task_id,
-                "agentType": agent_type,
+                "agentType": effective_template_type,
                 "projectId": project_id,
                 "startedAt": now_iso,
                 "lastHeartbeat": now_iso,
