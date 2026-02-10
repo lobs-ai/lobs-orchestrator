@@ -692,17 +692,9 @@ class WorkerManager:
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
-            # Per-template model configuration (e.g., {"programmer": "codex-5.2", "architect": "sonnet"})
-            # Falls back to openclaw_model_override if template not specified
-            model_per_template = get_setting("model_per_template", {})
-            model_override = model_per_template.get(template_type, "").strip()
-            if not model_override:
-                model_override = (get_setting("openclaw_model_override", "") or "").strip()
-
-            cmd = [executable, "agent", "--agent", agent_id]
-            if model_override:
-                cmd.extend(["--model", model_override])
-            cmd.extend(["-m", prompt])
+            # Note: Model configuration must be done in openclaw.json agent config
+            # The CLI doesn't support --model flag for agent command
+            cmd = [executable, "agent", "--agent", agent_id, "-m", prompt]
 
             
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
