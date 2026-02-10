@@ -141,6 +141,10 @@ class WorkerManager:
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template)
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
+        
+        # Per-project worker limiting: track which projects have active workers
+        # project_id -> task_id
+        self.project_locks: dict[str, str] = {}
 
         # Thread pool executor for spawning workers concurrently
         self.executor = ThreadPoolExecutor(max_workers=5)
@@ -260,6 +264,8 @@ class WorkerManager:
                     log_file = open(log_file_path, "a")  # Append mode
                     # Create a pseudo-process object to track the PID
                     # We can't get the original Popen object, but we can monitor the PID
+                    # Re-acquire project lock
+                    self.project_locks[project_id] = task_id
                     self.active_workers[task_id] = (
                         _PidMonitor(pid),  # Wrapper to monitor PID
                         project_id,
@@ -270,6 +276,7 @@ class WorkerManager:
                         agent_template,
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
+                    logger.info(f"[PROJECT-LOCK] Re-acquired lock for project {project_id} (re-adopted task {task_id[:8]})")
                     return  # Don't clear state - worker is still running
                 except Exception as e:
                     logger.warning(f"Failed to re-adopt worker: {e}")
@@ -440,10 +447,22 @@ class WorkerManager:
     ) -> bool:
         """
         Spawn a worker for the given task.
-        Returns True if spawned, False if max workers reached.
+        Returns True if spawned, False if project already has an active worker.
+        
+        Enforces one worker per project at a time. When a project is locked,
+        the engine will queue the task and retry on the next poll cycle.
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
+
+        # Check if project already has an active worker
+        if project_id in self.project_locks:
+            existing_task = self.project_locks[project_id]
+            logger.info(
+                f"[PROJECT-LOCK] Project {project_id} already has active worker (task {existing_task[:8]}). "
+                f"Queueing task {task_id[:8]}."
+            )
+            return False
 
         # Mark as pending and save state
         self.pending_workers.add(task_id)
@@ -475,6 +494,9 @@ class WorkerManager:
         start_time = time.time()
 
         try:
+            # Acquire project lock (Ollama workers don't go through active_workers tracking)
+            self.project_locks[project_id] = task_id
+            logger.info(f"[PROJECT-LOCK] Acquired lock for project {project_id} (Ollama task {task_id[:8]})")
             # Sync repo (skip for research projects without repos)
             from orchestrator.config import CONTROL_REPO_PATH
             if self._is_git_repo(workspace) and workspace != CONTROL_REPO_PATH:
@@ -582,6 +604,11 @@ class WorkerManager:
                 failure_reason="ollama_spawn_failed",
             )
         finally:
+            # Release project lock
+            if project_id in self.project_locks and self.project_locks[project_id] == task_id:
+                del self.project_locks[project_id]
+                logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (Ollama task {task_id[:8]})")
+            
             self._clear_state()
             self.pending_workers.discard(task_id)
             self._update_provider_status()
@@ -670,7 +697,8 @@ class WorkerManager:
                 agent_template=template_type,
             )
 
-            # Track active worker
+            # Acquire project lock and track active worker
+            self.project_locks[project_id] = task_id
             self.active_workers[task_id] = (
                 process,
                 project_id,
@@ -681,6 +709,8 @@ class WorkerManager:
                 template_type,
             )
             self.pending_workers.discard(task_id)
+            
+            logger.info(f"[PROJECT-LOCK] Acquired lock for project {project_id} (task {task_id[:8]})")
             
             # Track work started in awareness monitor
             if self.awareness:
@@ -742,6 +772,11 @@ class WorkerManager:
                 finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title))
 
         for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title in finished:
+            # Release project lock
+            if project_id in self.project_locks and self.project_locks[project_id] == task_id:
+                del self.project_locks[project_id]
+                logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (task {task_id[:8]})")
+            
             del self.active_workers[task_id]
             
             if retcode == 0:

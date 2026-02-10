@@ -64,14 +64,15 @@ The Lobs Orchestrator is a long-running Python service that manages task schedul
 - LLMs receive bounded, well-defined tasks
 - Humans approve work through the control repository
 
-### 2. Multi-Worker Pattern
+### 2. Per-Project Worker Limiting
 
-**Multiple workers process tasks concurrently (default: 5).**
+**Only one worker can be active per project at a time.**
 
-- Configurable concurrent task execution
-- Automatic queueing when all workers are busy
-- Clean session state between tasks for each worker
-- Parallel processing of eligible work items
+- Enforces project-level locking to prevent concurrent modifications
+- Different projects can run workers in parallel
+- Tasks for busy projects are automatically queued by the engine
+- Project locks are acquired when worker starts and released on completion/failure
+- Locks are re-acquired on orchestrator restart when re-adopting workers
 
 ### 3. Single Writer Pattern
 
@@ -130,13 +131,13 @@ while True:
 
 ### WorkerManager (`orchestrator/core/worker.py`)
 
-**Manages multiple concurrent worker subprocesses.**
+**Manages concurrent worker subprocesses with per-project locking.**
 
 **Responsibilities:**
-- Track multiple workers (default max: 5)
-- Spawn workers via `openclaw agent --agent worker`
+- Track multiple workers across different projects
+- Spawn workers via `openclaw agent --agent <type>`
 - Track worker lifecycle (syncing → running → finalizing)
-- Manage project locks
+- Enforce per-project worker limits (one worker per project)
 - Handle worker success/failure
 - Clean up sessions between tasks
 
@@ -144,39 +145,57 @@ while True:
 
 ```
 IDLE
+  ├─> CHECK PROJECT LOCK
+  │     ├─> Project locked → Return False (queue task)
+  │     └─> Project available → Continue
+  │
   ├─> SYNCING (git pull --rebase)
-  │     ├─> Lock acquired (status=syncing)
-  │     └─> Task in pending_workers
+  │     ├─> Task in pending_workers
+  │     └─> No lock yet (async spawning)
   │
   ├─> RUNNING (openclaw agent)
-  │     ├─> Lock updated (status=running, pid=X)
+  │     ├─> Project lock acquired
   │     ├─> Task in active_workers
   │     └─> Subprocess executing
   │
   ├─> FINALIZING (git commit/push)
-  │     ├─> Lock held (status=finalizing)
+  │     ├─> Lock still held
   │     └─> Task in pending_workers
   │
   └─> IDLE
-        ├─> Lock released
+        ├─> Project lock released
         ├─> Session cleaned
         └─> Ready for next task
 ```
 
-**Single Worker Enforcement:**
+**Per-Project Locking:**
 
-1. **ThreadPoolExecutor(max_workers=1)**: Only one async spawn at a time
-2. **Pre-spawn check**: Rejects if `active_workers` or `pending_workers` non-empty
-3. **Runtime validation**: Asserts constraint before adding to `active_workers`
+1. **project_locks dict**: Maps `project_id → task_id` for active workers
+2. **Pre-spawn check**: Returns False if project already has an active worker
+3. **Lock acquisition**: When worker subprocess starts (in RUNNING state)
+4. **Lock release**: When worker completes (success/failure) or is cleaned up
+5. **Restart safety**: Locks are re-acquired when re-adopting workers on restart
 
 **Queueing Logic:**
 ```python
 def spawn_worker(self, task, project_id, ...):
-    if self.active_workers or self.pending_workers:
-        logger.info("[QUEUE] Worker busy. Queueing task.")
-        return  # Task stays in provider queue
-    # Spawn worker...
+    # Check if project already has a worker
+    if project_id in self.project_locks:
+        logger.info(f"[PROJECT-LOCK] Project {project_id} busy. Queueing task.")
+        return False  # Engine will retry on next poll
+    
+    # Mark as pending and spawn async
+    self.pending_workers.add(task_id)
+    self.executor.submit(self._async_spawn_openclaw_flow, ...)
+    return True
 ```
+
+**Benefits:**
+- Different projects can run workers in parallel
+- Prevents concurrent modifications to the same project repository
+- No git conflicts or race conditions within a project
+- Automatic queueing when project is busy
+- Maximum parallelism across project boundaries
 
 ---
 
