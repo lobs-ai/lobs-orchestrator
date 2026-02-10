@@ -36,7 +36,6 @@ def show_settings():
     print("")
     
     print("Prerequisites:")
-    from orchestrator.utils.settings import get_setting
     skip_all = get_setting("skip_prereqs", False)
     skip_list = get_setting("skip_prereqs_list", [])
     strict_mode = get_setting("strict_prereqs", False)

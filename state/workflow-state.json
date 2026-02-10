@@ -1,37 +1,7 @@
 {
   "blockedTaskIds": [],
-  "generatedAt": "2026-02-10T14:48:34Z",
-  "initiatives": {
-    "auth": {
-      "complete": false,
-      "done": 1,
-      "initiative": "auth",
-      "total": 2
-    }
-  },
-  "tasks": {
-    "auth": [
-      {
-        "agent": "programmer",
-        "blocked": false,
-        "dependsOn": [],
-        "id": "task1",
-        "projectId": null,
-        "state": "completed",
-        "title": "Task 1"
-      },
-      {
-        "agent": "programmer",
-        "blocked": false,
-        "dependsOn": [
-          "task1"
-        ],
-        "id": "task2",
-        "projectId": null,
-        "state": "in_progress",
-        "title": "Task 2"
-      }
-    ]
-  },
+  "generatedAt": "2026-02-10T16:38:51Z",
+  "initiatives": {},
+  "tasks": {},
   "version": 1
 }
