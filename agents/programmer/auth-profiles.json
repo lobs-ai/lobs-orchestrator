@@ -40,13 +40,9 @@
       "cooldownUntil": 1770645499256
     },
     "anthropic:default": {
-      "errorCount": 1,
+      "errorCount": 0,
       "lastFailureAt": 1770764386644,
-      "lastUsed": 1770760939247,
-      "failureCounts": {
-        "timeout": 1
-      },
-      "cooldownUntil": 1770764446644
+      "lastUsed": 1770765509277
     },
     "google-gemini-cli:rafes740@gmail.com": {
       "lastUsed": 1770604476944,

@@ -1,6 +1,6 @@
 {
   "total_completed": 26,
-  "total_failed": 30,
+  "total_failed": 33,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -508,7 +508,34 @@
       "kind": "task",
       "started_at": "2026-02-10T20:25:10.780161+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "55EA0255-65A6-4414-B0DE-999C0CF09AD7",
+      "project_id": "flock",
+      "title": "Resolve HACK in typing_extensions.py:1893",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T22:26:11.593551+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "55EA0255-65A6-4414-B0DE-999C0CF09AD7",
+      "project_id": "flock",
+      "title": "Resolve HACK in typing_extensions.py:1893",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:02:00.017505+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "8F7DE0D2-2455-4629-81B3-5104E530B405",
+      "project_id": "flock",
+      "title": "Resolve TODO in database_constants.py:28",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:02:57.709276+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T22:02:35.710730+00:00"
+  "last_updated": "2026-02-10T23:03:50.318392+00:00"
 }
