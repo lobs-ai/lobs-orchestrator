@@ -1,3 +1,151 @@
 {
-  "suggestions": []
+  "suggestions": [
+    {
+      "hash": "1c1a99498b0bd286",
+      "title": "Add integration tests for read-state and sync fixes",
+      "projectId": "default",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8df8da6805e3b9f9",
+      "title": "End-to-end test onboarding flow before public release",
+      "projectId": "default",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "5974ef2c856f4eeb",
+      "title": "Document \u2318K command palette and keyboard shortcuts",
+      "projectId": "default",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9d8f762211f35ea8",
+      "title": "Add integration tests for Global Search and Deep Link handler",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "3afcdf868ef94e87",
+      "title": "Verify search results empty state and error handling",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8dce02f6a4ce06d4",
+      "title": "Document Share + Deep Link flow for QA/beta testing",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "0dd6c6ea6146537f",
+      "title": "Define MVP scope and create setup checklist",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "e73d41a3dccbfaf5",
+      "title": "Set up PrairieLearn schema + test fixtures",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "79ac43f959d7f4ef",
+      "title": "Choose & document LLM integration approach",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "d6e9bfff7d2e4a8b",
+      "title": "Add integration tests for GitHub issue syncing and lifecycle management",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9c6afbc4a1f60e3b",
+      "title": "Validate token usage reporting after single-writer refactor",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9ea501613fed1f3e",
+      "title": "Document the new 'suggester' agent and its triggers",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "43698c6a965d7819",
+      "title": "Add unit tests for inbox read-state persistence fixes",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "bfc2845e083b5eb1",
+      "title": "End-to-end test GitHub sync bidirectionality before release",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "f6ce04771a9bedb2",
+      "title": "Walk through onboarding flow on fresh macOS + capture blockers",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "49f3c2280e3bd70c",
+      "title": "Investigate and resolve rapid task status commit spam",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "bdda9b56afd7e0eb",
+      "title": "Add commit message validation to prevent vague auto-generated messages",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "b112ef537330ac04",
+      "title": "Document lobs-control state file formats and validate on write",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T02:58:08Z",
+      "dismissed": false
+    },
+    {
+      "hash": "e5d0a654789ee2c4",
+      "title": "URGENT: Kill and rollback runaway commit loop",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T03:02:39Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ed67572b4b3ec320",
+      "title": "Implement immediate safeguards: rate limit commits per task per hour",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T03:02:39Z",
+      "dismissed": false
+    },
+    {
+      "hash": "da7e93bb56b02a79",
+      "title": "Extract and document what hotels-m was trying to do before loop",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T03:02:39Z",
+      "dismissed": false
+    }
+  ]
 }
