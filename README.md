@@ -119,6 +119,63 @@ or skip specific tools:
 
 See [SETTINGS.md](SETTINGS.md) for complete documentation.
 
+## Development
+
+### Running Tests
+
+Install development dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run tests:
+
+```bash
+# Run all tests (basic)
+pytest
+
+# Run specific test file
+pytest tests/test_config.py
+
+# Run with extra verbose output
+pytest -vv
+
+# Run tests matching a pattern
+pytest -k "test_config"
+```
+
+Run tests with coverage:
+
+```bash
+# Run tests with coverage (requires pytest-cov from requirements-dev.txt)
+pytest --cov=orchestrator --cov-report=term-missing
+
+# Generate HTML coverage report
+pytest --cov=orchestrator --cov-report=html
+# Then open htmlcov/index.html in a browser
+
+# Generate multiple report formats
+pytest --cov=orchestrator --cov-report=term-missing --cov-report=html --cov-report=xml
+```
+
+### Coverage Configuration
+
+Coverage is configured in `.coveragerc` and `pytest.ini`:
+
+- **Minimum coverage**: Tests measure coverage of the `orchestrator` package
+- **Branch coverage**: Enabled for more detailed analysis
+- **Reports**: Terminal summary, HTML report (`htmlcov/`), and XML for CI
+- **Exclusions**: Test files, virtual environments, and common pragma patterns
+
+### Continuous Integration
+
+GitHub Actions workflow (`.github/workflows/test.yml`) runs tests automatically on:
+- Push to `main`/`master` branches
+- Pull requests
+- Tests run on Python 3.11 and 3.12
+- Coverage reports uploaded to Codecov (if configured)
+
 ## Control Operations
 
 To request a state change (e.g., update a task), other components or workers should create a JSON file in `lobs-control/state/control-ops/`.

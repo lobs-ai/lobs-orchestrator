@@ -1,0 +1,58 @@
+[run]
+# Measure code coverage in the orchestrator package
+source = orchestrator
+
+# Omit specific files/patterns from coverage
+omit =
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */setup.py
+    */setup_config.py
+
+# Enable branch coverage for more detailed analysis
+branch = True
+
+[report]
+# Show lines that weren't covered
+show_missing = True
+
+# Minimum coverage threshold (optional - set to a reasonable value)
+# fail_under = 80
+
+# Exclude certain lines from coverage (e.g., debug code, defensive checks)
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+    
+    # Don't complain about missing debug code
+    def __repr__
+    
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    
+    # Don't complain about abstract methods
+    @abstractmethod
+    
+    # Type checking code
+    if TYPE_CHECKING:
+    
+    # Defensive programming
+    pass
+
+# Sort report by coverage percentage
+sort = Cover
+
+[html]
+# Directory for HTML coverage report
+directory = htmlcov
+
+[xml]
+# Output file for XML coverage report (useful for CI)
+output = coverage.xml

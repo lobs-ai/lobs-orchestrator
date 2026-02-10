@@ -6,3 +6,10 @@ venv/
 .env
 locks/
 *.log
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/

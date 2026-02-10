@@ -1,0 +1,13 @@
+# Development and Testing Dependencies
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing framework
+pytest>=7.4.0
+
+# Coverage plugin for pytest
+pytest-cov>=4.1.0
+
+# Code coverage measurement
+coverage[toml]>=7.3.0
