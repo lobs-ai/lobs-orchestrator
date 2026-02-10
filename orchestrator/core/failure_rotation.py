@@ -12,22 +12,43 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class FailurePolicy:
-    threshold: int
-    cooldown_seconds: int
+    """Policy for exponential backoff after task failures.
+
+    backoff schedule (seconds) for consecutive failures:
+      1st retry:  60s
+      2nd retry:  300s
+      3rd retry:  900s
+      4th retry:  2700s
+      ... grows by factor=3 thereafter, capped by max_backoff_seconds.
+    """
+
+    base_seconds: int = 60
+    second_seconds: int = 300
+    factor: int = 3
+    max_backoff_seconds: int = 6 * 60 * 60
 
 
 class FailureRotation:
-    """Tracks per-task consecutive failure streaks and enforces temporary skipping.
+    """Tracks per-task consecutive failures and enforces exponential backoff.
 
     Persistence:
       - Stored in a JSON file under the orchestrator state dir for restart safety.
 
     Semantics:
-      - streak increments on consecutive failures for the same task id.
-      - streak resets (entry removed) on success.
-      - once streak >= threshold, task is skipped until skip_until (now + cooldown).
+      - retry_count increments on consecutive failures for the same task id.
+      - retry_count resets (entry removed) on success.
+      - after each failure, the task is skipped until now + backoff(retry_count).
       - if all eligible tasks are skipped, caller may choose to override cooldown and
         retry one skipped task to avoid deadlock.
+
+    State fields per task:
+      - retry_count: int
+      - last_failure_ts: float
+      - skip_until_ts: float
+
+    Backwards compat:
+      - We still write `streak` as an alias for `retry_count` since older logs/tests
+        referenced it.
     """
 
     def __init__(
@@ -40,9 +61,19 @@ class FailureRotation:
         self.state_dir.mkdir(parents=True, exist_ok=True)
 
         if policy is None:
-            threshold = int(get_setting("failure_rotation_threshold", 3))
-            cooldown_seconds = int(get_setting("failure_rotation_cooldown_seconds", 30 * 60))
-            policy = FailurePolicy(threshold=threshold, cooldown_seconds=cooldown_seconds)
+            # Backwards compatible settings:
+            # - failure_rotation_threshold / failure_rotation_cooldown_seconds used to gate skipping.
+            #   Now we always apply backoff, so these are ignored.
+            base_seconds = int(get_setting("failure_backoff_base_seconds", 60))
+            second_seconds = int(get_setting("failure_backoff_second_seconds", 5 * 60))
+            factor = int(get_setting("failure_backoff_factor", 3))
+            max_backoff_seconds = int(get_setting("failure_backoff_max_seconds", 6 * 60 * 60))
+            policy = FailurePolicy(
+                base_seconds=base_seconds,
+                second_seconds=second_seconds,
+                factor=factor,
+                max_backoff_seconds=max_backoff_seconds,
+            )
         self.policy = policy
 
         self.state_file = state_file or (self.state_dir / "failure-rotation.json")
@@ -88,17 +119,30 @@ class FailureRotation:
             del tasks[task_id]
             self._save()
 
+    def _compute_backoff_seconds(self, retry_count: int) -> int:
+        """Compute exponential backoff for the given consecutive retry_count."""
+        if retry_count <= 1:
+            backoff = self.policy.base_seconds
+        elif retry_count == 2:
+            backoff = self.policy.second_seconds
+        else:
+            # 3rd failure uses `second_seconds * factor^(retry_count-2)`.
+            backoff = int(self.policy.second_seconds * (self.policy.factor ** (retry_count - 2)))
+
+        return int(min(backoff, self.policy.max_backoff_seconds))
+
     def record_failure(self, task_id: str, now: Optional[float] = None) -> dict[str, Any]:
         now = time.time() if now is None else now
         tasks = self._state.setdefault("tasks", {})
         entry = tasks.get(task_id) or {}
 
-        streak = int(entry.get("streak", 0)) + 1
-        entry["streak"] = streak
-        entry["last_failure_ts"] = now
+        retry_count = int(entry.get("retry_count") or entry.get("streak") or 0) + 1
+        entry["retry_count"] = retry_count
+        # Backwards-compatible alias
+        entry["streak"] = retry_count
 
-        if streak >= self.policy.threshold:
-            entry["skip_until_ts"] = now + self.policy.cooldown_seconds
+        entry["last_failure_ts"] = now
+        entry["skip_until_ts"] = now + self._compute_backoff_seconds(retry_count)
 
         tasks[task_id] = entry
         self._save()
@@ -112,10 +156,6 @@ class FailureRotation:
         now = time.time() if now is None else now
         entry = self._state.get("tasks", {}).get(task_id)
         if not entry:
-            return False
-
-        streak = int(entry.get("streak", 0))
-        if streak < self.policy.threshold:
             return False
 
         skip_until = entry.get("skip_until_ts")

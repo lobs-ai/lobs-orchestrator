@@ -1167,18 +1167,17 @@ class WorkerManager:
         """Handle worker failure."""
         logger.error(f"Worker failure for task {task_id[:8]} on {project_id}")
 
-        # Record failure streak and possibly enter cooldown.
+        # Record failure and apply exponential backoff before retry.
         try:
             entry = self.failure_rotation.record_failure(task_id)
-            streak = int(entry.get("streak", 0))
-            if streak >= self.failure_rotation.policy.threshold:
-                skip_until = entry.get("skip_until_ts")
-                logger.warning(
-                    f"[FAIL-ROTATION] Task {task_id[:8]} failure streak={streak} (threshold={self.failure_rotation.policy.threshold}). "
-                    f"Skipping until {skip_until}."
-                )
+            retry_count = int(entry.get("retry_count") or entry.get("streak") or 0)
+            skip_until = entry.get("skip_until_ts")
+            logger.warning(
+                f"[FAIL-BACKOFF] Task {task_id[:8]} failure retry_count={retry_count}. "
+                f"Cooling down until {skip_until}."
+            )
         except Exception:
-            logger.debug("Failed to record failure for failure rotation", exc_info=True)
+            logger.debug("Failed to record failure for failure backoff", exc_info=True)
 
         self.escalation.process_failure(task_id, project_id, error_log)
         self.provider.update_task(task_id, {"workState": "failed"})
