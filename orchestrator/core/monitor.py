@@ -109,7 +109,11 @@ class Monitor:
             self.provider.update_inbox_item(item["id"], {"status": "resolved", "taskId": new_task["id"]})
 
     def check_stuck_tasks(self) -> None:
-        """Verify that running tasks haven't exceeded timeout."""
+        """Verify that running tasks haven't exceeded timeout.
+        
+        Checks all active workers (multi-worker support) and creates alerts
+        for any that have exceeded the 1-hour timeout threshold.
+        """
         if not WORKER_STATUS_JSON.exists():
             return
 
@@ -117,32 +121,62 @@ class Monitor:
             with open(WORKER_STATUS_JSON, "r") as f:
                 status = json.load(f)
             
-            current_task = status.get("currentTask")
-            started_at_str = status.get("startedAt")
+            # New multi-worker schema: iterate over activeWorkers array
+            active_workers = status.get("activeWorkers", [])
             
-            if not current_task or not started_at_str:
+            if not active_workers:
                 return
 
-            started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
+            timeout_threshold = 3600  # 1 hour timeout
             
-            delta = (now - started_at).total_seconds()
-            if delta > 3600:  # 1 hour timeout (increased from 30m)
-                logger.warning(f"Task {current_task} is running long ({int(delta/60)}m). Notifying inbox.")
+            # Check each active worker
+            for worker in active_workers:
+                task_id = worker.get("taskId")
+                started_at_str = worker.get("startedAt")
+                project_id = worker.get("projectId", "unknown")
+                task_title = worker.get("taskTitle", task_id[:8] if task_id else "unknown")
+                agent_type = worker.get("agentType", "unknown")
                 
-                # Check if we already alerted
-                alerts = self.provider.get_active_alerts()
-                if any(a.get("taskId") == current_task for a in alerts):
-                    return
+                if not task_id or not started_at_str:
+                    continue
 
-                self.provider.add_inbox_item({
-                    "id": f"stale_worker_{int(time.time())}",
-                    "title": "Alert: Task Timeout",
-                    "body": f"The task {current_task} has been running for {int(delta/60)} minutes.",
-                    "type": "alert",
-                    "severity": "medium",
-                    "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                })
+                try:
+                    started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError) as e:
+                    logger.warning(f"Failed to parse startedAt for task {task_id}: {e}")
+                    continue
+                
+                delta = (now - started_at).total_seconds()
+                
+                if delta > timeout_threshold:
+                    logger.warning(
+                        f"Task {task_id[:8]} ({project_id}) is running long ({int(delta/60)}m). "
+                        f"Agent: {agent_type}. Notifying inbox."
+                    )
+                    
+                    # Check if we already alerted for this specific task
+                    alerts = self.provider.get_active_alerts()
+                    if any(a.get("taskId") == task_id for a in alerts):
+                        continue
+
+                    # Create alert for this stuck task
+                    self.provider.add_inbox_item({
+                        "id": f"stale_worker_{task_id[:8]}_{int(time.time())}",
+                        "title": f"Alert: Task Timeout ({project_id})",
+                        "body": (
+                            f"Task {task_id[:8]} has been running for {int(delta/60)} minutes.\n"
+                            f"Project: {project_id}\n"
+                            f"Agent: {agent_type}\n"
+                            f"Title: {task_title}"
+                        ),
+                        "type": "alert",
+                        "severity": "medium",
+                        "taskId": task_id,
+                        "projectId": project_id,
+                        "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    })
+                    
         except Exception as e:
             logger.error(f"Failed to check stuck tasks: {e}")
 
