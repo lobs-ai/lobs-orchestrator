@@ -1,0 +1,577 @@
+{
+  "total_completed": 30,
+  "total_failed": 33,
+  "start_time": 1770741531.7130227,
+  "completed": [
+    {
+      "task_id": "7E25A7D6-1AD5-4A4D-8A48-B642A3548150",
+      "project_id": "lobs-orchestrator",
+      "title": "Add settings reset command for testing onboarding",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T17:48:56.463737+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "6ABEFBF9-E31D-4531-B913-C17171AF0985",
+      "project_id": "lobs-orchestrator",
+      "title": "Fix onboarding blocking on repo setup",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T17:52:22.594565+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "02BC7165-4061-4563-8F7A-EDCFB7BDDDEE",
+      "project_id": "lobs-orchestrator",
+      "title": "Make repo setup sequential during onboarding",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T17:56:43.866190+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "C25A7BE9-E0F4-4924-9F53-6B2883A194B8",
+      "project_id": "lobs-orchestrator",
+      "title": "Refactor WorkerManager for multiple concurrent workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:02:19.085907+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "49141F3F-ECBD-4FC8-8ED0-08865857EF5D",
+      "project_id": "lobs-orchestrator",
+      "title": "Implement per-project worker limit (one worker per project)",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:04:42.163576+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "2957EC58-C22A-4EA5-BBCD-6A5784C3E33C",
+      "project_id": "lobs-orchestrator",
+      "title": "Track multiple active workers in worker-status.json",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:08:30.513796+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "6C29C2B1-2ED0-4977-9AC2-686D51E429F2",
+      "project_id": "lobs-orchestrator",
+      "title": "Update Engine dispatch loop for multi-worker",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:13:02.769922+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "233E5243-70CD-43FD-8963-31834BA56E5F",
+      "project_id": "lobs-orchestrator",
+      "title": "Monitor: track health of all active workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:16:48.714565+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "54C3274E-0BBB-4FFD-A668-FBC89C267CDE",
+      "project_id": "lobs-orchestrator",
+      "title": "Monitor: expose worker status via dashboard API",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:18:28.493342+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "55D51040-85F9-4610-A51C-8A3379D4D586",
+      "project_id": "lobs-orchestrator",
+      "title": "Add configurable max concurrent workers limit",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:23:19.644355+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0689C0AB-82D5-46DC-BE78-F70BBCB15F26",
+      "project_id": "lobs-orchestrator",
+      "title": "Update session cleanup for multiple workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:26:22.062544+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "BA4903B8-EC0B-4884-A3D1-2A2A48701D61",
+      "project_id": "lobs-orchestrator",
+      "title": "Graceful shutdown with multiple active workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:30:49.080968+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "C17DD960-F4A4-4522-B9B6-A811053C5A01",
+      "project_id": "lobs-orchestrator",
+      "title": "Fix: orchestrator should commit worker-status.json changes",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:34:35.878544+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:29:50.394269+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:32:15.164458+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:34:07.048072+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:37:27.795620+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:37:39.277442+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "D229AF90-9D26-4F6C-BC35-FF6ECB754EBE",
+      "project_id": "lobs-orchestrator",
+      "title": "Onboarding: allow 'demo mode' to skip all setup",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:42:37.161194+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "62272001-4092-43D0-97FB-3D09A555C4DA",
+      "project_id": "lobs-orchestrator",
+      "title": "Onboarding: resume incomplete setup later",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:42:59.435582+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "E2F9610F-F563-42CE-B6D7-FBA3C4742A4A",
+      "project_id": "lobs-orchestrator",
+      "title": "Onboarding: allow skipping git repos setup",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:53:36.167289+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "B8BC4739-2E87-4332-9C07-659604EAAA30",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:127",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:53:36.038069+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "29F84AC1-F06D-4C01-8779-F16DCE106DD0",
+      "project_id": "lobs-dashboard",
+      "title": "Dashboard: onboarding wizard UI",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:54:54.291279+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5504A971-FCE9-4F19-BCB8-8E5B1455130C",
+      "project_id": "lobs-dashboard",
+      "title": "Dashboard: Settings entry point to re-run onboarding",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T21:01:42.849622+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "9F283BC1-EA6C-460D-85DD-FC8F8BF94108",
+      "project_id": "lobs-dashboard",
+      "title": "Onboarding: remove Node.js check from client prerequisites",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T21:49:23.998101+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "1F153946-E8EA-4482-867F-2918C6CCDD46",
+      "project_id": "lobs-dashboard",
+      "title": "Onboarding: fix repo cloning step - must be skippable",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T22:00:21.374729+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "374C777A-5861-4505-85C0-5F84F6E40410",
+      "project_id": "lobs-dashboard",
+      "title": "FIX: Node check runs locally instead of on server",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:18:09.248064+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5A75370B-8DCB-47FC-8834-9F7E7A14C3ED",
+      "project_id": "lobs-orchestrator",
+      "title": "Fix log buffering - use PYTHONUNBUFFERED",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:40:49.344688+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "65883F9D-76D7-45D3-9702-26F8943D3A1F",
+      "project_id": "lobs-orchestrator",
+      "title": "Task state cleanup - recover stuck in_progress tasks",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:42:10.398141+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "78B18B95-EDFA-4B6D-9A2B-69298464919F",
+      "project_id": "lobs-orchestrator",
+      "title": "Worker health monitoring - detect and kill stuck workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:42:45.317897+00:00",
+      "status": "completed"
+    }
+  ],
+  "failed": [
+    {
+      "task_id": "B8BC4739-2E87-4332-9C07-659604EAAA30",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:127",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:40:15.328927+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:40:26.789713+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:41:28.726459+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:41:59.328855+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:42:29.829013+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:43:00.080185+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "35B4338D-0B9E-4EB0-BD1D-032690B326DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Add failure reason tracking to task metadata",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:50:59.619167+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:51:31.266235+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:52:00.997588+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:52:31.409643+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:53:01.966875+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:53:32.487236+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "35B4338D-0B9E-4EB0-BD1D-032690B326DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Add failure reason tracking to task metadata",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:02:02.897384+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:02:34.335365+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:03:05.726384+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:03:36.429292+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:04:07.440566+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:04:38.251406+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "35B4338D-0B9E-4EB0-BD1D-032690B326DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Add failure reason tracking to task metadata",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:12:21.203936+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:12:52.601213+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:13:23.297485+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:13:53.692547+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:14:24.203977+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:14:54.553600+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "35B4338D-0B9E-4EB0-BD1D-032690B326DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Add failure reason tracking to task metadata",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:22:36.171998+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:23:07.647465+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:23:38.611709+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:24:09.748942+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:24:39.869434+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:25:10.780161+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "55EA0255-65A6-4414-B0DE-999C0CF09AD7",
+      "project_id": "flock",
+      "title": "Resolve HACK in typing_extensions.py:1893",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T22:26:11.593551+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "55EA0255-65A6-4414-B0DE-999C0CF09AD7",
+      "project_id": "flock",
+      "title": "Resolve HACK in typing_extensions.py:1893",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:02:00.017505+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "8F7DE0D2-2455-4629-81B3-5104E530B405",
+      "project_id": "flock",
+      "title": "Resolve TODO in database_constants.py:28",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:02:57.709276+00:00",
+      "status": "failed"
+    }
+  ],
+  "last_updated": "2026-02-10T23:50:31.226016+00:00"
+}
