@@ -579,34 +579,14 @@ class WorkerManager:
         task_id = task["id"]
         task_title = task.get("title", task_id[:8])
         workspace = self._get_repo_path(project_id)
-        agent_id = "worker"
+        
+        # Use agent type directly as OpenClaw agent id
+        # Models are configured per-agent in OpenClaw config (agents.list[].model)
+        template_type = _normalize_agent_template_type(agent_type)
+        agent_id = template_type  # e.g., "programmer", "architect", "researcher"
 
         try:
-            logger.info(f"[WORKER] Using shared worker agent: {agent_id} (template: {_normalize_agent_template_type(agent_type)})")
-
-            # One-time provisioning
-            if not self._worker_provisioned:
-                needs_provision = not self.agent_manager.worker_exists("worker")
-                needs_registration = not self.agent_manager.is_agent_registered("worker")
-
-                if needs_provision or needs_registration:
-                    logger.info("Provisioning shared worker agent...")
-                    if not self.agent_manager.provision_worker("worker", register=True):
-                        raise Exception("Failed to provision worker agent")
-
-                    if needs_registration:
-                        logger.warning("New worker registered - restarting gateway...")
-                        if not self.agent_manager.restart_gateway():
-                            raise Exception("Gateway restart failed after agent registration")
-                        time.sleep(3)
-                
-                self._worker_provisioned = True
-            
-            # Sync workspace context for this task's agent template.
-            # We always keep WORKER_RULES.md in the workspace (legacy path), but we
-            # swap AGENTS/SOUL/TOOLS/USER/IDENTITY per agent_type.
-            template_type = _normalize_agent_template_type(agent_type)
-            effective_template_type = self._sync_workspace_for_agent_template(template_type)
+            logger.info(f"[WORKER] Using agent: {agent_id}")
 
             # Sync repo (skip for research projects without repos)
             from orchestrator.config import CONTROL_REPO_PATH
@@ -630,58 +610,17 @@ class WorkerManager:
             )
 
             # Launch OpenClaw
+            # Models are configured per-agent in OpenClaw config (agents.list[].model)
+            # No --model flag needed; OpenClaw uses the agent's configured model
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
-
-            # Per-agent model selection
-            #
-            # Agent templates define a human-readable "Model" in agents/<type>/IDENTITY.md,
-            # e.g. "Standard (Sonnet)" or "Higher tier (Opus)".
-            # We map these to OpenClaw model aliases and pass them on the CLI.
-            #
-            # Config override (cost control): if set, forces ALL tasks to use this model.
-            # Example: {"openclaw_model_override": "sonnet"}
+            
+            # Optional global model override for cost control
             model_override = (get_setting("openclaw_model_override", "") or "").strip()
 
-            def _model_alias_from_identity(model_str: str | None) -> str | None:
-                if not model_str:
-                    # Default to sonnet if not specified.
-                    return "sonnet"
-
-                s = model_str.strip().lower()
-
-                # Direct aliases
-                if s in ("sonnet", "standard"):
-                    return None  # default model
-                if s in ("opus", "higher"):
-                    return "opus"
-
-                # Heuristics for human-friendly strings
-                if "opus" in s or "higher" in s:
-                    return "opus"
-                if "sonnet" in s or "standard" in s:
-                    return None  # default model
-
-                # Unknown string; be safe and default to sonnet.
-                return "sonnet"
-
-            model_arg: str | None = None
-            if model_override:
-                model_arg = model_override
-            else:
-                try:
-                    cfg = self.registry.get_agent(effective_template_type)
-                    model_arg = _model_alias_from_identity(cfg.model)
-                except Exception as e:
-                    logger.warning(
-                        f"[WORKER] Failed to determine model for agent template '{effective_template_type}': {e}. "
-                        "Defaulting to sonnet"
-                    )
-                    model_arg = "sonnet"
-
             cmd = [executable, "agent", "--agent", agent_id]
-            if model_arg:
-                cmd.extend(["--model", model_arg])
+            if model_override:
+                cmd.extend(["--model", model_override])
             cmd.extend(["-m", prompt])
 
             
@@ -707,7 +646,7 @@ class WorkerManager:
                 state="running",
                 task_title=task_title,
                 agent_id=agent_id,
-                agent_template=effective_template_type,
+                agent_template=template_type,
             )
 
             # Validation
@@ -722,7 +661,7 @@ class WorkerManager:
                 time.time(),
                 agent_id,
                 task_title,
-                effective_template_type,
+                template_type,
             )
             self.pending_workers.discard(task_id)
             
@@ -731,7 +670,7 @@ class WorkerManager:
             self.provider.update_worker_status({
                 "active": True,
                 "currentTask": task_id,
-                "agentType": effective_template_type,
+                "agentType": template_type,
                 "projectId": project_id,
                 "startedAt": now_iso,
                 "lastHeartbeat": now_iso,
