@@ -349,7 +349,7 @@ class WorkerManager:
             logger.info(f"Project {project_id} missing repoPath, running auto-discovery...")
             try:
                 subprocess.run(
-                    ["python3", "bin/discover-repos"],
+                    [sys.executable, "bin/discover-repos"],
                     cwd=CONTROL_REPO_PATH,
                     check=True,
                     capture_output=True,
