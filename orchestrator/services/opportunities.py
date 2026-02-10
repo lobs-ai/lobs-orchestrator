@@ -235,7 +235,9 @@ class ProgrammerOpportunities:
 
     def _run_mypy(self, repo_path: Path) -> dict[str, Any] | None:
         """Run mypy and return warning summary."""
-        if not which("mypy"):
+        mypy_path = which("mypy")
+        if not mypy_path:
+            logger.debug(f"Skipping mypy check for {repo_path.name} - mypy not available")
             return None
         
         try:
@@ -263,7 +265,9 @@ class ProgrammerOpportunities:
 
     def _run_tsc(self, repo_path: Path) -> dict[str, Any] | None:
         """Run tsc and return warning summary."""
-        if not which("tsc"):
+        tsc_path = which("tsc")
+        if not tsc_path:
+            logger.debug(f"Skipping TypeScript check for {repo_path.name} - tsc not available")
             return None
         
         try:

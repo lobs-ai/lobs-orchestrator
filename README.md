@@ -83,25 +83,41 @@ To change the worker's model, edit `~/.openclaw/agents/worker/config.json`:
 }
 ```
 
-### Prerequisite Checks
+### Graceful Degradation
 
-The orchestrator checks for required tools (node, npm, gh, tsc, etc.) before running certain operations. If tool detection is failing incorrectly, you can bypass these checks:
+**By default, the orchestrator continues running even if optional tools are missing.** Missing tools don't block startup; they just disable specific features:
 
-**Skip all checks:**
+- No `node`/`npm` → JavaScript/TypeScript checks disabled
+- No `mypy` → Python type checking disabled  
+- No `gh` → GitHub features unavailable
+- No `tsc` → TypeScript compilation checks disabled
+
+You'll see helpful warnings like:
+```
+⚠️  Node.js not found - JavaScript/TypeScript features disabled. Install: https://nodejs.org
+```
+
+**Strict Mode:** To fail startup if tools are missing (production environments):
+```json
+{
+  "strict_prereqs": true
+}
+```
+
+**Override Detection:** If tool detection fails incorrectly (tools are installed but not found):
 ```json
 {
   "skip_prereqs": true
 }
 ```
-
-**Skip specific tools:**
+or skip specific tools:
 ```json
 {
-  "skip_prereqs_list": ["node", "gh", "tsc"]
+  "skip_prereqs_list": ["node", "gh"]
 }
 ```
 
-When skipping, the orchestrator logs warnings but allows work to proceed. See [SETTINGS.md](SETTINGS.md) for details.
+See [SETTINGS.md](SETTINGS.md) for complete documentation.
 
 ## Control Operations
 

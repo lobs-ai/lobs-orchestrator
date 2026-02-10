@@ -53,10 +53,22 @@ python3 setup_config.py \
 ### Prerequisite Checks
 | Setting | Flag | Default | Description |
 |---------|------|---------|-------------|
-| `skip_prereqs` | N/A | `false` | Skip all tool detection checks |
+| `skip_prereqs` | N/A | `false` | Skip all tool detection checks (force assume available) |
 | `skip_prereqs_list` | N/A | `[]` | Skip specific tools (e.g., `["node", "gh", "tsc"]`) |
+| `strict_prereqs` | N/A | `false` | Fail startup if required tools are missing (strict mode) |
 
-**Note:** These settings allow work to proceed even when tool detection fails incorrectly. Edit `.lobs_settings.json` directly to configure.
+**Default Behavior (Graceful Degradation):**
+By default, the orchestrator continues running even when optional tools are missing. It will:
+- Log clear warnings about what's unavailable
+- Show installation instructions
+- Disable features that require missing tools
+- Continue normal operation
+
+**Strict Mode:**
+Set `strict_prereqs: true` to fail startup if any required tools are missing. Use this in production environments where you want to ensure all dependencies are present.
+
+**Skip Checks:**
+Use `skip_prereqs` or `skip_prereqs_list` only if tool detection is failing incorrectly (e.g., tools are installed but not found). Edit `.lobs_settings.json` directly to configure.
 
 ## Settings File
 
@@ -120,9 +132,39 @@ python3 setup_config.py --ollama-model llama3.1
 python3 setup_config.py --show
 ```
 
-### Skip Prerequisite Checks
+### Graceful Degradation (Default)
 
-When tool detection fails but you know the tools are actually available:
+**By default, missing tools don't block orchestrator startup or operation.** The system will:
+- Continue running even if optional tools (mypy, tsc, gh, etc.) are missing
+- Log helpful warnings with installation instructions
+- Automatically disable features that require unavailable tools
+
+**Example messages you might see:**
+```
+⚠️  Node.js not found - JavaScript/TypeScript features disabled. Install: https://nodejs.org
+⚠️  mypy not found - Python type checking disabled. Run: pip install mypy
+⚠️  gh not authenticated - GitHub features unavailable. Run: gh auth login
+```
+
+The orchestrator continues working; you just won't get certain proactive opportunities or checks.
+
+### Enable Strict Mode
+
+To fail startup if required tools are missing (useful for production):
+
+```bash
+# Edit .lobs_settings.json and add:
+{
+  "strict_prereqs": true,
+  ...
+}
+```
+
+With strict mode enabled, the orchestrator will exit with an error if any required tool is not found.
+
+### Override Tool Detection
+
+**Only needed if tool detection is failing incorrectly** (tools are installed but not found):
 
 **Skip all checks:**
 ```bash
@@ -142,16 +184,7 @@ When tool detection fails but you know the tools are actually available:
 }
 ```
 
-**Skip both (specific list takes precedence):**
-```bash
-{
-  "skip_prereqs": false,
-  "skip_prereqs_list": ["gh"],
-  ...
-}
-```
-
-The orchestrator will log warnings when skipping checks, allowing work to proceed.
+The orchestrator will assume these tools are available and not try to find them.
 
 ### Change Ollama Model
 ```bash

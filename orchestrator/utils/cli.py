@@ -35,6 +35,22 @@ def show_settings():
     print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'openclaw')}")
     print("")
     
+    print("Prerequisites:")
+    from orchestrator.utils.settings import get_setting
+    skip_all = get_setting("skip_prereqs", False)
+    skip_list = get_setting("skip_prereqs_list", [])
+    strict_mode = get_setting("strict_prereqs", False)
+    
+    if skip_all:
+        print(f"  Mode:                 ⚠️  Skip all checks (skip_prereqs: true)")
+    elif skip_list:
+        print(f"  Mode:                 ⚠️  Skip specific: {', '.join(skip_list)}")
+    elif strict_mode:
+        print(f"  Mode:                 🔒 Strict (fail on missing tools)")
+    else:
+        print(f"  Mode:                 ✨ Graceful degradation (default)")
+    print("")
+    
     print("Node.js Configuration:")
     node_path = which('node')
     if node_path:
@@ -46,11 +62,11 @@ def show_settings():
         if npm_path:
             print(f"  npm:                  ✅ found at {npm_path}")
         else:
-            print(f"  npm:                  ❌ not found")
+            print(f"  npm:                  ⚠️  Not found - install with Node.js")
     else:
-        print(f"  Node.js:              ❌ Not detected")
-        print(f"  Note:                 Install Node.js or check PATH")
-        print(f"  Searched:             /usr/bin, /usr/local/bin, ~/.nvm/*, etc.")
+        print(f"  Node.js:              ⚠️  Not detected")
+        print(f"  Note:                 JavaScript/TypeScript features disabled")
+        print(f"  Install:              https://nodejs.org")
     print("")
     
     print("Ollama Configuration:")

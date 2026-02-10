@@ -26,13 +26,19 @@ def main():
 
     # Check node availability at startup
     from orchestrator.utils.executables import check_node_available, get_node_version, which
-    if check_node_available():
-        node_version = get_node_version()
-        node_path = which('node')
-        logging.info(f"Node.js detected: {node_version} at {node_path}")
-    else:
-        logging.warning("Node.js not detected - some features may not work")
-        logging.warning("Check if node is in PATH or installed in standard locations")
+    try:
+        if check_node_available():
+            node_version = get_node_version()
+            node_path = which('node')
+            logging.info(f"Node.js detected: {node_version} at {node_path}")
+        else:
+            logging.warning("⚠️  Node.js not detected - JavaScript/TypeScript features disabled")
+            logging.warning("    Install from: https://nodejs.org")
+            logging.info("    Orchestrator will continue without Node.js features")
+    except RuntimeError as e:
+        logging.error(f"Fatal: {e}")
+        logging.error("Set 'strict_prereqs': false in .lobs_settings.json to allow startup without all tools")
+        sys.exit(1)
 
     # Import core components ONLY AFTER settings are updated
     from orchestrator.core.engine import Orchestrator

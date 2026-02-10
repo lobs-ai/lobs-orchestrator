@@ -7,7 +7,11 @@
   "ollama_model": "llama3.1",
   "ollama_keep_alive": "5m",
   
-  "_comment_skip_prereqs": "Set to true to skip all prerequisite/tool detection checks",
+  "_comment_graceful_degradation": "DEFAULT: Missing tools warn but don't block. Features requiring them are disabled.",
+  "_comment_strict_prereqs": "Set to true to fail startup if any required tools are missing (production mode)",
+  "strict_prereqs": false,
+  
+  "_comment_skip_prereqs": "Set to true to skip all tool detection checks (if detection is broken)",
   "skip_prereqs": false,
   
   "_comment_skip_prereqs_list": "List specific tools to skip checking (e.g., ['node', 'gh', 'tsc'])",

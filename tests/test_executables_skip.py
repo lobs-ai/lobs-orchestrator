@@ -94,3 +94,47 @@ def test_skip_list_not_list(temp_settings):
     result = which("node")
     # Result depends on whether node is actually installed
     assert isinstance(result, (str, type(None)))
+
+
+def test_strict_mode_raises_error(temp_settings):
+    """Test that strict_prereqs=true raises RuntimeError for missing tools."""
+    write_settings(temp_settings, {"strict_prereqs": True})
+    
+    # Should raise RuntimeError for nonexistent tool
+    with pytest.raises(RuntimeError) as exc_info:
+        which("nonexistent-tool-xyz")
+    
+    assert "not found" in str(exc_info.value).lower()
+    assert "strict" in str(exc_info.value).lower() or "nonexistent-tool-xyz" in str(exc_info.value).lower()
+
+
+def test_strict_mode_allows_found_tools(temp_settings):
+    """Test that strict_prereqs=true allows tools that are found."""
+    write_settings(temp_settings, {"strict_prereqs": True})
+    
+    # Should work for tools that exist (python3 should always be available)
+    result = which("python3")
+    assert result is not None
+    assert "python3" in result
+
+
+def test_check_node_available_strict_mode(temp_settings):
+    """Test that check_node_available raises in strict mode if node missing."""
+    write_settings(temp_settings, {"strict_prereqs": True})
+    
+    # Mock node not being available
+    with patch('orchestrator.utils.executables.get_node_version', return_value=None):
+        with pytest.raises(RuntimeError) as exc_info:
+            check_node_available()
+        
+        assert "node" in str(exc_info.value).lower()
+        assert "strict" in str(exc_info.value).lower() or "required" in str(exc_info.value).lower()
+
+
+def test_graceful_degradation_default(temp_settings):
+    """Test that by default, missing tools return None without error."""
+    write_settings(temp_settings, {})
+    
+    # Should return None for nonexistent tool (graceful degradation)
+    result = which("nonexistent-tool-xyz")
+    assert result is None  # No exception raised
