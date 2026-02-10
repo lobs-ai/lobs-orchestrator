@@ -98,6 +98,99 @@ def make_handler() -> type[DashboardAPIHandler]:
         result = create_project_from_github(url=url, clone_path=clone_path, sync_issues=sync_issues)
         _send_json(handler, 200, result)
 
+    def create_from_github_batch(handler: BaseHTTPRequestHandler) -> None:
+        """Create multiple projects from GitHub repos sequentially.
+        
+        Request body:
+        {
+            "repos": [
+                {"url": "...", "clonePath": "...", "syncIssues": false},
+                {"url": "...", "clonePath": "...", "syncIssues": true},
+                ...
+            ]
+        }
+        
+        Response:
+        {
+            "ok": true,
+            "results": [
+                {"ok": true, "project": {...}},
+                {"ok": false, "error": "..."},
+                ...
+            ],
+            "summary": {
+                "total": 3,
+                "succeeded": 2,
+                "failed": 1
+            }
+        }
+        """
+        data = _read_json(handler)
+        repos = data.get("repos")
+        
+        if not repos or not isinstance(repos, list):
+            raise ValueError("Missing required field: repos (must be a list)")
+        
+        if len(repos) == 0:
+            raise ValueError("repos list cannot be empty")
+        
+        results = []
+        succeeded = 0
+        failed = 0
+        
+        # Process repos sequentially
+        for i, repo_config in enumerate(repos):
+            if not isinstance(repo_config, dict):
+                results.append({
+                    "ok": False,
+                    "error": f"Invalid repo config at index {i}: must be an object"
+                })
+                failed += 1
+                continue
+            
+            url = repo_config.get("url")
+            clone_path = repo_config.get("clonePath")
+            sync_issues = bool(repo_config.get("syncIssues", False))
+            
+            if not url or not isinstance(url, str):
+                results.append({
+                    "ok": False,
+                    "error": f"Missing or invalid 'url' field at index {i}"
+                })
+                failed += 1
+                continue
+            
+            try:
+                logger.info(f"Processing repo {i+1}/{len(repos)}: {url}")
+                result = create_project_from_github(
+                    url=url,
+                    clone_path=clone_path,
+                    sync_issues=sync_issues
+                )
+                results.append(result)
+                succeeded += 1
+                logger.info(f"Successfully created project from {url}")
+            except Exception as e:
+                logger.error(f"Failed to create project from {url}: {e}", exc_info=True)
+                results.append({
+                    "ok": False,
+                    "error": str(e),
+                    "url": url
+                })
+                failed += 1
+        
+        response = {
+            "ok": True,
+            "results": results,
+            "summary": {
+                "total": len(repos),
+                "succeeded": succeeded,
+                "failed": failed
+            }
+        }
+        
+        _send_json(handler, 200, response)
+
     def get_projects(handler: BaseHTTPRequestHandler) -> None:
         projects = scanner.get_projects()
         _send_json(handler, 200, {"ok": True, "projects": projects})
@@ -124,6 +217,7 @@ def make_handler() -> type[DashboardAPIHandler]:
         ("GET", "/projects"): get_projects,
         ("POST", "/projects/update"): update_project,
         ("POST", "/projects/create-from-github"): create_from_github,
+        ("POST", "/projects/create-from-github-batch"): create_from_github_batch,
     }
 
     return _Handler
