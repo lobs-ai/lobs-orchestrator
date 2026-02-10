@@ -27,6 +27,7 @@ from orchestrator.core.collaboration import CollaborationManager
 from orchestrator.core.failure_rotation import FailureRotation
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
+from orchestrator.core.workflow import WorkflowEngine
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
 from orchestrator.core.observer import Observer, Opportunity, OpportunityPriority
@@ -56,6 +57,9 @@ class Orchestrator:
         # Awareness monitor for agent situational awareness
         self.awareness = AwarenessMonitor(provider)
         
+        # Workflow engine for initiative tracking
+        self.workflow = WorkflowEngine(state_path=STATE_DIR / "workflow-state.json")
+        
         self.worker_manager = WorkerManager(
             STATE_DIR,
             provider,
@@ -80,6 +84,10 @@ class Orchestrator:
         # Proactive work tracking
         self._proactive_stats = self._load_proactive_stats()
         self._last_proactive_scan = 0
+        
+        # Workflow tracking
+        self._last_workflow_update = 0
+        self._workflow_update_interval = 60  # 1 minute
 
     def process_control(self) -> list[dict[str, Any]]:
         """Process pending control operations via provider."""
@@ -354,6 +362,55 @@ class Orchestrator:
         except Exception as e:
             logger.error(f"Failed to process proactive work: {e}", exc_info=True)
 
+    def _update_workflow_state(self) -> None:
+        """Update workflow state and save snapshot periodically."""
+        now = time.time()
+        
+        # Only update periodically to avoid excessive I/O
+        if now - self._last_workflow_update < self._workflow_update_interval:
+            return
+        
+        try:
+            # Get all tasks (not just eligible work) to track full initiative state
+            # We need to load tasks directly from filesystem to include all states
+            all_tasks = []
+            if TASKS_DIR.exists():
+                for task_file in TASKS_DIR.glob("*.json"):
+                    try:
+                        with open(task_file, "r") as f:
+                            task = json.load(f)
+                            all_tasks.append(task)
+                    except Exception as e:
+                        logger.debug(f"Failed to load task from {task_file.name}: {e}")
+            
+            # Compute workflow snapshot
+            snapshot = self.workflow.compute(all_tasks)
+            
+            # Save snapshot for reporting
+            self.workflow.save_snapshot(snapshot)
+            
+            # Log active initiatives
+            if snapshot.initiatives:
+                active_initiatives = [
+                    f"{name} ({prog.done}/{prog.total})"
+                    for name, prog in sorted(snapshot.initiatives.items())
+                    if not prog.complete
+                ]
+                if active_initiatives:
+                    logger.info(f"[WORKFLOW] Active initiatives: {', '.join(active_initiatives)}")
+                
+                # Log completed initiatives
+                completed_initiatives = [
+                    name for name, prog in snapshot.initiatives.items() if prog.complete
+                ]
+                if completed_initiatives:
+                    logger.debug(f"[WORKFLOW] Completed initiatives: {', '.join(completed_initiatives)}")
+            
+            self._last_workflow_update = now
+            
+        except Exception as e:
+            logger.error(f"Failed to update workflow state: {e}", exc_info=True)
+
     def run_once(self) -> bool:
         """
         Execute one iteration of the orchestration loop.
@@ -398,7 +455,11 @@ class Orchestrator:
             activity = True
             self.process_requests(True)
 
-        # 8. Work Assignment and Queueing
+        # 8. Workflow State Update
+        # Compute initiative progress from all tasks (not just eligible work)
+        self._update_workflow_state()
+
+        # 9. Work Assignment and Queueing
         eligible_work_raw = self.provider.get_tasks()
 
         # Failure rotation: skip tasks that are in cooldown after repeated failures
@@ -511,7 +572,7 @@ class Orchestrator:
                 else:
                     self.provider.update_task(work_id, {"status": "in_progress"})
 
-        # 9. Proactive Work Discovery (when idle)
+        # 10. Proactive Work Discovery (when idle)
         # After all explicit work is processed, check for proactive opportunities
         if not eligible_work:
             self._process_proactive_work(projects, eligible_work)
@@ -547,6 +608,48 @@ class Orchestrator:
 
             time.sleep(current_interval)
 
+    def get_initiative_status(self, initiative: str | None = None) -> dict[str, Any]:
+        """Get status for a specific initiative or all initiatives.
+        
+        Args:
+            initiative: Initiative name, or None for all initiatives
+            
+        Returns:
+            Initiative status including progress, tasks, and blocked tasks
+        """
+        try:
+            # Load the latest workflow snapshot
+            snapshot_data = self.workflow.load_snapshot()
+            if not snapshot_data:
+                return {"error": "No workflow state available"}
+            
+            if initiative:
+                # Return specific initiative
+                initiatives = snapshot_data.get("initiatives", {})
+                if initiative not in initiatives:
+                    return {"error": f"Initiative '{initiative}' not found"}
+                
+                init_data = initiatives[initiative]
+                tasks = snapshot_data.get("tasks", {}).get(initiative, [])
+                blocked_ids = set(snapshot_data.get("blockedTaskIds", []))
+                
+                return {
+                    "initiative": initiative,
+                    "progress": init_data,
+                    "tasks": tasks,
+                    "blocked_count": len([t for t in tasks if t["id"] in blocked_ids]),
+                }
+            else:
+                # Return all initiatives
+                return {
+                    "initiatives": snapshot_data.get("initiatives", {}),
+                    "total_initiatives": len(snapshot_data.get("initiatives", {})),
+                    "blocked_task_count": len(snapshot_data.get("blockedTaskIds", [])),
+                }
+        except Exception as e:
+            logger.error(f"Failed to get initiative status: {e}", exc_info=True)
+            return {"error": str(e)}
+
     def status(self) -> dict[str, Any]:
         """Return current orchestrator status."""
         worker_status = self.worker_manager.get_worker_status()
@@ -555,6 +658,9 @@ class Orchestrator:
         proactive_enabled = get_setting("proactive", {}).get("enabled", True) if isinstance(get_setting("proactive", {}), dict) else get_setting("proactive_enabled", True)
         today_count = self._get_proactive_count_today()
         max_daily = self._get_proactive_max_daily()
+        
+        # Get workflow summary
+        workflow_summary = self.get_initiative_status()
         
         return {
             "running": True,
@@ -574,4 +680,5 @@ class Orchestrator:
                 "in_quiet_hours": self._in_quiet_hours(),
             },
             "awareness": self.awareness.get_status() if self.awareness else {},
+            "workflow": workflow_summary,
         }
