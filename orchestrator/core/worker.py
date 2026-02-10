@@ -104,7 +104,13 @@ class WorkerManager:
     STATE_FILE = Path.home() / ".openclaw" / "worker-state.json"
     STALE_TIMEOUT = 600  # 10 minutes
 
-    def __init__(self, state_dir: Path, provider: TaskProvider, failure_rotation: FailureRotation | None = None):
+    def __init__(
+        self,
+        state_dir: Path,
+        provider: TaskProvider,
+        failure_rotation: FailureRotation | None = None,
+        collaboration_manager: CollaborationManager | None = None,
+    ):
         """
         Initialize WorkerManager.
         
@@ -118,9 +124,13 @@ class WorkerManager:
         self.escalation = EscalationManager(provider)
         self.failure_rotation = failure_rotation or FailureRotation(state_dir)
 
+        # Collaboration manager for agent-to-agent handoffs.
+        # Engine wires this in so collaboration state is centralized.
+        self.collaboration = collaboration_manager
+
         # In-memory tracking (primary source of truth while running)
-        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
 
         # Single-threaded executor ensures one spawn at a time
@@ -175,7 +185,8 @@ class WorkerManager:
         pid: Optional[int] = None,
         state: str = "running",
         task_title: str = "",
-        agent_id: str = "worker"
+        agent_id: str = "worker",
+        agent_template: str = "programmer",
     ):
         """Save worker state to disk for crash recovery."""
         self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -187,6 +198,7 @@ class WorkerManager:
             "state": state,
             "started_at": datetime.now(timezone.utc).isoformat(),
             "agent_id": agent_id,
+            "agent_template": agent_template,
             "task_title": task_title,
         }
         with open(self.STATE_FILE, "w") as f:
@@ -224,6 +236,7 @@ class WorkerManager:
         task_id = state.get("task_id", "unknown")
         project_id = state.get("project_id", "unknown")
         agent_id = state.get("agent_id", "worker")
+        agent_template = state.get("agent_template", "programmer")
         task_title = state.get("task_title", task_id[:8])
         worker_state = state.get("state", "running")
         
@@ -245,6 +258,7 @@ class WorkerManager:
                         time.time(),  # Approximate - we don't know exact start time
                         agent_id,
                         task_title,
+                        agent_template,
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
                     return  # Don't clear state - worker is still running
@@ -430,7 +444,13 @@ class WorkerManager:
 
         # Mark as pending and save state
         self.pending_workers.add(task_id)
-        self._save_state(task_id, project_id, state="syncing", task_title=task_title)
+        self._save_state(
+            task_id,
+            project_id,
+            state="syncing",
+            task_title=task_title,
+            agent_template=agent_type,
+        )
 
         # Determine runtime and spawn
         runtime = self._determine_runtime(task)
@@ -494,11 +514,25 @@ class WorkerManager:
                             break
 
                     log_file.write(f"\n\n=== Completed ===\n")
-                    self._save_state(task_id, project_id, state="finalizing", task_title=task_title, agent_id=agent_id)
+                    self._save_state(
+                        task_id,
+                        project_id,
+                        state="finalizing",
+                        task_title=task_title,
+                        agent_id=agent_id,
+                        agent_template=agent_type,
+                    )
 
                     success = self.finalize_project_changes(task_id, project_id, task_title)
                     if success:
-                        self.handle_worker_success(task_id, project_id, agent_id, start_time, task_title)
+                        self.handle_worker_success(
+                            task_id,
+                            project_id,
+                            agent_id,
+                            agent_type,
+                            start_time,
+                            task_title,
+                        )
                     else:
                         self.handle_worker_failure(
                             task_id,
@@ -666,14 +700,30 @@ class WorkerManager:
             )
 
             # Update state with PID
-            self._save_state(task_id, project_id, pid=process.pid, state="running", task_title=task_title, agent_id=agent_id)
+            self._save_state(
+                task_id,
+                project_id,
+                pid=process.pid,
+                state="running",
+                task_title=task_title,
+                agent_id=agent_id,
+                agent_template=effective_template_type,
+            )
 
             # Validation
             if self.active_workers:
                 raise RuntimeError("Single-worker constraint violated")
 
             # Track active worker
-            self.active_workers[task_id] = (process, project_id, log_file, time.time(), agent_id, task_title)
+            self.active_workers[task_id] = (
+                process,
+                project_id,
+                log_file,
+                time.time(),
+                agent_id,
+                task_title,
+                effective_template_type,
+            )
             self.pending_workers.discard(task_id)
             
             # Update provider status
@@ -708,20 +758,42 @@ class WorkerManager:
     def check_workers(self):
         """Check status of active workers and handle completion."""
         finished = []
-        for task_id, (process, project_id, log_file, start_time, agent_id, task_title) in list(self.active_workers.items()):
+        for task_id, (
+            process,
+            project_id,
+            log_file,
+            start_time,
+            agent_id,
+            task_title,
+            agent_template,
+        ) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
                 elapsed = time.time() - start_time
                 logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
-                finished.append((task_id, project_id, agent_id, retcode, start_time, task_title))
+                finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title))
 
-        for task_id, project_id, agent_id, retcode, start_time, task_title in finished:
+        for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title in finished:
             del self.active_workers[task_id]
             
             if retcode == 0:
-                self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
-                self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time, task_title)
+                self._save_state(
+                    task_id,
+                    project_id,
+                    state="finalizing",
+                    agent_id=agent_id,
+                    agent_template=agent_template,
+                )
+                self.executor.submit(
+                    self._async_finalize_flow,
+                    task_id,
+                    project_id,
+                    agent_id,
+                    agent_template,
+                    start_time,
+                    task_title,
+                )
             else:
                 self._handle_immediate_failure(task_id, project_id, agent_id, start_time, task_title)
 
@@ -771,12 +843,27 @@ class WorkerManager:
         )
         self._clear_state()
 
-    def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float, task_title: str = ""):
+    def _async_finalize_flow(
+        self,
+        task_id: str,
+        project_id: str,
+        agent_id: str,
+        agent_template: str,
+        start_time: float,
+        task_title: str = "",
+    ):
         """Finalize worker completion (commit, push, update state)."""
         try:
             success = self.finalize_project_changes(task_id, project_id, task_title)
             if success:
-                self.handle_worker_success(task_id, project_id, agent_id, start_time, task_title)
+                self.handle_worker_success(
+                    task_id,
+                    project_id,
+                    agent_id,
+                    agent_template,
+                    start_time,
+                    task_title,
+                )
             else:
                 self.handle_worker_failure(
                     task_id,
@@ -1088,7 +1175,7 @@ class WorkerManager:
         
         return summary, was_blocked
 
-    def _process_handoffs(self, task_id: str, project_id: str, agent_id: str) -> None:
+    def _process_handoffs(self, task_id: str, project_id: str, from_agent: str) -> None:
         """Read and process agent handoffs from .handoffs/ directory.
         
         Agents can create handoff files in .handoffs/{id}.json to delegate work
@@ -1105,40 +1192,55 @@ class WorkerManager:
             return
         
         logger.info(f"[HANDOFF] Found {len(handoff_files)} handoff(s) from task {task_id[:8]}")
-        
-        # Initialize CollaborationManager
-        collab = CollaborationManager(self.provider)
-        
+
+        # Initialize CollaborationManager (injected by Engine when available).
+        collab = self.collaboration or CollaborationManager(self.provider)
+
+        # CollaborationManager only accepts known agent types.
+        from_norm = (from_agent or "").strip().lower()
+        if from_norm not in {"programmer", "researcher", "reviewer", "writer", "architect"}:
+            logger.warning(
+                f"[HANDOFF] Invalid from-agent '{from_agent}' for task {task_id[:8]}; defaulting to 'programmer'"
+            )
+            from_norm = "programmer"
+
         for handoff_file in handoff_files:
             try:
                 handoff_data = json.loads(handoff_file.read_text())
-                
+
                 # Transform agent handoff format to collaboration manager format
+                context = handoff_data.get("context")
+                files = handoff_data.get("files")
+                if isinstance(files, list) and files:
+                    files_list = "\n".join(f"- {p}" for p in files if isinstance(p, str) and p.strip())
+                    if files_list:
+                        context = (context or "").rstrip() + "\n\nFiles:\n" + files_list
+
                 payload = {
-                    "from": agent_id,
+                    "from": from_norm,
                     "to": handoff_data.get("to", "programmer"),
                     "initiative": handoff_data.get("initiative", handoff_data.get("title", "handoff")),
                     "work": {
                         "title": handoff_data.get("title", "Untitled handoff"),
-                        "context": handoff_data.get("context"),
+                        "context": context,
                         "acceptance": handoff_data.get("acceptance"),
                     },
                     "projectId": project_id,
                 }
-                
+
                 # Create the handoff task
                 new_task_id = collab.process_handoff(
                     payload,
                     parent_task_id=task_id,
                     default_project_id=project_id,
                 )
-                
+
                 logger.info(
                     f"[HANDOFF] Created task {new_task_id[:8]} "
-                    f"({agent_id} → {payload['to']}) "
+                    f"({from_norm} → {payload['to']}) "
                     f"for '{payload['work']['title']}'"
                 )
-                
+
             except Exception as e:
                 logger.error(f"[HANDOFF] Failed to process {handoff_file.name}: {e}", exc_info=True)
         
@@ -1795,6 +1897,7 @@ class WorkerManager:
         task_id: str,
         project_id: str,
         agent_id: str,
+        agent_template: str,
         start_time: float,
         task_title: str = "",
     ):
@@ -1838,7 +1941,7 @@ class WorkerManager:
             logger.debug("Failed to record success for failure rotation", exc_info=True)
 
         # Process any handoffs created by the agent
-        self._process_handoffs(task_id, project_id, agent_id)
+        self._process_handoffs(task_id, project_id, agent_template)
 
         self.provider.update_task(
             task_id,

@@ -23,6 +23,7 @@ from orchestrator.utils.work_windows import prioritize_tasks_by_work_windows
 from orchestrator.config import POLL_INTERVAL, STATE_DIR, CONTROL_REPO_PATH, TASKS_DIR
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.router import Router
+from orchestrator.core.collaboration import CollaborationManager
 from orchestrator.core.failure_rotation import FailureRotation
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
@@ -49,7 +50,13 @@ class Orchestrator:
     def __init__(self, provider: TaskProvider):
         self.provider = provider
         self.failure_rotation = FailureRotation(STATE_DIR)
-        self.worker_manager = WorkerManager(STATE_DIR, provider, failure_rotation=self.failure_rotation)
+        self.collaboration = CollaborationManager(provider)
+        self.worker_manager = WorkerManager(
+            STATE_DIR,
+            provider,
+            failure_rotation=self.failure_rotation,
+            collaboration_manager=self.collaboration,
+        )
         self.router = Router()
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
