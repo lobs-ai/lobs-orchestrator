@@ -1,6 +1,7 @@
 import logging
 import sys
 import os
+import signal
 
 # Ensure the current directory is in sys.path for absolute imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -55,6 +56,21 @@ def main():
 
     orchestrator = Orchestrator(provider)
 
+    # Register signal handlers for graceful shutdown
+    def signal_handler(signum, frame):
+        """Handle shutdown signals (SIGTERM, SIGINT)."""
+        sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
+        logging.info(f"Received {sig_name}, initiating graceful shutdown...")
+        try:
+            orchestrator.shutdown(timeout=300.0)  # 5 minute timeout
+        except Exception as e:
+            logging.error(f"Error during shutdown: {e}", exc_info=True)
+        finally:
+            sys.exit(0)
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     # Start local Dashboard API (for repo onboarding, etc.)
     try:
         from orchestrator.api.server import DashboardAPIServer
@@ -66,7 +82,13 @@ def main():
     try:
         orchestrator.loop()
     except KeyboardInterrupt:
+        # This should not be reached since SIGINT is caught by signal handler,
+        # but keep as fallback
         logging.info("Orchestrator stopped by user.")
+        try:
+            orchestrator.shutdown(timeout=300.0)
+        except Exception as e:
+            logging.error(f"Error during shutdown: {e}", exc_info=True)
         sys.exit(0)
 
 

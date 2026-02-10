@@ -2178,3 +2178,163 @@ class WorkerManager:
             return {"busy": True, "current_task": task_id, "state": "running"}
         else:
             return {"busy": False, "current_task": None, "state": "idle"}
+
+    # =========================================================================
+    # Graceful Shutdown
+    # =========================================================================
+
+    def shutdown(self, timeout: float = 300.0):
+        """Gracefully shutdown all active workers.
+        
+        Args:
+            timeout: Maximum time (in seconds) to wait for workers to complete
+                    before forcing termination. Default: 300s (5 minutes)
+        
+        Process:
+            1. Stop accepting new work (caller's responsibility)
+            2. Wait for all active workers to complete naturally
+            3. For workers exceeding timeout:
+               - Send SIGTERM (graceful termination)
+               - Wait 10s
+               - Send SIGKILL if still running
+               - Run WIP finalization to clean up repo
+            4. Clean up all pending workers
+        """
+        if not self.active_workers and not self.pending_workers:
+            logger.info("[SHUTDOWN] No active or pending workers to shut down")
+            return
+
+        total_workers = len(self.active_workers) + len(self.pending_workers)
+        logger.info(f"[SHUTDOWN] Beginning graceful shutdown of {total_workers} worker(s) (timeout: {timeout:.0f}s)")
+        
+        start_time = time.time()
+        check_interval = 2.0  # Check every 2 seconds
+        
+        # Wait for workers to complete naturally (with timeout)
+        while self.active_workers or self.pending_workers:
+            elapsed = time.time() - start_time
+            remaining = timeout - elapsed
+            
+            if remaining <= 0:
+                logger.warning(f"[SHUTDOWN] Timeout reached after {timeout:.0f}s with {len(self.active_workers)} active and {len(self.pending_workers)} pending worker(s)")
+                break
+            
+            # Check and handle completed workers
+            self.check_workers()
+            
+            if not self.active_workers and not self.pending_workers:
+                logger.info(f"[SHUTDOWN] All workers completed gracefully in {elapsed:.1f}s")
+                return
+            
+            # Log progress periodically
+            if int(elapsed) % 30 == 0 and elapsed > 0:
+                logger.info(
+                    f"[SHUTDOWN] Waiting for {len(self.active_workers)} active and {len(self.pending_workers)} pending worker(s) "
+                    f"(elapsed: {elapsed:.0f}s, remaining: {remaining:.0f}s)"
+                )
+            
+            time.sleep(min(check_interval, remaining))
+        
+        # Force termination of remaining workers
+        if self.active_workers:
+            logger.warning(f"[SHUTDOWN] Force terminating {len(self.active_workers)} worker(s) that did not complete in time")
+            
+            for task_id, (
+                process,
+                project_id,
+                log_file,
+                start_time,
+                agent_id,
+                task_title,
+                agent_template,
+                worker_id,
+                session_label,
+            ) in list(self.active_workers.items()):
+                try:
+                    pid = process.pid
+                    logger.warning(f"[SHUTDOWN] Terminating worker for task {task_id[:8]} (PID {pid})")
+                    
+                    # Try graceful termination first (SIGTERM)
+                    try:
+                        process.terminate()
+                        # Wait up to 10 seconds for graceful shutdown
+                        try:
+                            process.wait(timeout=10)
+                            logger.info(f"[SHUTDOWN] Worker {task_id[:8]} terminated gracefully")
+                        except subprocess.TimeoutExpired:
+                            # Force kill if still running
+                            logger.warning(f"[SHUTDOWN] Worker {task_id[:8]} did not respond to SIGTERM, sending SIGKILL")
+                            process.kill()
+                            process.wait(timeout=5)
+                            logger.info(f"[SHUTDOWN] Worker {task_id[:8]} force killed")
+                    except Exception as e:
+                        logger.error(f"[SHUTDOWN] Failed to terminate worker {task_id[:8]}: {e}")
+                    
+                    # Close log file
+                    try:
+                        log_file.close()
+                    except Exception:
+                        pass
+                    
+                    # Release project lock
+                    if project_id in self.project_locks and self.project_locks[project_id] == task_id:
+                        del self.project_locks[project_id]
+                        logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (shutdown)")
+                    
+                    # WIP finalization to avoid leaving dirty repos
+                    try:
+                        logger.info(f"[SHUTDOWN] Running WIP finalization for task {task_id[:8]}")
+                        self.finalize_project_changes_wip(
+                            task_id,
+                            project_id,
+                            task_title=task_title,
+                            failure_reason="shutdown_timeout",
+                        )
+                    except Exception as e:
+                        logger.error(f"[SHUTDOWN] WIP finalization failed for {task_id[:8]}: {e}")
+                    
+                    # Capture usage stats for the interrupted worker
+                    try:
+                        self._capture_worker_usage(
+                            agent_id,
+                            task_id,
+                            start_time,
+                            succeeded=False,
+                            failure_reason="shutdown_timeout",
+                        )
+                    except Exception as e:
+                        logger.warning(f"[SHUTDOWN] Failed to capture usage for {task_id[:8]}: {e}")
+                    
+                    # Update task status
+                    try:
+                        self.provider.update_task(task_id, {
+                            "workState": "failed",
+                            "status": "failed",
+                        })
+                    except Exception as e:
+                        logger.error(f"[SHUTDOWN] Failed to update task status for {task_id[:8]}: {e}")
+                    
+                    # Clean up session
+                    try:
+                        self._cleanup_worker_session(agent_id, session_label)
+                    except Exception as e:
+                        logger.warning(f"[SHUTDOWN] Failed to cleanup session for {task_id[:8]}: {e}")
+                    
+                except Exception as e:
+                    logger.error(f"[SHUTDOWN] Error force-terminating worker {task_id[:8]}: {e}", exc_info=True)
+            
+            # Clear all active workers
+            self.active_workers.clear()
+        
+        # Clean up pending workers
+        if self.pending_workers:
+            logger.info(f"[SHUTDOWN] Cleaning up {len(self.pending_workers)} pending worker(s)")
+            self.pending_workers.clear()
+        
+        # Clear state file
+        self._clear_state()
+        
+        # Update provider status
+        self._update_provider_status()
+        
+        logger.info("[SHUTDOWN] Worker manager shutdown complete")

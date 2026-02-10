@@ -609,6 +609,23 @@ class Orchestrator:
 
             time.sleep(current_interval)
 
+    def shutdown(self, timeout: float = 300.0):
+        """Gracefully shutdown the orchestrator.
+        
+        Args:
+            timeout: Maximum time (in seconds) to wait for workers to complete.
+                    Default: 300s (5 minutes)
+        """
+        logger.info("=" * 60)
+        logger.info("Lobs Orchestrator shutting down...")
+        logger.info("=" * 60)
+        
+        # Shutdown worker manager (which handles all active workers)
+        self.worker_manager.shutdown(timeout=timeout)
+        
+        logger.info("Orchestrator shutdown complete")
+        logger.info("=" * 60)
+
     def get_initiative_status(self, initiative: str | None = None) -> dict[str, Any]:
         """Get status for a specific initiative or all initiatives.
         
