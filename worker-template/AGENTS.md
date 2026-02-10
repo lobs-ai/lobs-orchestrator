@@ -48,6 +48,51 @@ echo "Add user auth middleware" > .work-summary
 
 Keep it minimal. The orchestrator auto-generates a commit message from the diff if you skip this.
 
+## Handoffs
+
+If your task requires work from another specialized agent, you can hand off work:
+
+1. Create a `.handoffs/` directory in the project root
+2. Write handoff files: `.handoffs/{unique-id}.json`
+3. Use this schema:
+
+```json
+{
+  "to": "programmer",
+  "initiative": "feature-name",
+  "title": "Specific task title",
+  "context": "Why this is needed, relevant background, constraints",
+  "acceptance": "What done looks like",
+  "files": ["relevant/file1.py", "relevant/file2.md"]
+}
+```
+
+**Fields:**
+- `to` (required): Target agent — `programmer`, `researcher`, `reviewer`, `writer`, or `architect`
+- `initiative` (required): High-level theme/project that connects related tasks
+- `title` (required): Clear, specific task title
+- `context` (optional): Why this is needed, relevant background, constraints
+- `acceptance` (optional): What "done" looks like
+- `files` (optional): Relevant files for context
+
+**Example:**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "programmer",
+  "initiative": "user-authentication",
+  "title": "Implement JWT middleware",
+  "context": "Need authentication middleware for API endpoints. Use RS256 signing.",
+  "acceptance": "Working middleware with tests.",
+  "files": ["src/auth/", "docs/auth-design.md"]
+}
+EOF
+```
+
+The orchestrator will automatically create tasks from handoffs when your task completes.
+
 ## If You Get Stuck
 
 If you genuinely cannot complete the task:

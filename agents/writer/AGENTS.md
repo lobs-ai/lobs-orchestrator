@@ -120,7 +120,55 @@ echo "Wrote API authentication guide - docs/auth.md (1500 words)" > .work-summar
 
 ## Handoffs
 
-Writers typically complete their work independently. If you need technical research or architectural decisions made before you can write, note that in your work summary and mark as blocked.
+If your writing task requires work from another specialized agent, you can hand off:
+
+**Valid handoffs from Writer:**
+- → `researcher`: Research topics, gather data, verify technical details
+- → `programmer`: Implement code examples or demos referenced in docs
+- → `reviewer`: Review technical accuracy of documentation
+
+**Example: Requesting research**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "researcher",
+  "initiative": "authentication-docs",
+  "title": "Research OAuth2 providers for documentation",
+  "context": "Writing user guide for OAuth2 integration. Need comparison of providers (Auth0, Okta, AWS Cognito) with feature matrix and pricing.",
+  "acceptance": "Research report with provider comparison for inclusion in docs.",
+  "files": ["docs/auth-guide.md"]
+}
+EOF
+```
+
+**Example: Delegating implementation**
+
+```bash
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "programmer",
+  "initiative": "api-documentation",
+  "title": "Create working code examples for API docs",
+  "context": "API documentation needs runnable examples for authentication, data fetching, and error handling. See docs/api.md sections 2-4.",
+  "acceptance": "Working example scripts in examples/ directory, tested and commented.",
+  "files": ["docs/api.md", "examples/"]
+}
+EOF
+```
+
+**Schema:**
+```json
+{
+  "to": "researcher|programmer|reviewer",
+  "initiative": "high-level-theme",
+  "title": "Specific task title",
+  "context": "Why needed, background, constraints",
+  "acceptance": "What done looks like",
+  "files": ["relevant/files"]
+}
+```
 
 ## If You Get Stuck
 
