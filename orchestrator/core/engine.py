@@ -30,6 +30,7 @@ from orchestrator.core.heartbeat import HeartbeatManager
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
 from orchestrator.core.observer import Observer, Opportunity, OpportunityPriority
+from orchestrator.core.awareness import AwarenessMonitor
 from orchestrator.services.messages import MessageProcessor
 from orchestrator.utils.settings import get_setting
 
@@ -51,11 +52,16 @@ class Orchestrator:
         self.provider = provider
         self.failure_rotation = FailureRotation(STATE_DIR)
         self.collaboration = CollaborationManager(provider)
+        
+        # Awareness monitor for agent situational awareness
+        self.awareness = AwarenessMonitor(provider)
+        
         self.worker_manager = WorkerManager(
             STATE_DIR,
             provider,
             failure_rotation=self.failure_rotation,
             collaboration_manager=self.collaboration,
+            awareness_monitor=self.awareness,
         )
         self.router = Router()
         self.reconciler = Reconciler(provider)
@@ -566,5 +572,6 @@ class Orchestrator:
                 "max_daily": max_daily,
                 "total_created": self._proactive_stats.get("total_created", 0),
                 "in_quiet_hours": self._in_quiet_hours(),
-            }
+            },
+            "awareness": self.awareness.get_status() if self.awareness else {},
         }

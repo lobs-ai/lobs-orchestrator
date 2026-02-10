@@ -110,6 +110,7 @@ class WorkerManager:
         provider: TaskProvider,
         failure_rotation: FailureRotation | None = None,
         collaboration_manager: CollaborationManager | None = None,
+        awareness_monitor: Any | None = None,
     ):
         """
         Initialize WorkerManager.
@@ -117,6 +118,9 @@ class WorkerManager:
         Args:
             state_dir: Directory for state files (kept for compatibility, but we use STATE_FILE)
             provider: Task provider for state updates
+            failure_rotation: Failure rotation manager
+            collaboration_manager: Collaboration manager for agent handoffs
+            awareness_monitor: Awareness monitor for tracking system state
         """
         self.state_dir = state_dir
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -127,6 +131,9 @@ class WorkerManager:
         # Collaboration manager for agent-to-agent handoffs.
         # Engine wires this in so collaboration state is centralized.
         self.collaboration = collaboration_manager
+        
+        # Awareness monitor for tracking work lifecycle.
+        self.awareness = awareness_monitor
 
         # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template)
@@ -483,6 +490,14 @@ class WorkerManager:
             # Mark GitHub issue as in-progress if this is a GitHub-tracked task
             self._mark_github_in_progress(task, project_id)
 
+            # Get awareness context for agent
+            awareness_context = None
+            if self.awareness:
+                try:
+                    awareness_context = self.awareness.format_context_for_agent(agent_type)
+                except Exception as e:
+                    logger.warning(f"Failed to get awareness context: {e}")
+
             # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(
@@ -491,6 +506,7 @@ class WorkerManager:
                 rules=rules,
                 workspace_path=workspace,
                 agent_type=agent_type,
+                awareness_context=awareness_context,
             )
 
             # Run Ollama
@@ -599,6 +615,14 @@ class WorkerManager:
             # Mark GitHub issue as in-progress if this is a GitHub-tracked task
             self._mark_github_in_progress(task, project_id)
 
+            # Get awareness context for agent
+            awareness_context = None
+            if self.awareness:
+                try:
+                    awareness_context = self.awareness.format_context_for_agent(template_type)
+                except Exception as e:
+                    logger.warning(f"Failed to get awareness context: {e}")
+
             # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(
@@ -607,6 +631,7 @@ class WorkerManager:
                 rules=rules,
                 workspace_path=workspace,
                 agent_type=agent_type,
+                awareness_context=awareness_context,
             )
 
             # Launch OpenClaw
@@ -664,6 +689,17 @@ class WorkerManager:
                 template_type,
             )
             self.pending_workers.discard(task_id)
+            
+            # Track work started in awareness monitor
+            if self.awareness:
+                kind = task.get("kind", "task")
+                self.awareness.track_work_started(
+                    task_id=task_id,
+                    project_id=project_id,
+                    title=task_title,
+                    agent_type=template_type,
+                    kind=kind,
+                )
             
             # Update provider status
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1896,6 +1932,11 @@ class WorkerManager:
         if task:
             self._close_github_issue_if_needed(task, project_id, task_id)
 
+        # Track completion in awareness monitor
+        if self.awareness:
+            duration = time.time() - start_time if start_time else None
+            self.awareness.track_work_completed(task_id, duration)
+
         self._cleanup_worker_session(agent_id)
 
     def handle_worker_failure(
@@ -1955,6 +1996,12 @@ class WorkerManager:
 
         self.escalation.process_failure(task_id, project_id, error_log)
         self.provider.update_task(task_id, {"workState": "failed"})
+        
+        # Track failure in awareness monitor
+        if self.awareness:
+            duration = time.time() - start_time if start_time else None
+            self.awareness.track_work_failed(task_id, duration)
+        
         self._cleanup_worker_session(agent_id)
 
     def _update_provider_status(self):
