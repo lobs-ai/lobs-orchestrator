@@ -699,7 +699,7 @@ class WorkerManager:
             if not model_override:
                 model_override = (get_setting("openclaw_model_override", "") or "").strip()
 
-            cmd = [executable, "agent", "--agent", agent_id, "--label", session_label]
+            cmd = [executable, "agent", "--agent", agent_id]
             if model_override:
                 cmd.extend(["--model", model_override])
             cmd.extend(["-m", prompt])

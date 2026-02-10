@@ -1,10 +1,10 @@
 {
   "tasks": {
     "02850EF6-18B3-4321-B673-E366C57B63EB": {
-      "last_failure_ts": 1770752464.7601483,
-      "retry_count": 1,
-      "skip_until_ts": 1770752524.7601483,
-      "streak": 1
+      "last_failure_ts": 1770753008.790136,
+      "retry_count": 2,
+      "skip_until_ts": 1770753308.790136,
+      "streak": 2
     },
     "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A": {
       "last_failure_ts": 1770752568.547007,
@@ -13,10 +13,10 @@
       "streak": 4
     },
     "35B4338D-0B9E-4EB0-BD1D-032690B326DE": {
-      "last_failure_ts": 1770752484.9123309,
-      "retry_count": 1,
-      "skip_until_ts": 1770752544.9123309,
-      "streak": 1
+      "last_failure_ts": 1770753007.8219988,
+      "retry_count": 2,
+      "skip_until_ts": 1770753307.8219988,
+      "streak": 2
     },
     "751E2364-8587-4785-9F69-E202CCA1FAAC": {
       "last_failure_ts": 1770752507.6275384,
@@ -43,10 +43,10 @@
       "streak": 4
     },
     "FDFD3718-266D-454B-BF30-18F5CB325F80": {
-      "last_failure_ts": 1770752484.0283945,
-      "retry_count": 1,
-      "skip_until_ts": 1770752544.0283945,
-      "streak": 1
+      "last_failure_ts": 1770753007.8217554,
+      "retry_count": 2,
+      "skip_until_ts": 1770753307.8217554,
+      "streak": 2
     }
   },
   "version": 1
