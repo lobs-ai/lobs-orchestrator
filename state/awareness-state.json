@@ -1,6 +1,6 @@
 {
   "total_completed": 13,
-  "total_failed": 19,
+  "total_failed": 24,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -292,7 +292,52 @@
       "kind": "task",
       "started_at": "2026-02-10T20:12:21.203936+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:12:52.601213+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "751E2364-8587-4785-9F69-E202CCA1FAAC",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:13",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:13:23.297485+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "CBDB81AB-215F-4B03-AB7E-8061C80B8E93",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:372",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:13:53.692547+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:90",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:14:24.203977+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "F40534A7-9A58-4717-8445-EAD23426D651",
+      "project_id": "flock",
+      "title": "Resolve TODO in ConnectionsStore.swift:43",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:14:54.553600+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T20:12:42.517806+00:00"
+  "last_updated": "2026-02-10T20:15:13.415453+00:00"
 }
