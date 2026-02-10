@@ -14,6 +14,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from orchestrator.utils.work_windows import prioritize_tasks_by_work_windows
+
 from orchestrator.config import POLL_INTERVAL, STATE_DIR
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.failure_rotation import FailureRotation
@@ -49,6 +51,9 @@ class Orchestrator:
         self.reconcile_interval = 300  # 5 minutes
         self.last_heartbeat = 0
         self.start_time = time.time()
+
+        # Round-robin offset used when multiple projects have overlapping active work windows.
+        self._work_window_rr_offset = 0
 
     def process_control(self) -> list[dict[str, Any]]:
         """Process pending control operations via provider."""
@@ -159,6 +164,21 @@ class Orchestrator:
                     )
                     eligible_work = [retry_item]
                     skipped_work = [w for w in skipped_work if w.get("id") != retry_id]
+
+        # Work windows (soft scheduling hint): during active windows, prefer tasks from those projects.
+        now_utc = datetime.now(timezone.utc)
+        eligible_work, active_window_projects = prioritize_tasks_by_work_windows(
+            eligible_work,
+            projects,
+            now_utc=now_utc,
+            rr_offset=self._work_window_rr_offset,
+        )
+        if active_window_projects:
+            logger.info(f"[WORK-WINDOW] Active: {', '.join(active_window_projects)}")
+            if len(active_window_projects) > 1:
+                self._work_window_rr_offset = (self._work_window_rr_offset + 1) % len(active_window_projects)
+        else:
+            self._work_window_rr_offset = 0
 
         if eligible_work_raw:
             self.heartbeat.notify_work_available(len(eligible_work_raw))

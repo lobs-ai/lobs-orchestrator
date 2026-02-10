@@ -5,6 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
 from orchestrator.services.github_onboarding import create_project_from_github
+from orchestrator.services.scanner import Scanner
+from orchestrator.services.control import ControlManager
 from orchestrator.utils.settings import get_setting
 
 logger = logging.getLogger(__name__)
@@ -81,6 +83,9 @@ def make_handler() -> type[DashboardAPIHandler]:
     def health(handler: BaseHTTPRequestHandler) -> None:
         _send_json(handler, 200, {"ok": True})
 
+    scanner = Scanner()
+    control = ControlManager()
+
     def create_from_github(handler: BaseHTTPRequestHandler) -> None:
         data = _read_json(handler)
         url = data.get("url")
@@ -93,8 +98,31 @@ def make_handler() -> type[DashboardAPIHandler]:
         result = create_project_from_github(url=url, clone_path=clone_path, sync_issues=sync_issues)
         _send_json(handler, 200, result)
 
+    def get_projects(handler: BaseHTTPRequestHandler) -> None:
+        projects = scanner.get_projects()
+        _send_json(handler, 200, {"ok": True, "projects": projects})
+
+    def update_project(handler: BaseHTTPRequestHandler) -> None:
+        data = _read_json(handler)
+        project_id = data.get("projectId")
+        updates = data.get("updates")
+
+        if not project_id or not isinstance(project_id, str):
+            raise ValueError("Missing required field: projectId")
+        if not isinstance(updates, dict):
+            raise ValueError("Missing required field: updates")
+
+        control.request_op({
+            "type": "update_project",
+            "project_id": project_id,
+            "updates": updates,
+        })
+        _send_json(handler, 200, {"ok": True})
+
     _Handler.routes = {
         ("GET", "/health"): health,
+        ("GET", "/projects"): get_projects,
+        ("POST", "/projects/update"): update_project,
         ("POST", "/projects/create-from-github"): create_from_github,
     }
 
