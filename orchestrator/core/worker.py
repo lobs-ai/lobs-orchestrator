@@ -415,17 +415,17 @@ class WorkerManager:
                     if success:
                         self.handle_worker_success(task_id, project_id, agent_id, start_time)
                     else:
-                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", agent_id)
+                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", agent_id, start_time=start_time)
 
                 except Exception as e:
                     error_msg = f"Ollama execution failed: {e}"
                     logger.error(error_msg)
                     log_file.write(f"\n\n=== ERROR ===\n{error_msg}\n")
-                    self.handle_worker_failure(task_id, project_id, error_msg, agent_id)
+                    self.handle_worker_failure(task_id, project_id, error_msg, agent_id, start_time=start_time)
 
         except Exception as e:
             logger.error(f"Failed to spawn Ollama worker for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
+            self.handle_worker_failure(task_id, project_id, str(e), agent_id, start_time=start_time)
         finally:
             self._clear_state()
             self.pending_workers.discard(task_id)
@@ -554,12 +554,12 @@ class WorkerManager:
                 self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
                 self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time, task_title)
             else:
-                self._handle_immediate_failure(task_id, project_id, agent_id)
+                self._handle_immediate_failure(task_id, project_id, agent_id, start_time)
 
         if finished:
             self._update_provider_status()
 
-    def _handle_immediate_failure(self, task_id: str, project_id: str, agent_id: str):
+    def _handle_immediate_failure(self, task_id: str, project_id: str, agent_id: str, start_time: float | None = None):
         """Handle worker failure (non-zero exit)."""
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
@@ -570,7 +570,7 @@ class WorkerManager:
         except Exception:
             pass
         
-        self.handle_worker_failure(task_id, project_id, error_tail, agent_id)
+        self.handle_worker_failure(task_id, project_id, error_tail, agent_id, start_time=start_time)
         self._clear_state()
 
     def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float, task_title: str = ""):
@@ -580,10 +580,10 @@ class WorkerManager:
             if success:
                 self.handle_worker_success(task_id, project_id, agent_id, start_time)
             else:
-                self.handle_worker_failure(task_id, project_id, "Project repo push failed", agent_id)
+                self.handle_worker_failure(task_id, project_id, "Project repo push failed", agent_id, start_time=start_time)
         except Exception as e:
             logger.error(f"Error in finalization for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
+            self.handle_worker_failure(task_id, project_id, str(e), agent_id, start_time=start_time)
         finally:
             self._clear_state()
             self.pending_workers.discard(task_id)
@@ -1079,94 +1079,289 @@ class WorkerManager:
     # Usage Tracking
     # =========================================================================
 
-    def _capture_worker_usage(self, agent_id: str, task_id: str, start_time: float):
-        """Capture and log worker session usage stats."""
+    def _read_openclaw_session_usage_from_files(self, agent_id: str) -> dict[str, Any] | None:
+        """Best-effort usage extraction from OpenClaw session jsonl files.
+
+        This is more reliable than parsing `openclaw session-status` output because it reads
+        structured JSON lines that already contain per-turn usage.
+        """
+        sessions_dir = Path.home() / ".openclaw" / "agents" / agent_id / "sessions"
+        sessions_json_path = sessions_dir / "sessions.json"
+
+        if not sessions_json_path.exists():
+            return None
+
         try:
-            from orchestrator.utils.settings import get_setting
-            executable = get_setting("openclaw_executable", "openclaw")
-            
-            # Get session status via OpenClaw
+            sessions = json.loads(sessions_json_path.read_text())
+        except Exception as e:
+            logger.warning(f"[USAGE] Failed reading sessions.json for {agent_id}: {e}")
+            return None
+
+        session_key = f"agent:{agent_id}:main"
+        session_meta = sessions.get(session_key) or {}
+        session_id = session_meta.get("sessionId")
+
+        transcript_path: Path | None = None
+        if session_id:
+            candidate = sessions_dir / f"{session_id}.jsonl"
+            if candidate.exists():
+                transcript_path = candidate
+
+        if transcript_path is None:
+            # Fallback: choose most recently modified transcript.
+            candidates = sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+            transcript_path = candidates[0] if candidates else None
+
+        if transcript_path is None or not transcript_path.exists():
+            return None
+
+        input_tokens = 0
+        output_tokens = 0
+        total_cost_usd = 0.0
+        model_id: str | None = None
+
+        try:
+            with open(transcript_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        evt = json.loads(line)
+                    except Exception:
+                        continue
+
+                    evt_type = evt.get("type")
+
+                    if evt_type == "model_change":
+                        model_id = evt.get("modelId") or model_id
+
+                    if evt_type == "custom" and evt.get("customType") == "model-snapshot":
+                        data = evt.get("data") or {}
+                        model_id = data.get("modelId") or model_id
+
+                    # OpenClaw includes per-message usage on assistant messages.
+                    if evt_type == "message":
+                        usage = evt.get("usage") or {}
+                        try:
+                            input_tokens += int(usage.get("input") or 0)
+                            output_tokens += int(usage.get("output") or 0)
+                        except Exception:
+                            pass
+
+                        try:
+                            cost = usage.get("cost") or {}
+                            total_cost_usd += float(cost.get("total") or 0.0)
+                        except Exception:
+                            pass
+
+        except Exception as e:
+            logger.warning(f"[USAGE] Failed parsing session transcript for {agent_id}: {e}")
+            return None
+
+        if input_tokens == 0 and output_tokens == 0:
+            # It's possible we captured before any assistant turn wrote usage.
+            return None
+
+        return {
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "model": model_id,
+            "totalCostUSD": total_cost_usd if total_cost_usd > 0 else None,
+            "source": "session-files",
+            "transcriptPath": str(transcript_path),
+        }
+
+    def _read_openclaw_session_usage_from_cli(self, agent_id: str, timeout_sec: float = 8.0) -> dict[str, Any] | None:
+        """Fallback usage extraction by calling `openclaw session-status`.
+
+        This method is inherently fragile (human-oriented output); keep it as a backup.
+        """
+        from orchestrator.utils.settings import get_setting
+
+        executable = get_setting("openclaw_executable", "openclaw")
+        try:
             result = subprocess.run(
                 [executable, "session-status", "--agent", agent_id],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=timeout_sec,
             )
-            
-            if result.returncode != 0:
-                logger.warning(f"Failed to get session status for {agent_id}")
-                return
-            
-            # Parse token counts and model from output
-            output = result.stdout
-            import re
-            
-            # Extract: "Tokens: 1.4k in / 239 out"
-            tok_match = re.search(r"Tokens:\s*([0-9\.,kKmM]+)\s*in\s*/\s*([0-9\.,kKmM]+)\s*out", output)
-            if not tok_match:
-                logger.warning("Could not parse token counts from session status")
-                return
-            
-            input_tokens = self._parse_token_num(tok_match.group(1))
-            output_tokens = self._parse_token_num(tok_match.group(2))
-            
-            # Extract model
-            model = "claude-opus-4-5"  # default
-            model_match = re.search(r"Model:\s+([^\s]+)", output)
-            if model_match:
-                model = model_match.group(1).strip().split("/")[-1]  # Get model ID only
-            
-            # Calculate cost
-            sys.path.insert(0, str(ORCHESTRATOR_REPO_PATH / "lobs-control" / "bin"))
+        except subprocess.TimeoutExpired:
+            logger.warning(f"[USAGE] Timeout running session-status for {agent_id} after {timeout_sec:.1f}s")
+            return None
+        except Exception as e:
+            logger.warning(f"[USAGE] Failed running session-status for {agent_id}: {e}")
+            return None
+
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            logger.warning(f"[USAGE] session-status failed for {agent_id} (code={result.returncode}): {stderr}")
+            return None
+
+        output = result.stdout or ""
+        import re
+
+        # Extract common patterns like:
+        # - "Tokens: 1.4k in / 239 out"
+        # - "Tokens: 1400 in / 239 out"
+        tok_match = re.search(
+            r"Tokens:\s*([0-9\.,kKmM]+)\s*in\s*/\s*([0-9\.,kKmM]+)\s*out",
+            output,
+        )
+        if not tok_match:
+            logger.warning(f"[USAGE] Could not parse token counts from session-status output for {agent_id}")
+            return None
+
+        input_tokens = self._parse_token_num(tok_match.group(1))
+        output_tokens = self._parse_token_num(tok_match.group(2))
+
+        model_id: str | None = None
+        model_match = re.search(r"Model:\s+([^\s]+)", output)
+        if model_match:
+            model_id = model_match.group(1).strip().split("/")[-1]
+
+        return {
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "model": model_id,
+            "totalCostUSD": None,
+            "source": "session-status",
+        }
+
+    def _estimate_usage_fallback(self, task_id: str) -> dict[str, Any] | None:
+        """Last-resort usage estimate when precise capture fails.
+
+        We estimate tokens from worker log bytes. This is intentionally coarse and is only used
+        to avoid losing all telemetry when OpenClaw introspection fails.
+        """
+        log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+        if not log_path.exists():
+            return None
+
+        try:
+            byte_count = log_path.stat().st_size
+        except Exception:
+            return None
+
+        # Rough heuristic: ~4 chars/token for English-ish text.
+        total_tokens = max(1, int(byte_count / 4))
+        input_tokens = int(total_tokens * 0.7)
+        output_tokens = total_tokens - input_tokens
+
+        return {
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "model": None,
+            "totalCostUSD": None,
+            "source": "estimate",
+        }
+
+    def _capture_worker_usage(
+        self,
+        agent_id: str,
+        task_id: str,
+        start_time: float | None,
+        *,
+        succeeded: bool,
+        failure_reason: str | None = None,
+    ):
+        """Capture and log worker session usage stats.
+
+        Captures on BOTH success and failure.
+        """
+        usage: dict[str, Any] | None = None
+
+        # Prefer structured session files.
+        usage = self._read_openclaw_session_usage_from_files(agent_id)
+        if usage is None:
+            logger.warning(f"[USAGE] Could not read usage from session files for {agent_id}; falling back to CLI")
+            usage = self._read_openclaw_session_usage_from_cli(agent_id)
+
+        if usage is None:
+            logger.warning(f"[USAGE] Could not read usage from OpenClaw for {agent_id}; falling back to estimate")
+            usage = self._estimate_usage_fallback(task_id)
+
+        if usage is None:
+            logger.warning(f"[USAGE] Failed to capture usage for task {task_id[:8]} (no fallbacks succeeded)")
+            return
+
+        input_tokens = int(usage.get("inputTokens") or 0)
+        output_tokens = int(usage.get("outputTokens") or 0)
+        model = usage.get("model") or "unknown"
+
+        # Cost: prefer OpenClaw-provided cost if present, otherwise compute.
+        cost_usd: float | None = None
+        if usage.get("totalCostUSD") is not None:
             try:
+                cost_usd = float(usage["totalCostUSD"])
+            except Exception:
+                cost_usd = None
+
+        if cost_usd is None:
+            # Calculate cost using lobs-control pricing module if available.
+            try:
+                sys.path.insert(0, str(ORCHESTRATOR_REPO_PATH / "lobs-control" / "bin"))
                 from lib.pricing import compute_cost
-                cost_usd = compute_cost(input_tokens, output_tokens, model)
-            except ImportError:
-                logger.warning("Could not import pricing module, estimating cost")
-                # Fallback: rough estimate for opus
-                cost_usd = (input_tokens / 1_000_000 * 5.0) + (output_tokens / 1_000_000 * 25.0)
-            
-            # Read worker status to get workerId and startedAt
-            worker_status_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-status.json"
-            worker_id = None
-            started_at = datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat()
-            
-            if worker_status_path.exists():
-                try:
-                    with open(worker_status_path) as f:
-                        status_data = json.load(f)
-                        worker_id = status_data.get("workerId")
-                        if status_data.get("startedAt"):
-                            started_at = status_data["startedAt"]
-                except Exception:
-                    pass
-            
-            # Create usage entry
-            usage_data = {
-                "workerId": worker_id or str(int(time.time())),
-                "startedAt": started_at,
-                "endedAt": datetime.now(timezone.utc).isoformat(),
-                "tasksCompleted": 1,
-                "timeoutReason": None,
-                "model": model,
-                "inputTokens": input_tokens,
-                "outputTokens": output_tokens,
-                "totalTokens": input_tokens + output_tokens,
-                "totalCostUSD": round(cost_usd, 4),
-            }
-            
-            # Request control-op to log usage (single-writer pattern)
-            from orchestrator.services.control import ControlManager
-            ControlManager.request_op({
+
+                cost_usd = float(compute_cost(input_tokens, output_tokens, str(model)))
+            except Exception as e:
+                logger.warning(f"[USAGE] Could not compute cost precisely (model={model}): {e}. Using rough estimate")
+                # Generic rough estimate (kept intentionally conservative)
+                cost_usd = (input_tokens / 1_000_000 * 2.0) + (output_tokens / 1_000_000 * 8.0)
+
+        # Read worker status to get workerId and startedAt
+        worker_status_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-status.json"
+        worker_id = None
+        started_at = (
+            datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat()
+            if start_time is not None
+            else datetime.now(timezone.utc).isoformat()
+        )
+
+        if worker_status_path.exists():
+            try:
+                with open(worker_status_path) as f:
+                    status_data = json.load(f)
+                worker_id = status_data.get("workerId")
+                if status_data.get("startedAt"):
+                    started_at = status_data["startedAt"]
+            except Exception as e:
+                logger.warning(f"[USAGE] Failed reading worker-status.json for usage capture: {e}")
+
+        usage_data = {
+            "workerId": worker_id or str(int(time.time())),
+            "startedAt": started_at,
+            "endedAt": datetime.now(timezone.utc).isoformat(),
+            "tasksCompleted": 1 if succeeded else 0,
+            "timeoutReason": None if succeeded else (failure_reason or "failed"),
+            "model": str(model),
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "totalTokens": input_tokens + output_tokens,
+            "totalCostUSD": round(float(cost_usd), 4),
+            "taskId": task_id,
+            "succeeded": bool(succeeded),
+            "source": usage.get("source"),
+        }
+
+        # Request control-op to log usage (single-writer pattern)
+        from orchestrator.services.control import ControlManager
+
+        ControlManager.request_op(
+            {
                 "type": "log_worker_usage",
                 "usage_data": usage_data,
-                "summary": f"log worker usage for task {task_id[:8]}"
-            })
-            
-            logger.info(f"Requested worker usage log: {input_tokens + output_tokens} tokens, ${cost_usd:.4f}")
-            
-        except Exception as e:
-            logger.error(f"Error capturing worker usage: {e}")
+                "summary": f"log worker usage for task {task_id[:8]}",
+            }
+        )
+
+        total_tokens = input_tokens + output_tokens
+        logger.info(
+            f"Requested worker usage log ({usage.get('source')}): {total_tokens} tokens, ${float(cost_usd):.4f} "
+            f"(task={task_id[:8]}, succeeded={succeeded})"
+        )
 
     def _parse_token_num(self, s: str) -> int:
         """Parse token number with k/M suffix."""
@@ -1189,9 +1384,9 @@ class WorkerManager:
     def handle_worker_success(self, task_id: str, project_id: str, agent_id: str, start_time: float):
         """Handle successful worker completion."""
         logger.info(f"Worker success for task {task_id[:8]}. Marking complete.")
-        
+
         # Capture usage stats before cleaning up session
-        self._capture_worker_usage(agent_id, task_id, start_time)
+        self._capture_worker_usage(agent_id, task_id, start_time, succeeded=True)
         
         # Get task data to check for GitHub integration
         task = self.provider.get_task(task_id)
@@ -1215,9 +1410,28 @@ class WorkerManager:
         
         self._cleanup_worker_session(agent_id)
 
-    def handle_worker_failure(self, task_id: str, project_id: str, error_log: str, agent_id: str):
+    def handle_worker_failure(
+        self,
+        task_id: str,
+        project_id: str,
+        error_log: str,
+        agent_id: str,
+        start_time: float | None = None,
+    ):
         """Handle worker failure."""
         logger.error(f"Worker failure for task {task_id[:8]} on {project_id}")
+
+        # Capture usage stats even for failures (before session cleanup).
+        try:
+            self._capture_worker_usage(
+                agent_id,
+                task_id,
+                start_time,
+                succeeded=False,
+                failure_reason="worker_failed",
+            )
+        except Exception:
+            logger.warning("[USAGE] Unexpected error capturing failure usage", exc_info=True)
 
         # Record failure and apply exponential backoff before retry.
         try:
