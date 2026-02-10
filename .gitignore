@@ -7,6 +7,10 @@ venv/
 locks/
 *.log
 
+# Settings and state files
+.lobs_settings.json
+.lobs_setup_state.json
+
 # Coverage reports
 .coverage
 .coverage.*

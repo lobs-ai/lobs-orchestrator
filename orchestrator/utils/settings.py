@@ -40,6 +40,14 @@ def reset_settings() -> dict[str, bool]:
     else:
         results["settings_file"] = False
     
+    # Reset setup state file
+    setup_state_file = Path(".lobs_setup_state.json")
+    if setup_state_file.exists():
+        setup_state_file.unlink()
+        results["setup_state_file"] = True
+    else:
+        results["setup_state_file"] = False
+    
     # Reset orchestrator state directory
     state_dir = Path("state")
     if state_dir.exists() and state_dir.is_dir():

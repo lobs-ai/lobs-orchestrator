@@ -67,6 +67,29 @@ Task Assigned → Syncing (git pull) → Running (OpenClaw agent) → Finalizing
 - Python 3.11+
 - `lobs-control` repository cloned in the same parent directory.
 
+### Initial Setup
+
+The orchestrator provides an interactive setup wizard to configure required components:
+
+```bash
+# Run the setup wizard (recommended for first-time setup)
+python3 main.py --setup-wizard
+
+# Check setup status (what's configured vs missing)
+python3 main.py --setup-status
+
+# Configure individual steps without the full wizard
+python3 main.py --configure base_dir
+python3 main.py --configure control_repo
+python3 main.py --configure orchestrator_repo
+python3 main.py --configure openclaw_executable
+```
+
+The setup wizard tracks completion state persistently in `.lobs_setup_state.json`, so you can:
+- Skip steps during initial setup and complete them later
+- Re-run individual configuration steps without redoing everything
+- Check what's configured vs missing at any time
+
 ### Running the Orchestrator
 
 ```bash

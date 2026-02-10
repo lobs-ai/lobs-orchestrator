@@ -18,7 +18,12 @@ def parse_args():
     parser.add_argument("--ollama-model", help="Ollama model to use (e.g., llama3.1, codellama)")
     parser.add_argument("--ollama-keep-alive", help="How long to keep model loaded (e.g., 5m, 1h, -1)")
 
+    # Setup and configuration
     parser.add_argument("--show", action="store_true", help="Show current settings")
+    parser.add_argument("--setup-status", action="store_true", help="Show setup status and what's configured vs missing")
+    parser.add_argument("--setup-wizard", action="store_true", help="Run interactive setup wizard")
+    parser.add_argument("--configure", choices=["base_dir", "control_repo", "orchestrator_repo", "openclaw_executable"], 
+                        help="Configure a specific setup step")
     parser.add_argument("--reset", action="store_true", help="Reset all settings and state for fresh onboarding")
 
     return parser.parse_args()
@@ -147,6 +152,22 @@ def setup_orchestrator():
         perform_reset()
         sys.exit(0)
     
+    # Handle setup commands (exit after completion)
+    if args.setup_status:
+        from orchestrator.utils.setup_wizard import show_setup_status
+        show_setup_status()
+        sys.exit(0)
+    
+    if args.setup_wizard:
+        from orchestrator.utils.setup_wizard import run_setup_wizard
+        run_setup_wizard()
+        sys.exit(0)
+    
+    if args.configure:
+        from orchestrator.utils.setup_wizard import configure_step
+        configure_step(args.configure)
+        sys.exit(0)
+    
     apply_args(args)
     if args.show:
         show_settings()
@@ -159,6 +180,7 @@ def perform_reset():
     print("=" * 50)
     print("\nThis will delete:")
     print("  • .lobs_settings.json")
+    print("  • .lobs_setup_state.json")
     print("  • state/*.json (orchestrator state)")
     print("  • ~/.openclaw/worker-state.json")
     print("")
@@ -180,6 +202,12 @@ def perform_reset():
     else:
         print("  ℹ️  No .lobs_settings.json found")
     
+    # Setup state file
+    if results.get("setup_state_file"):
+        print("  ✅ Deleted .lobs_setup_state.json")
+    else:
+        print("  ℹ️  No .lobs_setup_state.json found")
+    
     # State files
     state_files = results.get("state_files", [])
     if state_files:
@@ -196,5 +224,6 @@ def perform_reset():
         print("  ℹ️  No worker state found")
     
     print("\n🎉 Orchestrator reset to fresh state.")
-    print("You can now run setup or onboarding from scratch.")
+    print("You can now run setup wizard with:")
+    print("  python3 main.py --setup-wizard")
     print("")
