@@ -16,6 +16,7 @@ from typing import Any
 
 from orchestrator.config import POLL_INTERVAL, STATE_DIR
 from orchestrator.core.worker import WorkerManager
+from orchestrator.core.failure_rotation import FailureRotation
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
 from orchestrator.providers.base import TaskProvider
@@ -38,7 +39,8 @@ class Orchestrator:
 
     def __init__(self, provider: TaskProvider):
         self.provider = provider
-        self.worker_manager = WorkerManager(STATE_DIR, provider)
+        self.failure_rotation = FailureRotation(STATE_DIR)
+        self.worker_manager = WorkerManager(STATE_DIR, provider, failure_rotation=self.failure_rotation)
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
         self.heartbeat = HeartbeatManager()
@@ -134,18 +136,40 @@ class Orchestrator:
             self.process_requests(True)
 
         # 8. Work Assignment and Queueing
-        eligible_work = self.provider.get_tasks()
+        eligible_work_raw = self.provider.get_tasks()
 
-        if eligible_work:
-            self.heartbeat.notify_work_available(len(eligible_work))
+        # Failure rotation: skip tasks that are in cooldown after repeated failures
+        eligible_work: list[dict[str, Any]] = []
+        skipped_work: list[dict[str, Any]] = []
+        for item in eligible_work_raw:
+            work_id = item.get("id")
+            if work_id and self.failure_rotation.should_skip(work_id):
+                skipped_work.append(item)
+            else:
+                eligible_work.append(item)
+
+        # If everything is skipped, pick one to retry to avoid queue deadlock.
+        if not eligible_work and skipped_work:
+            retry_id = self.failure_rotation.pick_retry_when_all_skipped([w["id"] for w in skipped_work if "id" in w])
+            if retry_id:
+                retry_item = next((w for w in skipped_work if w.get("id") == retry_id), None)
+                if retry_item:
+                    logger.warning(
+                        f"[FAIL-ROTATION] All eligible tasks are in cooldown. Forcing retry of {retry_id[:8]} to avoid deadlock."
+                    )
+                    eligible_work = [retry_item]
+                    skipped_work = [w for w in skipped_work if w.get("id") != retry_id]
+
+        if eligible_work_raw:
+            self.heartbeat.notify_work_available(len(eligible_work_raw))
 
             # Log queue depth if worker is busy
             worker_status = self.worker_manager.get_worker_status()
-            if worker_status["busy"] and len(eligible_work) > 0:
+            if worker_status["busy"] and len(eligible_work_raw) > 0:
                 current = worker_status["current_task"][:8] if worker_status["current_task"] else "unknown"
                 logger.info(
                     f"[QUEUE] Worker busy (current: {current}, state: {worker_status['state']}). "
-                    f"{len(eligible_work)} task(s) queued."
+                    f"{len(eligible_work_raw)} task(s) queued."
                 )
 
         for item in eligible_work:

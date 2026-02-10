@@ -44,6 +44,9 @@ class _PidMonitor:
             return None  # Can't check, assume running
 
 
+from orchestrator.core.failure_rotation import FailureRotation
+
+
 class WorkerManager:
     """
     Manages spawning and tracking a SINGLE worker subprocess.
@@ -65,7 +68,7 @@ class WorkerManager:
     STATE_FILE = Path.home() / ".openclaw" / "worker-state.json"
     STALE_TIMEOUT = 600  # 10 minutes
 
-    def __init__(self, state_dir: Path, provider: TaskProvider):
+    def __init__(self, state_dir: Path, provider: TaskProvider, failure_rotation: FailureRotation | None = None):
         """
         Initialize WorkerManager.
         
@@ -77,6 +80,7 @@ class WorkerManager:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
+        self.failure_rotation = failure_rotation or FailureRotation(state_dir)
 
         # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title)
@@ -1140,6 +1144,12 @@ class WorkerManager:
         # Get task data to check for GitHub integration
         task = self.provider.get_task(task_id)
         
+        # Reset failure streak on success
+        try:
+            self.failure_rotation.record_success(task_id)
+        except Exception:
+            logger.debug("Failed to record success for failure rotation", exc_info=True)
+
         self.provider.update_task(task_id, {
             "workState": "completed",
             "status": "completed",
@@ -1156,6 +1166,20 @@ class WorkerManager:
     def handle_worker_failure(self, task_id: str, project_id: str, error_log: str, agent_id: str):
         """Handle worker failure."""
         logger.error(f"Worker failure for task {task_id[:8]} on {project_id}")
+
+        # Record failure streak and possibly enter cooldown.
+        try:
+            entry = self.failure_rotation.record_failure(task_id)
+            streak = int(entry.get("streak", 0))
+            if streak >= self.failure_rotation.policy.threshold:
+                skip_until = entry.get("skip_until_ts")
+                logger.warning(
+                    f"[FAIL-ROTATION] Task {task_id[:8]} failure streak={streak} (threshold={self.failure_rotation.policy.threshold}). "
+                    f"Skipping until {skip_until}."
+                )
+        except Exception:
+            logger.debug("Failed to record failure for failure rotation", exc_info=True)
+
         self.escalation.process_failure(task_id, project_id, error_log)
         self.provider.update_task(task_id, {"workState": "failed"})
         self._cleanup_worker_session(agent_id)
