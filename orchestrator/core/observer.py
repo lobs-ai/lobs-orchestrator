@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass, asdict
 from datetime import date, datetime, time, timedelta
@@ -26,6 +25,7 @@ from typing import Any, Callable, Iterable, Optional
 
 from orchestrator.config import BASE_DIR, STATE_DIR
 from orchestrator.utils.settings import get_setting
+from orchestrator.utils.executables import which
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +397,7 @@ class Observer:
 
         # Optional: npm audit summary.
         pkg_lock = repo_path / "package-lock.json"
-        if self.settings.run_npm_audit and pkg_lock.exists() and shutil.which("npm"):
+        if self.settings.run_npm_audit and pkg_lock.exists() and which("npm"):
             vulns = self._run_npm_audit(repo_path)
             if vulns:
                 sev = vulns.get("severity")
@@ -421,7 +421,7 @@ class Observer:
                 )
 
         # Optional: pip-audit.
-        if self.settings.run_pip_audit and req.exists() and shutil.which("pip-audit"):
+        if self.settings.run_pip_audit and req.exists() and which("pip-audit"):
             audit = self._run_pip_audit(repo_path, req)
             if audit and audit.get("count", 0) > 0:
                 ops.append(

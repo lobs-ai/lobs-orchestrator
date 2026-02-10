@@ -14,12 +14,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from orchestrator.core.observer import Opportunity, OpportunityPriority
+from orchestrator.utils.executables import which
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ class ProgrammerOpportunities:
 
     def _run_mypy(self, repo_path: Path) -> dict[str, Any] | None:
         """Run mypy and return warning summary."""
-        if not shutil.which("mypy"):
+        if not which("mypy"):
             return None
         
         try:
@@ -263,7 +263,7 @@ class ProgrammerOpportunities:
 
     def _run_tsc(self, repo_path: Path) -> dict[str, Any] | None:
         """Run tsc and return warning summary."""
-        if not shutil.which("tsc"):
+        if not which("tsc"):
             return None
         
         try:
@@ -359,7 +359,7 @@ class ResearcherOpportunities:
                 pass
         
         # NPM: outdated packages
-        if (repo_path / "package.json").exists() and shutil.which("npm"):
+        if (repo_path / "package.json").exists() and which("npm"):
             outdated = self._check_npm_outdated(repo_path)
             if outdated:
                 opportunities.append(
@@ -392,7 +392,7 @@ class ResearcherOpportunities:
         opportunities: list[Opportunity] = []
         
         # NPM audit
-        if (repo_path / "package-lock.json").exists() and shutil.which("npm"):
+        if (repo_path / "package-lock.json").exists() and which("npm"):
             vulns = self._run_npm_audit(repo_path)
             if vulns:
                 sev = vulns.get("severity", "low")
@@ -417,7 +417,7 @@ class ResearcherOpportunities:
         
         # pip-audit
         req = repo_path / "requirements.txt"
-        if req.exists() and shutil.which("pip-audit"):
+        if req.exists() and which("pip-audit"):
             audit = self._run_pip_audit(repo_path, req)
             if audit and audit.get("count", 0) > 0:
                 opportunities.append(
@@ -618,7 +618,7 @@ class ReviewerOpportunities:
         opportunities: list[Opportunity] = []
         
         # Python: ruff linting
-        if self._has_python_files(repo_path) and shutil.which("ruff"):
+        if self._has_python_files(repo_path) and which("ruff"):
             issues = self._run_ruff(repo_path)
             if issues:
                 opportunities.append(
@@ -639,7 +639,7 @@ class ReviewerOpportunities:
         
         # TypeScript/JavaScript: eslint
         if (repo_path / ".eslintrc.js").exists() or (repo_path / ".eslintrc.json").exists():
-            if shutil.which("eslint"):
+            if which("eslint"):
                 issues = self._run_eslint(repo_path)
                 if issues:
                     opportunities.append(

@@ -24,6 +24,16 @@ def main():
     setup_orchestrator()
     show_settings()
 
+    # Check node availability at startup
+    from orchestrator.utils.executables import check_node_available, get_node_version, which
+    if check_node_available():
+        node_version = get_node_version()
+        node_path = which('node')
+        logging.info(f"Node.js detected: {node_version} at {node_path}")
+    else:
+        logging.warning("Node.js not detected - some features may not work")
+        logging.warning("Check if node is in PATH or installed in standard locations")
+
     # Import core components ONLY AFTER settings are updated
     from orchestrator.core.engine import Orchestrator
 

@@ -23,6 +23,8 @@ def parse_args():
 
 def show_settings():
     from orchestrator import config
+    from orchestrator.utils.executables import which, get_node_version
+    
     print("\nCurrent Configuration:")
     print(f"  Provider:             {get_setting('provider', 'local')}")
     print(f"  Base Directory:       {config.BASE_DIR}")
@@ -32,6 +34,25 @@ def show_settings():
     print(f"  Worker State:         ~/.openclaw/worker-state.json")
     print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'openclaw')}")
     print("")
+    
+    print("Node.js Configuration:")
+    node_path = which('node')
+    if node_path:
+        node_version = get_node_version()
+        print(f"  Node.js:              ✅ {node_version or 'found'}")
+        print(f"  Path:                 {node_path}")
+        
+        npm_path = which('npm')
+        if npm_path:
+            print(f"  npm:                  ✅ found at {npm_path}")
+        else:
+            print(f"  npm:                  ❌ not found")
+    else:
+        print(f"  Node.js:              ❌ Not detected")
+        print(f"  Note:                 Install Node.js or check PATH")
+        print(f"  Searched:             /usr/bin, /usr/local/bin, ~/.nvm/*, etc.")
+    print("")
+    
     print("Ollama Configuration:")
     print(f"  Ollama URL:           {get_setting('ollama_url', 'http://localhost:11434')}")
     print(f"  Ollama Model:         {get_setting('ollama_model', 'llama3.1')}")
