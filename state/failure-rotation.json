@@ -1,10 +1,46 @@
 {
   "tasks": {
-    "1F153946-E8EA-4482-867F-2918C6CCDD46": {
-      "last_failure_ts": 1770760171.986356,
+    "374C777A-5861-4505-85C0-5F84F6E40410": {
+      "last_failure_ts": 1770762067.5808673,
+      "retry_count": 2,
+      "skip_until_ts": 1770762367.5808673,
+      "streak": 2
+    },
+    "3BF63B5E-8907-49CD-9BE0-3FB01649FF67": {
+      "last_failure_ts": 1770762321.3864315,
       "retry_count": 1,
-      "skip_until_ts": 1770760231.986356,
+      "skip_until_ts": 1770762381.3864315,
       "streak": 1
+    },
+    "55EA0255-65A6-4414-B0DE-999C0CF09AD7": {
+      "last_failure_ts": 1770762321.3071635,
+      "retry_count": 1,
+      "skip_until_ts": 1770762381.3071635,
+      "streak": 1
+    },
+    "8211CF97-7C9B-467D-B7A6-B6F777CFF12D": {
+      "last_failure_ts": 1770762321.326167,
+      "retry_count": 1,
+      "skip_until_ts": 1770762381.326167,
+      "streak": 1
+    },
+    "8F7DE0D2-2455-4629-81B3-5104E530B405": {
+      "last_failure_ts": 1770762321.3786511,
+      "retry_count": 1,
+      "skip_until_ts": 1770762381.3786511,
+      "streak": 1
+    },
+    "B0E97D72-925F-4358-ACEF-01A5D287AEF9": {
+      "last_failure_ts": 1770762321.3466303,
+      "retry_count": 1,
+      "skip_until_ts": 1770762381.3466303,
+      "streak": 1
+    },
+    "E76B8292-603A-460D-9E8F-00748E0B6A1A": {
+      "last_failure_ts": 1770762067.581201,
+      "retry_count": 2,
+      "skip_until_ts": 1770762367.581201,
+      "streak": 2
     }
   },
   "version": 1

@@ -104,6 +104,48 @@
       "projectId": "lobs-control",
       "createdAt": "2026-02-10T21:28:46Z",
       "dismissed": false
+    },
+    {
+      "hash": "4445530db2d195dc",
+      "title": "URGENT: Fix critical onboarding failures (E76B8292, 374C777A)",
+      "projectId": "default",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
+    },
+    {
+      "hash": "954ab529d30af0e4",
+      "title": "Add integration tests for all onboarding paths (fresh + existing repo + skip)",
+      "projectId": "default",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
+    },
+    {
+      "hash": "70877a39b2ba33a1",
+      "title": "Document onboarding architecture and error handling",
+      "projectId": "default",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
+    },
+    {
+      "hash": "360595bac7bbc320",
+      "title": "Test newly resolved deep link handlers (chat + other types)",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
+    },
+    {
+      "hash": "fe74426f14e2e464",
+      "title": "Audit remaining TODOs in codebase and prioritize fixes",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
+    },
+    {
+      "hash": "a5e7971d979b1967",
+      "title": "Validate comprehensive README against actual setup process",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T22:23:40Z",
+      "dismissed": false
     }
   ]
 }
