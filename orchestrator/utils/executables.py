@@ -4,9 +4,12 @@ Handles cases where executables (especially node-based tools) may not be in
 the service's PATH but are installed in standard locations.
 """
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # Common installation paths for node/npm and related tools
@@ -43,6 +46,8 @@ def _search_nvm_versions(executable: str) -> Optional[Path]:
 def which(executable: str, extra_paths: Optional[list] = None) -> Optional[str]:
     """Find executable in PATH or common installation locations.
     
+    Respects skip_prereqs settings to allow bypassing checks when detection fails.
+    
     Args:
         executable: Name of executable to find (e.g., 'node', 'npm', 'tsc')
         extra_paths: Additional paths to search
@@ -50,6 +55,21 @@ def which(executable: str, extra_paths: Optional[list] = None) -> Optional[str]:
     Returns:
         Absolute path to executable if found, None otherwise
     """
+    # Check if prerequisites should be skipped
+    from orchestrator.utils.settings import get_setting
+    
+    skip_all = get_setting("skip_prereqs", False)
+    skip_list = get_setting("skip_prereqs_list", [])
+    
+    if skip_all or (isinstance(skip_list, list) and executable in skip_list):
+        logger.warning(
+            f"Skipping prerequisite check for '{executable}' (skip_prereqs enabled). "
+            f"Assuming tool is available."
+        )
+        # Return a fake path to indicate "available"
+        # Callers check truthiness, so any non-empty string works
+        return f"/usr/bin/{executable}"
+    
     # First try standard shutil.which (respects PATH)
     found = shutil.which(executable)
     if found:
@@ -120,7 +140,21 @@ def get_node_version() -> Optional[str]:
 def check_node_available() -> bool:
     """Check if node is available and can be executed.
     
+    Respects skip_prereqs settings to allow bypassing checks.
+    
     Returns:
         True if node is found and working, False otherwise
     """
+    from orchestrator.utils.settings import get_setting
+    
+    skip_all = get_setting("skip_prereqs", False)
+    skip_list = get_setting("skip_prereqs_list", [])
+    
+    if skip_all or (isinstance(skip_list, list) and "node" in skip_list):
+        logger.warning(
+            "Skipping node availability check (skip_prereqs enabled). "
+            "Assuming node is available."
+        )
+        return True
+    
     return get_node_version() is not None

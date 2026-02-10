@@ -83,6 +83,26 @@ To change the worker's model, edit `~/.openclaw/agents/worker/config.json`:
 }
 ```
 
+### Prerequisite Checks
+
+The orchestrator checks for required tools (node, npm, gh, tsc, etc.) before running certain operations. If tool detection is failing incorrectly, you can bypass these checks:
+
+**Skip all checks:**
+```json
+{
+  "skip_prereqs": true
+}
+```
+
+**Skip specific tools:**
+```json
+{
+  "skip_prereqs_list": ["node", "gh", "tsc"]
+}
+```
+
+When skipping, the orchestrator logs warnings but allows work to proceed. See [SETTINGS.md](SETTINGS.md) for details.
+
 ## Control Operations
 
 To request a state change (e.g., update a task), other components or workers should create a JSON file in `lobs-control/state/control-ops/`.

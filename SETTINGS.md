@@ -40,6 +40,8 @@ python3 setup_config.py \
 | `orchestrator_repo_path` | `--orchestrator-repo` | Current directory | Orchestrator repo path |
 | `poll_interval` | `--poll-interval` | `10` | Polling interval (seconds) |
 | `openclaw_executable` | `--openclaw-executable` | `openclaw` | OpenClaw command |
+| `skip_prereqs` | N/A | `false` | Skip all prerequisite/tool checks |
+| `skip_prereqs_list` | N/A | `[]` | List of specific tools to skip checking |
 
 ### Ollama
 | Setting | Flag | Default | Description |
@@ -47,6 +49,14 @@ python3 setup_config.py \
 | `ollama_url` | `--ollama-url` | `http://localhost:11434` | Ollama API endpoint |
 | `ollama_model` | `--ollama-model` | `llama3.1` | Model to use |
 | `ollama_keep_alive` | `--ollama-keep-alive` | `5m` | Model memory retention |
+
+### Prerequisite Checks
+| Setting | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `skip_prereqs` | N/A | `false` | Skip all tool detection checks |
+| `skip_prereqs_list` | N/A | `[]` | Skip specific tools (e.g., `["node", "gh", "tsc"]`) |
+
+**Note:** These settings allow work to proceed even when tool detection fails incorrectly. Edit `.lobs_settings.json` directly to configure.
 
 ## Settings File
 
@@ -109,6 +119,39 @@ python3 setup_config.py --ollama-model llama3.1
 # 3. Verify
 python3 setup_config.py --show
 ```
+
+### Skip Prerequisite Checks
+
+When tool detection fails but you know the tools are actually available:
+
+**Skip all checks:**
+```bash
+# Edit .lobs_settings.json and add:
+{
+  "skip_prereqs": true,
+  ...
+}
+```
+
+**Skip specific tools:**
+```bash
+# Edit .lobs_settings.json and add:
+{
+  "skip_prereqs_list": ["node", "gh", "tsc"],
+  ...
+}
+```
+
+**Skip both (specific list takes precedence):**
+```bash
+{
+  "skip_prereqs": false,
+  "skip_prereqs_list": ["gh"],
+  ...
+}
+```
+
+The orchestrator will log warnings when skipping checks, allowing work to proceed.
 
 ### Change Ollama Model
 ```bash

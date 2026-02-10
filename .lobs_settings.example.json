@@ -1,0 +1,15 @@
+{
+  "base_dir": "/home/rafe",
+  "control_repo_path": "/home/rafe/lobs-control",
+  "orchestrator_repo_path": "/home/rafe/lobs-orchestrator",
+  "poll_interval": 10,
+  "openclaw_executable": "openclaw",
+  "ollama_model": "llama3.1",
+  "ollama_keep_alive": "5m",
+  
+  "_comment_skip_prereqs": "Set to true to skip all prerequisite/tool detection checks",
+  "skip_prereqs": false,
+  
+  "_comment_skip_prereqs_list": "List specific tools to skip checking (e.g., ['node', 'gh', 'tsc'])",
+  "skip_prereqs_list": []
+}
