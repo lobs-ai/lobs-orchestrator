@@ -1,5 +1,5 @@
 {
-  "total_completed": 17,
+  "total_completed": 18,
   "total_failed": 30,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -154,6 +154,15 @@
       "agent_type": "programmer",
       "kind": "task",
       "started_at": "2026-02-10T20:37:27.795620+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "02850EF6-18B3-4321-B673-E366C57B63EB",
+      "project_id": "lobs-orchestrator",
+      "title": "Auto-retry failed tasks with backoff",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:37:39.277442+00:00",
       "status": "completed"
     }
   ],
@@ -429,5 +438,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T20:38:31.603033+00:00"
+  "last_updated": "2026-02-10T20:42:34.440694+00:00"
 }
