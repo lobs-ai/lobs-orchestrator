@@ -1,6 +1,6 @@
 {
   "total_completed": 13,
-  "total_failed": 0,
+  "total_failed": 1,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -121,6 +121,16 @@
       "status": "completed"
     }
   ],
-  "failed": [],
-  "last_updated": "2026-02-10T18:37:18.661547+00:00"
+  "failed": [
+    {
+      "task_id": "B8BC4739-2E87-4332-9C07-659604EAAA30",
+      "project_id": "flock",
+      "title": "Resolve TODO in DeepLinkHandler.swift:127",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T19:40:15.328927+00:00",
+      "status": "failed"
+    }
+  ],
+  "last_updated": "2026-02-10T19:40:46.605478+00:00"
 }
