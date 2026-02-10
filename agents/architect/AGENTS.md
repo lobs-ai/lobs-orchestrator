@@ -157,6 +157,57 @@ Write a short summary to `.work-summary`:
 echo "Designed user authentication system - design doc in docs/auth-design.md, 6 implementation tasks defined" > .work-summary
 ```
 
+## Handoffs
+
+Delegate specialized work to other agents as part of your design process:
+
+**Valid handoffs from Architect:**
+- → `programmer`: Implement parts of your design
+- → `researcher`: Technical research, feasibility studies, library evaluation
+
+**Example: Delegating implementation**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "programmer",
+  "initiative": "user-auth-system",
+  "title": "Implement JWT authentication middleware",
+  "context": "Per design doc at docs/auth-design.md section 3. Use RS256 signing, 15min access token expiry.",
+  "acceptance": "Working middleware that validates JWT tokens per spec. Tests included.",
+  "files": ["docs/auth-design.md", "src/auth/"]
+}
+EOF
+```
+
+**Example: Requesting research**
+
+```bash
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "researcher",
+  "initiative": "distributed-caching",
+  "title": "Research distributed cache options for session storage",
+  "context": "Need to evaluate Redis vs Memcached vs DynamoDB for session storage. Requirements: <1ms p99 latency, multi-region, automatic failover.",
+  "acceptance": "Comparison matrix with performance benchmarks, cost analysis, and recommendation.",
+  "files": ["docs/requirements.md"]
+}
+EOF
+```
+
+**Schema:**
+```json
+{
+  "to": "programmer|researcher",
+  "initiative": "high-level-theme",
+  "title": "Specific task title",
+  "context": "Why needed, background, constraints",
+  "acceptance": "What done looks like",
+  "files": ["relevant/files"]
+}
+```
+
 ## If You Get Stuck
 
 If you don't have enough information to design:

@@ -21,6 +21,7 @@ from orchestrator.core.escalation import EscalationManager
 from orchestrator.core.agents import AgentManager
 from orchestrator.core.ollama_client import OllamaClient
 from orchestrator.core.registry import AgentRegistry, AgentConfig
+from orchestrator.core.collaboration import CollaborationManager
 
 logger = logging.getLogger(__name__)
 
@@ -1087,6 +1088,69 @@ class WorkerManager:
         
         return summary, was_blocked
 
+    def _process_handoffs(self, task_id: str, project_id: str, agent_id: str) -> None:
+        """Read and process agent handoffs from .handoffs/ directory.
+        
+        Agents can create handoff files in .handoffs/{id}.json to delegate work
+        to other specialized agents. Each handoff creates a new task.
+        """
+        project_path = self._get_repo_path(project_id)
+        handoffs_dir = project_path / ".handoffs"
+        
+        if not handoffs_dir.exists() or not handoffs_dir.is_dir():
+            return
+        
+        handoff_files = list(handoffs_dir.glob("*.json"))
+        if not handoff_files:
+            return
+        
+        logger.info(f"[HANDOFF] Found {len(handoff_files)} handoff(s) from task {task_id[:8]}")
+        
+        # Initialize CollaborationManager
+        collab = CollaborationManager(self.provider)
+        
+        for handoff_file in handoff_files:
+            try:
+                handoff_data = json.loads(handoff_file.read_text())
+                
+                # Transform agent handoff format to collaboration manager format
+                payload = {
+                    "from": agent_id,
+                    "to": handoff_data.get("to", "programmer"),
+                    "initiative": handoff_data.get("initiative", handoff_data.get("title", "handoff")),
+                    "work": {
+                        "title": handoff_data.get("title", "Untitled handoff"),
+                        "context": handoff_data.get("context"),
+                        "acceptance": handoff_data.get("acceptance"),
+                    },
+                    "projectId": project_id,
+                }
+                
+                # Create the handoff task
+                new_task_id = collab.process_handoff(
+                    payload,
+                    parent_task_id=task_id,
+                    default_project_id=project_id,
+                )
+                
+                logger.info(
+                    f"[HANDOFF] Created task {new_task_id[:8]} "
+                    f"({agent_id} → {payload['to']}) "
+                    f"for '{payload['work']['title']}'"
+                )
+                
+            except Exception as e:
+                logger.error(f"[HANDOFF] Failed to process {handoff_file.name}: {e}", exc_info=True)
+        
+        # Clean up .handoffs/ directory after processing
+        try:
+            for handoff_file in handoff_files:
+                handoff_file.unlink()
+            handoffs_dir.rmdir()
+            logger.debug(f"[HANDOFF] Cleaned up .handoffs/ directory")
+        except Exception as e:
+            logger.warning(f"[HANDOFF] Failed to clean up .handoffs/ directory: {e}")
+
     def _generate_commit_message(self, task_id: str, project_id: str, project_path: Path, work_summary: str, task_title: str = "") -> str:
         """Generate commit message from work summary, task title, or git diff."""
         if work_summary:
@@ -1772,6 +1836,9 @@ class WorkerManager:
             self.failure_rotation.record_success(task_id)
         except Exception:
             logger.debug("Failed to record success for failure rotation", exc_info=True)
+
+        # Process any handoffs created by the agent
+        self._process_handoffs(task_id, project_id, agent_id)
 
         self.provider.update_task(
             task_id,

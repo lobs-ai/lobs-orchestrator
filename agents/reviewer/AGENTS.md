@@ -127,6 +127,57 @@ Write a short summary to `.work-summary`:
 echo "Reviewed auth middleware changes - 2 critical issues, 3 suggestions. Details in review.md" > .work-summary
 ```
 
+## Handoffs
+
+Delegate fixes or improvements to other agents based on your review findings:
+
+**Valid handoffs from Reviewer:**
+- → `programmer`: Fix bugs, refactor code, implement improvements
+- → `architect`: Rethink design for major architectural issues
+
+**Example: Delegating fixes**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "programmer",
+  "initiative": "auth-system-hardening",
+  "title": "Fix SQL injection vulnerability in user search",
+  "context": "Review found SQL injection risk in src/user/search.py line 42. User input not sanitized before query construction. See review.md for details.",
+  "acceptance": "Parameterized queries used, input validation added, tests verify fix.",
+  "files": ["src/user/search.py", "review.md"]
+}
+EOF
+```
+
+**Example: Escalating design issues**
+
+```bash
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "architect",
+  "initiative": "session-management",
+  "title": "Redesign session storage approach",
+  "context": "Current implementation (local memory cache) won't scale past single instance. Review in review.md section 3. Need distributed session strategy.",
+  "acceptance": "Architecture doc with scalable session storage design.",
+  "files": ["src/auth/sessions.py", "review.md"]
+}
+EOF
+```
+
+**Schema:**
+```json
+{
+  "to": "programmer|architect",
+  "initiative": "high-level-theme",
+  "title": "Specific task title",
+  "context": "What needs fixing/redesigning and why",
+  "acceptance": "What done looks like",
+  "files": ["relevant/files"]
+}
+```
+
 ## If Issues Are Critical
 
 If you find blocking issues:

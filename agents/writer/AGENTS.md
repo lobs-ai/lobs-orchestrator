@@ -118,6 +118,10 @@ Write a short summary to `.work-summary`:
 echo "Wrote API authentication guide - docs/auth.md (1500 words)" > .work-summary
 ```
 
+## Handoffs
+
+Writers typically complete their work independently. If you need technical research or architectural decisions made before you can write, note that in your work summary and mark as blocked.
+
 ## If You Get Stuck
 
 If you don't have enough information to write:

@@ -91,6 +91,41 @@ Write a short summary to `.work-summary`:
 echo "Researched OAuth2 vs JWT for API auth - report in docs/auth-research.md" > .work-summary
 ```
 
+## Handoffs
+
+Hand off follow-up work based on your research findings:
+
+**Valid handoffs from Researcher:**
+- → `architect`: Design decisions based on research findings
+
+**Example:**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "architect",
+  "initiative": "api-authentication",
+  "title": "Design authentication system based on OAuth2 research",
+  "context": "Research complete in docs/auth-research.md. OAuth2 with PKCE recommended for our use case. Need architectural design for implementation.",
+  "acceptance": "Architecture document with implementation plan.",
+  "files": ["docs/auth-research.md"]
+}
+EOF
+```
+
+**Schema:**
+```json
+{
+  "to": "architect",
+  "initiative": "high-level-theme",
+  "title": "Specific task title",
+  "context": "Why needed, background from research",
+  "acceptance": "What done looks like",
+  "files": ["relevant/files"]
+}
+```
+
 ## If You Get Stuck
 
 If you can't find the information needed:

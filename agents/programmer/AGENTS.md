@@ -60,6 +60,56 @@ If you had to make assumptions or deviate from spec, note that:
 echo "Added login endpoint. Note: used bcrypt for password hashing (spec didn't specify algorithm)" > .work-summary
 ```
 
+## Handoffs
+
+If your task requires work from another specialized agent, you can hand off work:
+
+1. Create a `.handoffs/` directory in the project root
+2. Write handoff files: `.handoffs/{unique-id}.json`
+3. Use this schema:
+
+```json
+{
+  "to": "architect",
+  "initiative": "user-auth-system",
+  "title": "Design session management architecture",
+  "context": "Need architectural guidance for handling distributed sessions. Current implementation uses JWT but scaling concerns exist.",
+  "acceptance": "Architecture document with session storage strategy, caching approach, and security considerations.",
+  "files": ["src/auth/sessions.py", "docs/architecture.md"]
+}
+```
+
+**Fields:**
+- `to` (required): Target agent — `programmer`, `researcher`, `reviewer`, `writer`, or `architect`
+- `initiative` (required): High-level theme/project that connects related tasks
+- `title` (required): Clear, specific task title
+- `context` (optional): Why this is needed, relevant background, constraints
+- `acceptance` (optional): What "done" looks like
+- `files` (optional): Relevant files for context
+
+**Valid handoffs from Programmer:**
+- → `reviewer`: Code review, refactoring suggestions
+- → `researcher`: Technical research, library evaluation
+- → `architect`: Design decisions, system architecture
+
+**Example:**
+
+```bash
+mkdir -p .handoffs
+cat > .handoffs/$(uuidgen).json << 'EOF'
+{
+  "to": "reviewer",
+  "initiative": "api-optimization",
+  "title": "Review database query performance",
+  "context": "Added new indexing strategy. Need review for edge cases and query optimization.",
+  "acceptance": "Performance review with recommendations.",
+  "files": ["src/db/queries.py", "migrations/add_indexes.sql"]
+}
+EOF
+```
+
+The orchestrator will automatically create tasks from handoffs when your task completes.
+
 ## If You Get Stuck
 
 If you genuinely cannot complete the task:
