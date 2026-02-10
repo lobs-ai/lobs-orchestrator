@@ -126,6 +126,8 @@ class ControlManager:
             self._update_project(op["project_id"], op["updates"])
         elif op_type == "update_worker_status":
             self._update_worker_status(op["updates"])
+        elif op_type == "add_project":
+            self._add_project(op["project"])
         elif op_type == "update_alert":
             self._update_alert(op["alert_id"], op["updates"])
         elif op_type == "update_inbox_item":
@@ -199,6 +201,45 @@ class ControlManager:
                     logger.info(f"Updated legacy tasks file {TASKS_FILE}")
             except Exception as e:
                 logger.error(f"Failed to update legacy tasks file: {e}")
+
+    def _add_project(self, project: dict[str, Any]) -> None:
+        """Add or replace a project in projects.json."""
+        from orchestrator.config import PROJECTS_FILE
+
+        PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        data: dict[str, Any]
+        if PROJECTS_FILE.exists():
+            try:
+                with open(PROJECTS_FILE, "r") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {"projects": []}
+        else:
+            data = {"projects": []}
+
+        projects: list[dict[str, Any]] = data.get("projects", [])
+        project_id = project.get("id")
+        if not project_id:
+            raise ValueError("Project is missing required field 'id'")
+
+        replaced = False
+        for i, existing in enumerate(projects):
+            if existing.get("id") == project_id:
+                projects[i] = project
+                replaced = True
+                break
+
+        if not replaced:
+            projects.append(project)
+
+        data["projects"] = projects
+
+        with open(PROJECTS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+
+        logger.info(f"{'Replaced' if replaced else 'Added'} project {project_id}")
 
     def _update_project(self, project_id: str, updates: dict[str, Any]) -> None:
         from orchestrator.config import PROJECTS_FILE

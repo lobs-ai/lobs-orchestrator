@@ -38,6 +38,15 @@ def main():
         sys.exit(1)
 
     orchestrator = Orchestrator(provider)
+
+    # Start local Dashboard API (for repo onboarding, etc.)
+    try:
+        from orchestrator.api.server import DashboardAPIServer
+
+        DashboardAPIServer().start()
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to start Dashboard API: {e}")
+
     try:
         orchestrator.loop()
     except KeyboardInterrupt:

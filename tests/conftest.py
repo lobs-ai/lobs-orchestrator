@@ -39,7 +39,11 @@ def temp_control_repo(tmp_path, temp_settings, monkeypatch):
     importlib.reload(orchestrator.services.scanner)
     import orchestrator.core.worker
     importlib.reload(orchestrator.core.worker)
-    
+
+    # Reload onboarding module (it imports config at module import time)
+    import orchestrator.services.github_onboarding
+    importlib.reload(orchestrator.services.github_onboarding)
+
     return control_dir
 
 from orchestrator.utils.settings import set_setting
