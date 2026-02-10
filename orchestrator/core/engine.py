@@ -20,7 +20,7 @@ from typing import Any
 
 from orchestrator.utils.work_windows import prioritize_tasks_by_work_windows
 
-from orchestrator.config import POLL_INTERVAL, STATE_DIR, CONTROL_REPO_PATH, TASKS_DIR
+from orchestrator.config import POLL_INTERVAL, STATE_DIR, CONTROL_REPO_PATH, TASKS_DIR, MAX_WORKERS
 from orchestrator.core.worker import WorkerManager
 from orchestrator.core.router import Router
 from orchestrator.core.collaboration import CollaborationManager
@@ -66,6 +66,7 @@ class Orchestrator:
             failure_rotation=self.failure_rotation,
             collaboration_manager=self.collaboration,
             awareness_monitor=self.awareness,
+            max_workers=MAX_WORKERS,
         )
         self.router = Router()
         self.reconciler = Reconciler(provider)

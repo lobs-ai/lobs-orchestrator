@@ -113,6 +113,7 @@ class WorkerManager:
         failure_rotation: FailureRotation | None = None,
         collaboration_manager: CollaborationManager | None = None,
         awareness_monitor: Any | None = None,
+        max_workers: int = 5,
     ):
         """
         Initialize WorkerManager.
@@ -123,12 +124,14 @@ class WorkerManager:
             failure_rotation: Failure rotation manager
             collaboration_manager: Collaboration manager for agent handoffs
             awareness_monitor: Awareness monitor for tracking system state
+            max_workers: Maximum number of concurrent workers (default: 5)
         """
         self.state_dir = state_dir
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.provider = provider
         self.escalation = EscalationManager(provider)
         self.failure_rotation = failure_rotation or FailureRotation(state_dir)
+        self.max_workers = max_workers
 
         # Collaboration manager for agent-to-agent handoffs.
         # Engine wires this in so collaboration state is centralized.
@@ -450,13 +453,26 @@ class WorkerManager:
     ) -> bool:
         """
         Spawn a worker for the given task.
-        Returns True if spawned, False if project already has an active worker.
+        Returns True if spawned, False if at capacity or project already has an active worker.
         
-        Enforces one worker per project at a time. When a project is locked,
-        the engine will queue the task and retry on the next poll cycle.
+        Enforces:
+        1. Global max_workers limit (default: 5 concurrent workers)
+        2. One worker per project at a time
+        
+        When at capacity or project is locked, the engine will queue the task 
+        and retry on the next poll cycle.
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
+
+        # Check global worker capacity
+        active_count = len(self.active_workers)
+        if active_count >= self.max_workers:
+            logger.info(
+                f"[CAPACITY] At max capacity ({active_count}/{self.max_workers} workers). "
+                f"Queueing task {task_id[:8]}."
+            )
+            return False
 
         # Check if project already has an active worker
         if project_id in self.project_locks:

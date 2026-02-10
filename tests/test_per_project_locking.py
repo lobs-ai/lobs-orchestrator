@@ -69,7 +69,7 @@ def test_single_project_lock(worker_manager, mock_provider):
         worker_manager.project_locks[project_id] = "task-1"
         worker_manager.pending_workers.discard("task-1")
         worker_manager.active_workers["task-1"] = (
-            Mock(), project_id, Mock(), time.time(), "programmer", "Task 1", "programmer"
+            Mock(), project_id, Mock(), time.time(), "programmer", "Task 1", "programmer", "worker-1"
         )
         
         # Second spawn for same project should fail (queued)
@@ -104,7 +104,7 @@ def test_different_projects_parallel(worker_manager, mock_provider):
         worker_manager.project_locks["project-a"] = "task-1"
         worker_manager.pending_workers.discard("task-1")
         worker_manager.active_workers["task-1"] = (
-            Mock(), "project-a", Mock(), time.time(), "programmer", "Task 1", "programmer"
+            Mock(), "project-a", Mock(), time.time(), "programmer", "Task 1", "programmer", "worker-1"
         )
         
         # Spawn worker for project-b should also succeed (different project)
@@ -132,7 +132,7 @@ def test_lock_released_on_completion(worker_manager, mock_provider):
     
     worker_manager.project_locks[project_id] = "task-1"
     worker_manager.active_workers["task-1"] = (
-        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer"
+        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer", "worker-1"
     )
     
     # Check workers (should detect completion)
@@ -159,7 +159,7 @@ def test_lock_released_on_failure(worker_manager, mock_provider):
     
     worker_manager.project_locks[project_id] = "task-1"
     worker_manager.active_workers["task-1"] = (
-        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer"
+        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer", "worker-1"
     )
     
     # Mock the finalization methods
@@ -197,6 +197,85 @@ def test_lock_reacquired_on_restart(worker_manager, mock_provider):
     assert "project-a" in worker_manager.project_locks
     assert worker_manager.project_locks["project-a"] == "task-1"
     assert "task-1" in worker_manager.active_workers
+
+
+def test_max_workers_capacity(worker_manager, mock_provider):
+    """Test that worker spawning respects max_workers limit."""
+    # Set max_workers to 3 for this test
+    worker_manager.max_workers = 3
+    
+    tasks = [
+        {"id": f"task-{i}", "title": f"Task {i}", "kind": "task"}
+        for i in range(5)
+    ]
+    projects = [f"project-{i}" for i in range(5)]
+    
+    with patch.object(worker_manager.executor, 'submit') as mock_submit:
+        # Spawn 3 workers (should all succeed - different projects, under capacity)
+        for i in range(3):
+            result = worker_manager.spawn_worker(tasks[i], projects[i])
+            assert result is True, f"Worker {i+1}/3 should spawn successfully"
+            
+            # Simulate worker starting (acquire lock, move to active)
+            worker_manager.project_locks[projects[i]] = tasks[i]["id"]
+            worker_manager.pending_workers.discard(tasks[i]["id"])
+            worker_manager.active_workers[tasks[i]["id"]] = (
+                Mock(), projects[i], Mock(), time.time(), "programmer", 
+                f"Task {i}", "programmer", f"worker-{i}"
+            )
+        
+        # Verify we're at capacity
+        assert len(worker_manager.active_workers) == 3
+        
+        # Try to spawn 4th worker (should fail - at capacity)
+        result = worker_manager.spawn_worker(tasks[3], projects[3])
+        assert result is False, "4th worker should be queued (at capacity)"
+        assert tasks[3]["id"] not in worker_manager.active_workers
+        assert tasks[3]["id"] not in worker_manager.pending_workers
+        
+        # Complete one worker
+        del worker_manager.active_workers[tasks[0]["id"]]
+        del worker_manager.project_locks[projects[0]]
+        
+        # Now we should have capacity again
+        assert len(worker_manager.active_workers) == 2
+        result = worker_manager.spawn_worker(tasks[3], projects[3])
+        assert result is True, "Should spawn successfully after capacity freed up"
+        assert tasks[3]["id"] in worker_manager.pending_workers
+
+
+def test_max_workers_with_project_locks(worker_manager, mock_provider):
+    """Test that project locks work correctly with max_workers capacity."""
+    # Set max_workers to 5
+    worker_manager.max_workers = 5
+    
+    tasks = [
+        {"id": f"task-{i}", "title": f"Task {i}", "kind": "task"}
+        for i in range(3)
+    ]
+    
+    with patch.object(worker_manager.executor, 'submit') as mock_submit:
+        # Spawn 2 workers for same project (second should be blocked by project lock, not capacity)
+        result1 = worker_manager.spawn_worker(tasks[0], "project-a")
+        assert result1 is True
+        
+        # Simulate worker 1 starting
+        worker_manager.project_locks["project-a"] = tasks[0]["id"]
+        worker_manager.pending_workers.discard(tasks[0]["id"])
+        worker_manager.active_workers[tasks[0]["id"]] = (
+            Mock(), "project-a", Mock(), time.time(), "programmer",
+            "Task 0", "programmer", "worker-0"
+        )
+        
+        # Second task for same project should fail due to project lock
+        result2 = worker_manager.spawn_worker(tasks[1], "project-a")
+        assert result2 is False, "Should be blocked by project lock"
+        assert tasks[1]["id"] not in worker_manager.active_workers
+        
+        # Third task for different project should succeed (under capacity, different project)
+        result3 = worker_manager.spawn_worker(tasks[2], "project-b")
+        assert result3 is True
+        assert tasks[2]["id"] in worker_manager.pending_workers
 
 
 if __name__ == "__main__":

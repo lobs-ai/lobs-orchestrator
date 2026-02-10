@@ -19,6 +19,9 @@ PROJECTS_FILE = (CONTROL_REPO_PATH / "state" / "projects.json").resolve()
 # Polling interval in seconds
 POLL_INTERVAL = get_setting("poll_interval", 10)
 
+# Maximum number of concurrent workers
+MAX_WORKERS = get_setting("max_workers", 5)
+
 # State directory (for compatibility; worker state is in ~/.openclaw/worker-state.json)
 STATE_DIR = (ORCHESTRATOR_REPO_PATH / "state").resolve()
 
