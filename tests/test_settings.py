@@ -1,5 +1,6 @@
 import json
-from orchestrator.utils.settings import load_settings, save_settings, get_setting, set_setting
+from pathlib import Path
+from orchestrator.utils.settings import load_settings, save_settings, get_setting, set_setting, reset_settings
 
 def test_load_settings_empty(temp_settings):
     """Test loading settings when the file does not exist."""
@@ -25,3 +26,46 @@ def test_load_settings_invalid_json(temp_settings):
     """Test loading settings when the file contains invalid JSON."""
     temp_settings.write_text("invalid json")
     assert load_settings() == {}
+
+def test_reset_settings(temp_settings, tmp_path):
+    """Test reset_settings deletes settings file and state files."""
+    # Create settings file
+    set_setting("test_key", "test_value")
+    assert temp_settings.exists()
+    
+    # Create state directory and files
+    state_dir = Path("state")
+    state_dir.mkdir(exist_ok=True)
+    state_file1 = state_dir / "test-state.json"
+    state_file2 = state_dir / "another-state.json"
+    state_file1.write_text('{"test": "data"}')
+    state_file2.write_text('{"more": "data"}')
+    
+    # Run reset
+    results = reset_settings()
+    
+    # Verify settings file deleted
+    assert results["settings_file"] is True
+    assert not temp_settings.exists()
+    
+    # Verify our test state files were included in deletion
+    assert "test-state.json" in results["state_files"]
+    assert "another-state.json" in results["state_files"]
+    assert not state_file1.exists()
+    assert not state_file2.exists()
+    
+    # Worker state check (may not exist in test environment)
+    assert "worker_state" in results
+
+def test_reset_settings_no_files(temp_settings):
+    """Test reset_settings when no files exist."""
+    # Ensure settings file doesn't exist
+    if temp_settings.exists():
+        temp_settings.unlink()
+    
+    results = reset_settings()
+    
+    # Should report nothing was deleted
+    assert results["settings_file"] is False
+    assert results["state_files"] == []
+    assert results["worker_state"] is False

@@ -1,7 +1,7 @@
 import sys
-from unittest.mock import patch
-from orchestrator.utils.cli import parse_args, apply_args
-from orchestrator.utils.settings import get_setting
+from unittest.mock import patch, MagicMock
+from orchestrator.utils.cli import parse_args, apply_args, perform_reset
+from orchestrator.utils.settings import get_setting, set_setting
 
 def test_parse_args_all_flags():
     """Test that all CLI flags are correctly parsed."""
@@ -22,6 +22,13 @@ def test_parse_args_all_flags():
         assert args.orchestrator_repo == "/tmp/orch"
         assert args.poll_interval == 30
         assert args.openclaw_executable == "/usr/local/bin/openclaw"
+
+def test_parse_args_reset_flag():
+    """Test that --reset flag is correctly parsed."""
+    test_args = ["main.py", "--reset"]
+    with patch.object(sys, 'argv', test_args):
+        args = parse_args()
+        assert args.reset is True
 
 def test_apply_args(temp_settings):
     """Test that apply_args correctly updates settings."""
@@ -44,3 +51,42 @@ def test_apply_args(temp_settings):
     assert get_setting("poll_interval") == 15
     # Non-provided args should not change settings (or remain None/default)
     assert get_setting("control_repo_path") is None
+
+def test_perform_reset_cancelled(temp_settings, monkeypatch, capsys):
+    """Test that perform_reset can be cancelled."""
+    # Mock user input to cancel
+    monkeypatch.setattr('builtins.input', lambda _: 'n')
+    
+    # Create a settings file
+    set_setting("test_key", "test_value")
+    
+    # Run reset (should cancel)
+    perform_reset()
+    
+    # Verify settings file still exists
+    from orchestrator.utils.settings import SETTINGS_FILE
+    assert SETTINGS_FILE.exists()
+    
+    # Check output
+    captured = capsys.readouterr()
+    assert "Reset cancelled" in captured.out
+
+def test_perform_reset_confirmed(temp_settings, monkeypatch, capsys):
+    """Test that perform_reset works when confirmed."""
+    # Mock user input to confirm
+    monkeypatch.setattr('builtins.input', lambda _: 'y')
+    
+    # Create a settings file
+    set_setting("test_key", "test_value")
+    
+    # Run reset (should proceed)
+    perform_reset()
+    
+    # Verify settings file deleted
+    from orchestrator.utils.settings import SETTINGS_FILE
+    assert not SETTINGS_FILE.exists()
+    
+    # Check output
+    captured = capsys.readouterr()
+    assert "Reset Complete" in captured.out
+    assert "Deleted .lobs_settings.json" in captured.out or "No .lobs_settings.json found" in captured.out

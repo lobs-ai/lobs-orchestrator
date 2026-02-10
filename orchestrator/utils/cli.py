@@ -1,7 +1,7 @@
 import argparse
 import logging
 import sys
-from orchestrator.utils.settings import set_setting, get_setting
+from orchestrator.utils.settings import set_setting, get_setting, reset_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Lobs Orchestrator")
@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--ollama-keep-alive", help="How long to keep model loaded (e.g., 5m, 1h, -1)")
 
     parser.add_argument("--show", action="store_true", help="Show current settings")
+    parser.add_argument("--reset", action="store_true", help="Reset all settings and state for fresh onboarding")
 
     return parser.parse_args()
 
@@ -134,8 +135,60 @@ def apply_args(args):
 
 def setup_orchestrator():
     args = parse_args()
+    
+    # Handle reset first (exits after completion)
+    if args.reset:
+        perform_reset()
+        sys.exit(0)
+    
     apply_args(args)
     if args.show:
         show_settings()
         sys.exit(0)
     return args
+
+def perform_reset():
+    """Reset all settings and state for fresh onboarding."""
+    print("\n🔄 Resetting Lobs Orchestrator Settings & State")
+    print("=" * 50)
+    print("\nThis will delete:")
+    print("  • .lobs_settings.json")
+    print("  • state/*.json (orchestrator state)")
+    print("  • ~/.openclaw/worker-state.json")
+    print("")
+    
+    confirm = input("Are you sure you want to reset? [y/N]: ").strip().lower()
+    if confirm not in ('y', 'yes'):
+        print("\n❌ Reset cancelled.")
+        return
+    
+    print("\n⏳ Resetting...")
+    results = reset_settings()
+    
+    print("\n✅ Reset Complete\n")
+    print("Results:")
+    
+    # Settings file
+    if results.get("settings_file"):
+        print("  ✅ Deleted .lobs_settings.json")
+    else:
+        print("  ℹ️  No .lobs_settings.json found")
+    
+    # State files
+    state_files = results.get("state_files", [])
+    if state_files:
+        print(f"  ✅ Deleted {len(state_files)} state file(s):")
+        for fname in state_files:
+            print(f"     • {fname}")
+    else:
+        print("  ℹ️  No state files found")
+    
+    # Worker state
+    if results.get("worker_state"):
+        print("  ✅ Deleted ~/.openclaw/worker-state.json")
+    else:
+        print("  ℹ️  No worker state found")
+    
+    print("\n🎉 Orchestrator reset to fresh state.")
+    print("You can now run setup or onboarding from scratch.")
+    print("")

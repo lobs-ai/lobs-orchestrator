@@ -7,6 +7,18 @@
 python3 setup_config.py --show
 ```
 
+### Reset all settings (for testing onboarding)
+```bash
+python3 setup_config.py --reset
+```
+
+This will delete:
+- `.lobs_settings.json` (all orchestrator settings)
+- `state/*.json` (orchestrator state files)
+- `~/.openclaw/worker-state.json` (worker state)
+
+You'll be prompted to confirm before deletion.
+
 ### Update settings
 ```bash
 # General settings
@@ -246,10 +258,10 @@ python3 setup_config.py --show
 
 ### Want to reset to defaults
 ```bash
-# Delete settings file
-rm .lobs_settings.json
+# Use the reset command (recommended)
+python3 setup_config.py --reset
 
-# Recreate with defaults
+# Then recreate with defaults
 python3 setup_config.py --show
 ```
 

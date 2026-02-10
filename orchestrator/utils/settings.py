@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -24,3 +25,39 @@ def set_setting(key: str, value: Any) -> None:
     settings = load_settings()
     settings[key] = value
     save_settings(settings)
+
+def reset_settings() -> dict[str, bool]:
+    """
+    Reset all settings and state for fresh onboarding.
+    Returns dict of what was reset.
+    """
+    results = {}
+    
+    # Reset settings file
+    if SETTINGS_FILE.exists():
+        SETTINGS_FILE.unlink()
+        results["settings_file"] = True
+    else:
+        results["settings_file"] = False
+    
+    # Reset orchestrator state directory
+    state_dir = Path("state")
+    if state_dir.exists() and state_dir.is_dir():
+        # Clear all JSON files in state directory
+        state_files_removed = []
+        for state_file in state_dir.glob("*.json"):
+            state_file.unlink()
+            state_files_removed.append(state_file.name)
+        results["state_files"] = state_files_removed
+    else:
+        results["state_files"] = []
+    
+    # Reset worker state (OpenClaw)
+    worker_state_file = Path.home() / ".openclaw" / "worker-state.json"
+    if worker_state_file.exists():
+        worker_state_file.unlink()
+        results["worker_state"] = True
+    else:
+        results["worker_state"] = False
+    
+    return results
