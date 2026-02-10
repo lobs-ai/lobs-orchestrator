@@ -407,19 +407,43 @@ class WorkerManager:
 
                     success = self.finalize_project_changes(task_id, project_id, task_title)
                     if success:
-                        self.handle_worker_success(task_id, project_id, agent_id, start_time)
+                        self.handle_worker_success(task_id, project_id, agent_id, start_time, task_title)
                     else:
-                        self.handle_worker_failure(task_id, project_id, "Failed to finalize changes", agent_id, start_time=start_time)
+                        self.handle_worker_failure(
+                            task_id,
+                            project_id,
+                            "Failed to finalize changes",
+                            agent_id,
+                            start_time=start_time,
+                            task_title=task_title,
+                            failure_reason="finalize_failed",
+                        )
 
                 except Exception as e:
                     error_msg = f"Ollama execution failed: {e}"
                     logger.error(error_msg)
                     log_file.write(f"\n\n=== ERROR ===\n{error_msg}\n")
-                    self.handle_worker_failure(task_id, project_id, error_msg, agent_id, start_time=start_time)
+                    self.handle_worker_failure(
+                        task_id,
+                        project_id,
+                        error_msg,
+                        agent_id,
+                        start_time=start_time,
+                        task_title=task_title,
+                        failure_reason="ollama_failed",
+                    )
 
         except Exception as e:
             logger.error(f"Failed to spawn Ollama worker for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e), agent_id, start_time=start_time)
+            self.handle_worker_failure(
+                task_id,
+                project_id,
+                str(e),
+                agent_id,
+                start_time=start_time,
+                task_title=task_title,
+                failure_reason="ollama_spawn_failed",
+            )
         finally:
             self._clear_state()
             self.pending_workers.discard(task_id)
@@ -516,7 +540,14 @@ class WorkerManager:
         except Exception as e:
             logger.error(f"Failed to spawn worker for {task_id}: {e}")
             self._clear_state()
-            self.handle_worker_failure(task_id, project_id, str(e), agent_id)
+            self.handle_worker_failure(
+                task_id,
+                project_id,
+                str(e),
+                agent_id,
+                task_title=task_title,
+                failure_reason="spawn_failed",
+            )
             self.pending_workers.discard(task_id)
             self._update_provider_status()
 
@@ -579,7 +610,15 @@ class WorkerManager:
         except Exception as e:
             logger.warning(f"WIP finalization failed for {task_id[:8]}: {e}")
 
-        self.handle_worker_failure(task_id, project_id, error_tail, agent_id, start_time=start_time)
+        self.handle_worker_failure(
+            task_id,
+            project_id,
+            error_tail,
+            agent_id,
+            start_time=start_time,
+            task_title=task_title,
+            failure_reason="worker_nonzero_exit",
+        )
         self._clear_state()
 
     def _async_finalize_flow(self, task_id: str, project_id: str, agent_id: str, start_time: float, task_title: str = ""):
@@ -587,12 +626,28 @@ class WorkerManager:
         try:
             success = self.finalize_project_changes(task_id, project_id, task_title)
             if success:
-                self.handle_worker_success(task_id, project_id, agent_id, start_time)
+                self.handle_worker_success(task_id, project_id, agent_id, start_time, task_title)
             else:
-                self.handle_worker_failure(task_id, project_id, "Project repo push failed", agent_id, start_time=start_time)
+                self.handle_worker_failure(
+                    task_id,
+                    project_id,
+                    "Project repo push failed",
+                    agent_id,
+                    start_time=start_time,
+                    task_title=task_title,
+                    failure_reason="finalize_failed",
+                )
         except Exception as e:
             logger.error(f"Error in finalization for {task_id}: {e}")
-            self.handle_worker_failure(task_id, project_id, str(e), agent_id, start_time=start_time)
+            self.handle_worker_failure(
+                task_id,
+                project_id,
+                str(e),
+                agent_id,
+                start_time=start_time,
+                task_title=task_title,
+                failure_reason="finalize_exception",
+            )
         finally:
             self._clear_state()
             self.pending_workers.discard(task_id)
@@ -1522,33 +1577,67 @@ class WorkerManager:
     # Success/Failure Handlers
     # =========================================================================
 
-    def handle_worker_success(self, task_id: str, project_id: str, agent_id: str, start_time: float):
-        """Handle successful worker completion."""
+    def handle_worker_success(
+        self,
+        task_id: str,
+        project_id: str,
+        agent_id: str,
+        start_time: float,
+        task_title: str = "",
+    ):
+        """Handle successful worker completion.
+
+        Note: we still run a best-effort finalization here to ensure the repo is clean
+        even if a caller bypassed the normal finalize flow.
+        """
         logger.info(f"Worker success for task {task_id[:8]}. Marking complete.")
+
+        # Ensure the repo is finalized/clean even on success.
+        try:
+            ok = self.finalize_project_changes(task_id, project_id, task_title)
+            if not ok:
+                logger.warning(
+                    f"Finalization reported failure on success path for task {task_id[:8]} ({project_id}); "
+                    "attempting WIP finalization to keep repo clean"
+                )
+                self.finalize_project_changes_wip(
+                    task_id,
+                    project_id,
+                    task_title=task_title,
+                    failure_reason="finalize_failed_on_success",
+                )
+        except Exception:
+            logger.warning(
+                f"Unexpected error finalizing repo on success path for task {task_id[:8]} ({project_id})",
+                exc_info=True,
+            )
 
         # Capture usage stats before cleaning up session
         self._capture_worker_usage(agent_id, task_id, start_time, succeeded=True)
-        
+
         # Get task data to check for GitHub integration
         task = self.provider.get_task(task_id)
-        
+
         # Reset failure streak on success
         try:
             self.failure_rotation.record_success(task_id)
         except Exception:
             logger.debug("Failed to record success for failure rotation", exc_info=True)
 
-        self.provider.update_task(task_id, {
-            "workState": "completed",
-            "status": "completed",
-            "action": "complete",
-            "summary": "Task completed successfully"
-        })
-        
+        self.provider.update_task(
+            task_id,
+            {
+                "workState": "completed",
+                "status": "completed",
+                "action": "complete",
+                "summary": "Task completed successfully",
+            },
+        )
+
         # Close GitHub issue if this is a GitHub-tracked task
         if task:
             self._close_github_issue_if_needed(task, project_id, task_id)
-        
+
         self._cleanup_worker_session(agent_id)
 
     def handle_worker_failure(
@@ -1558,9 +1647,29 @@ class WorkerManager:
         error_log: str,
         agent_id: str,
         start_time: float | None = None,
+        *,
+        task_title: str = "",
+        failure_reason: str = "worker_failed",
     ):
-        """Handle worker failure."""
+        """Handle worker failure.
+
+        Always attempts best-effort WIP finalization to avoid leaving the repo dirty.
+        """
         logger.error(f"Worker failure for task {task_id[:8]} on {project_id}")
+
+        # Ensure the repo is finalized/clean even on failure.
+        try:
+            self.finalize_project_changes_wip(
+                task_id,
+                project_id,
+                task_title=task_title,
+                failure_reason=failure_reason,
+            )
+        except Exception:
+            logger.warning(
+                f"Unexpected error during WIP finalization for failed task {task_id[:8]} ({project_id})",
+                exc_info=True,
+            )
 
         # Capture usage stats even for failures (before session cleanup).
         try:
@@ -1569,7 +1678,7 @@ class WorkerManager:
                 task_id,
                 start_time,
                 succeeded=False,
-                failure_reason="worker_failed",
+                failure_reason=failure_reason,
             )
         except Exception:
             logger.warning("[USAGE] Unexpected error capturing failure usage", exc_info=True)
