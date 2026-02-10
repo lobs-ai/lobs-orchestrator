@@ -2101,6 +2101,7 @@ class WorkerManager:
             logger.warning("[USAGE] Unexpected error capturing failure usage", exc_info=True)
 
         # Record failure and apply exponential backoff before retry.
+        retry_count = 0
         try:
             entry = self.failure_rotation.record_failure(task_id)
             retry_count = int(entry.get("retry_count") or entry.get("streak") or 0)
@@ -2113,7 +2114,20 @@ class WorkerManager:
             logger.debug("Failed to record failure for failure backoff", exc_info=True)
 
         self.escalation.process_failure(task_id, project_id, error_log)
-        self.provider.update_task(task_id, {"workState": "failed"})
+        
+        # Get current task data to increment failure count
+        current_task = self.provider.get_task(task_id)
+        current_failure_count = 0
+        if current_task:
+            current_failure_count = current_task.get("failureCount", 0)
+        
+        # Update task with failure metadata
+        self.provider.update_task(task_id, {
+            "workState": "failed",
+            "failureReason": failure_reason,
+            "failedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "failureCount": current_failure_count + 1,
+        })
         
         # Track failure in awareness monitor
         if self.awareness:

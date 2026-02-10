@@ -28,6 +28,9 @@ class Task:
     reviewState: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
+    failureReason: Optional[str] = None
+    failedAt: Optional[str] = None
+    failureCount: Optional[int] = None
 
 
 @dataclass
