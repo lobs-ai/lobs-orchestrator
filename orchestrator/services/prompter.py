@@ -22,22 +22,49 @@ class Prompter:
     """
 
     @staticmethod
-    def build_task_prompt(item: dict[str, Any], project_id: str, rules: str = "") -> str:
+    def _resolve_workspace_path(project_id: str) -> Path:
+        """Resolve the workspace path for a project.
+
+        Research projects may have no repoPath; for those we default to the control repo.
         """
-        Build a complete prompt for a task worker.
-        
-        Args:
-            item: The work item (task, research request, etc.)
-            project_id: The project ID
-            rules: Global engineering rules
-            
-        Returns:
-            A formatted prompt string
-        """
-        from orchestrator.config import BASE_DIR, PROJECT_CONTEXT_FILES, CONTROL_REPO_PATH, ORCHESTRATOR_REPO_PATH
+        from orchestrator.config import BASE_DIR, CONTROL_REPO_PATH, PROJECTS_FILE
+
+        # Default behavior: project lives at BASE_DIR/<project_id>
+        default_path = (BASE_DIR / project_id).resolve()
+
+        if not PROJECTS_FILE.exists():
+            return default_path
+
+        try:
+            data = json.loads(PROJECTS_FILE.read_text())
+            for project in data.get("projects", []):
+                if project.get("id") != project_id:
+                    continue
+
+                repo_path = project.get("repoPath")
+                if repo_path:
+                    return Path(repo_path).resolve()
+
+                # No repoPath configured. Research projects often have none.
+                if project.get("type") == "research":
+                    return CONTROL_REPO_PATH.resolve()
+
+                return default_path
+        except Exception:
+            return default_path
+
+    @staticmethod
+    def build_task_prompt(
+        item: dict[str, Any],
+        project_id: str,
+        rules: str = "",
+        workspace_path: Path | None = None,
+    ) -> str:
+        """Build a complete prompt for a task worker."""
+        from orchestrator.config import PROJECT_CONTEXT_FILES
         from orchestrator.utils.settings import get_setting
-        
-        project_path = (BASE_DIR / project_id).resolve()
+
+        project_path = (workspace_path or Prompter._resolve_workspace_path(project_id)).resolve()
 
         # 1. Product Context
         context_files = get_setting("project_context_files", PROJECT_CONTEXT_FILES)

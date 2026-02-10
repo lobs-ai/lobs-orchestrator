@@ -225,51 +225,84 @@ class WorkerManager:
     # Project Repo Path Resolution
     # =========================================================================
 
+    def _is_git_repo(self, path: Path) -> bool:
+        """Return True if the given path looks like a git repo."""
+        try:
+            return (path / ".git").exists()
+        except Exception:
+            return False
+
+    def _get_project_record(self, project_id: str) -> dict[str, Any] | None:
+        """Fetch project metadata from projects.json (if available)."""
+        from orchestrator.config import PROJECTS_FILE
+
+        if not PROJECTS_FILE.exists():
+            return None
+
+        try:
+            with open(PROJECTS_FILE, "r") as f:
+                data = json.load(f)
+            for project in data.get("projects", []):
+                if project.get("id") == project_id:
+                    return project
+        except Exception as e:
+            logger.warning(f"Failed to read projects.json for {project_id}: {e}")
+
+        return None
+
     def _get_repo_path(self, project_id: str) -> Path:
-        """Get the repository path for a project."""
+        """Get the workspace path for a project.
+
+        For research projects that have no repoPath configured (null/empty), we default
+        to using the control repo as the workspace.
+        """
         if project_id in self._repo_path_cache:
             return self._repo_path_cache[project_id]
-        
-        from orchestrator.config import PROJECTS_FILE, CONTROL_REPO_PATH
+
+        from orchestrator.config import CONTROL_REPO_PATH
+
+        project = self._get_project_record(project_id)
+        if project is not None:
+            repo_path = project.get("repoPath")
+            if repo_path:
+                path = Path(repo_path).resolve()
+                self._repo_path_cache[project_id] = path
+                return path
+
+            # No repoPath configured. Research projects often have none.
+            if project.get("type") == "research":
+                logger.info(
+                    f"Project {project_id} is type=research and has no repoPath; using control repo as workspace"
+                )
+                path = CONTROL_REPO_PATH.resolve()
+                self._repo_path_cache[project_id] = path
+                return path
+
+            # Fall through to auto-discovery/fallback for non-research projects.
+
+        # Try auto-discovery (legacy behavior)
+        from orchestrator.config import PROJECTS_FILE
         if PROJECTS_FILE.exists():
+            logger.info(f"Project {project_id} missing repoPath, running auto-discovery...")
             try:
-                with open(PROJECTS_FILE, "r") as f:
-                    data = json.load(f)
-                    for project in data.get("projects", []):
-                        if project.get("id") == project_id:
-                            repo_path = project.get("repoPath")
-                            if repo_path:
-                                path = Path(repo_path)
-                                self._repo_path_cache[project_id] = path
-                                return path
-                            else:
-                                # Try auto-discovery
-                                logger.info(f"Project {project_id} missing repoPath, running auto-discovery...")
-                                try:
-                                    subprocess.run(
-                                        ["python3", "bin/discover-repos"],
-                                        cwd=CONTROL_REPO_PATH,
-                                        check=True,
-                                        capture_output=True,
-                                        timeout=10
-                                    )
-                                    with open(PROJECTS_FILE, "r") as f2:
-                                        data2 = json.load(f2)
-                                        for p2 in data2.get("projects", []):
-                                            if p2.get("id") == project_id:
-                                                repo_path2 = p2.get("repoPath")
-                                                if repo_path2:
-                                                    path = Path(repo_path2)
-                                                    self._repo_path_cache[project_id] = path
-                                                    return path
-                                except Exception as e:
-                                    logger.warning(f"Auto-discovery failed for {project_id}: {e}")
+                subprocess.run(
+                    ["python3", "bin/discover-repos"],
+                    cwd=CONTROL_REPO_PATH,
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                )
+                project2 = self._get_project_record(project_id)
+                if project2 and project2.get("repoPath"):
+                    path = Path(project2["repoPath"]).resolve()
+                    self._repo_path_cache[project_id] = path
+                    return path
             except Exception as e:
-                logger.warning(f"Failed to read repoPath for {project_id}: {e}")
-        
+                logger.warning(f"Auto-discovery failed for {project_id}: {e}")
+
         # Fallback
         logger.warning(f"No repoPath found for {project_id}, using fallback: {BASE_DIR / project_id}")
-        path = BASE_DIR / project_id
+        path = (BASE_DIR / project_id).resolve()
         self._repo_path_cache[project_id] = path
         return path
 
@@ -334,22 +367,26 @@ class WorkerManager:
         start_time = time.time()
 
         try:
-            # Sync repo
-            logger.info(f"Syncing project repo {project_id}...")
-            subprocess.run(
-                ["git", "pull", "--rebase"],
-                cwd=workspace,
-                check=True,
-                capture_output=True,
-                timeout=60
-            )
+            # Sync repo (skip for research projects without repos)
+            from orchestrator.config import CONTROL_REPO_PATH
+            if self._is_git_repo(workspace) and workspace != CONTROL_REPO_PATH:
+                logger.info(f"Syncing project repo {project_id}...")
+                subprocess.run(
+                    ["git", "pull", "--rebase"],
+                    cwd=workspace,
+                    check=True,
+                    capture_output=True,
+                    timeout=60,
+                )
+            else:
+                logger.info(f"Skipping git sync for project {project_id} (workspace={workspace})")
 
             # Mark GitHub issue as in-progress if this is a GitHub-tracked task
             self._mark_github_in_progress(task, project_id)
 
             # Build prompt
             from orchestrator.services.prompter import Prompter
-            prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
+            prompt = Prompter.build_task_prompt(task, project_id, rules=rules, workspace_path=workspace)
 
             # Run Ollama
             logger.info(f"Running Ollama for {task_id[:8]} with model {self.ollama.model}")
@@ -425,23 +462,27 @@ class WorkerManager:
             # Sync templates
             if not self.agent_manager.sync_worker_templates("worker"):
                 logger.warning("Failed to sync worker templates - continuing anyway")
-            
-            # Sync repo
-            logger.info(f"Syncing project repo {project_id}...")
-            subprocess.run(
-                ["git", "pull", "--rebase"],
-                cwd=workspace,
-                check=True,
-                capture_output=True,
-                timeout=60
-            )
-            
+
+            # Sync repo (skip for research projects without repos)
+            from orchestrator.config import CONTROL_REPO_PATH
+            if self._is_git_repo(workspace) and workspace != CONTROL_REPO_PATH:
+                logger.info(f"Syncing project repo {project_id}...")
+                subprocess.run(
+                    ["git", "pull", "--rebase"],
+                    cwd=workspace,
+                    check=True,
+                    capture_output=True,
+                    timeout=60,
+                )
+            else:
+                logger.info(f"Skipping git sync for project {project_id} (workspace={workspace})")
+
             # Mark GitHub issue as in-progress if this is a GitHub-tracked task
             self._mark_github_in_progress(task, project_id)
-            
+
             # Build prompt
             from orchestrator.services.prompter import Prompter
-            prompt = Prompter.build_task_prompt(task, project_id, rules=rules)
+            prompt = Prompter.build_task_prompt(task, project_id, rules=rules, workspace_path=workspace)
 
             # Launch OpenClaw
             from orchestrator.utils.settings import get_setting
@@ -899,16 +940,27 @@ class WorkerManager:
             return finalized_repos
 
     def finalize_project_changes(self, task_id: str, project_id: str, task_title: str = "") -> bool:
-        """Commit and push changes in the project repository, then scan all other repos."""
+        """Commit and push changes in the project repository, then scan all other repos.
+
+        Research projects may not have a project repo. In that case we skip git finalization
+        entirely (worker output should be written to worker-results or a research docs path).
+        """
         project_path = self._get_repo_path(project_id)
-        
+
         try:
             work_summary, was_blocked = self._read_work_summary(project_path)
-            
+
             if was_blocked:
                 logger.warning(f"Worker indicated task {task_id} is blocked: {work_summary}")
                 return False
-            
+
+            from orchestrator.config import CONTROL_REPO_PATH
+            if (not self._is_git_repo(project_path)) or project_path == CONTROL_REPO_PATH:
+                logger.info(
+                    f"Skipping git finalization for project {project_id} (workspace={project_path})"
+                )
+                return True
+
             # Check for changes in project repo
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -916,7 +968,7 @@ class WorkerManager:
                 check=True,
                 capture_output=True,
             ).stdout.decode()
-            
+
             if status:
                 # Stage and commit
                 subprocess.run(["git", "add", "."], cwd=project_path, check=True)
@@ -929,12 +981,12 @@ class WorkerManager:
                 logger.info(f"Pushed changes for task {task_id} to {project_id}")
             else:
                 logger.info(f"No changes to commit for task {task_id} in project repo")
-            
+
             # Now check and finalize ALL other repos with changes
             finalized_repos = self._finalize_all_repo_changes(task_id)
             if finalized_repos:
                 logger.info(f"Auto-finalized {len(finalized_repos)} additional repos")
-            
+
             return True
             
         except subprocess.CalledProcessError as e:
