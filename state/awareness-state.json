@@ -1,5 +1,5 @@
 {
-  "total_completed": 8,
+  "total_completed": 9,
   "total_failed": 0,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -74,8 +74,17 @@
       "kind": "task",
       "started_at": "2026-02-10T18:16:48.714565+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "54C3274E-0BBB-4FFD-A668-FBC89C267CDE",
+      "project_id": "lobs-orchestrator",
+      "title": "Monitor: expose worker status via dashboard API",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:18:28.493342+00:00",
+      "status": "completed"
     }
   ],
   "failed": [],
-  "last_updated": "2026-02-10T18:18:18.849198+00:00"
+  "last_updated": "2026-02-10T18:23:07.969342+00:00"
 }

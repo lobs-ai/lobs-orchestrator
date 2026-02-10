@@ -7,7 +7,7 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 - **Scripts own control.** LLMs do bounded work. Humans approve intent.
 - **Deterministic & Restart-safe.** The filesystem is the recovery log.
 - **Single Writer Pattern.** Exactly one component (`ControlManager`) writes to the control repo to avoid git races.
-- **Multi-Worker Support.** Multiple workers can run concurrently (default: 5). Tasks are assigned as workers become available.
+- **Multi-Worker Support.** Multiple workers can run concurrently (default: 3, configurable). Tasks are assigned as workers become available.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 
 ## Queueing & Concurrency
 
-**IMPORTANT:** This orchestrator supports multiple concurrent workers (default: 5).
+**IMPORTANT:** This orchestrator supports multiple concurrent workers (default: 3, configurable).
 
 ### How Work Distribution Works
 
@@ -35,10 +35,22 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 
 ### Multi-Worker Guarantees
 
-- Configurable concurrent task execution (default: 5 workers)
+- Configurable concurrent task execution (default: 3 workers, adjustable via `--max-concurrent-workers`)
 - Each worker maintains independent session state
 - Clean session state between tasks (session files cleared after each task)
 - Tasks are processed in parallel when multiple eligible items exist
+
+### Resource Control
+
+Control concurrency to manage resource usage and API costs:
+
+```bash
+# Set to 1 for minimal resource usage
+python3 setup_config.py --max-concurrent-workers 1
+
+# Increase for higher throughput (if resources allow)
+python3 setup_config.py --max-concurrent-workers 10
+```
 
 ### Worker Lifecycle
 
@@ -66,8 +78,14 @@ python3 main.py
 Configuration is managed in `orchestrator/config.py` and `.lobs_settings.json`. Key settings:
 
 - `POLL_INTERVAL`: How often the orchestrator scans for work (default: 10s). This is also the queue processing interval.
+- `MAX_WORKERS`: Maximum concurrent workers across all projects (default: 3). Controls resource usage and API costs.
 - `BASE_DIR`: Parent directory containing the project repositories.
 - `openclaw_executable`: Path to openclaw binary (default: "openclaw")
+
+To adjust worker concurrency:
+```bash
+python3 setup_config.py --max-concurrent-workers 5
+```
 
 ### Worker Configuration
 

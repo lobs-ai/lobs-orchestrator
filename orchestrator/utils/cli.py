@@ -11,6 +11,7 @@ def parse_args():
     parser.add_argument("--orchestrator-repo", help="Set the path to the orchestrator repository")
     parser.add_argument("--poll-interval", type=int, help="Polling interval in seconds")
     parser.add_argument("--openclaw-executable", help="Path to openclaw executable")
+    parser.add_argument("--max-concurrent-workers", type=int, help="Maximum concurrent workers (default: 3)")
 
     # Ollama settings
     parser.add_argument("--ollama-url", help="Ollama API URL (default: http://localhost:11434)")
@@ -32,6 +33,7 @@ def show_settings():
     print(f"  Control Repo:         {config.CONTROL_REPO_PATH}")
     print(f"  Orchestrator Repo:    {config.ORCHESTRATOR_REPO_PATH}")
     print(f"  Poll Interval:        {config.POLL_INTERVAL}s")
+    print(f"  Max Concurrent Workers: {config.MAX_WORKERS}")
     print(f"  Worker State:         ~/.openclaw/worker-state.json")
     print(f"  OpenClaw Executable:  {get_setting('openclaw_executable', 'openclaw')}")
     print("")
@@ -119,6 +121,10 @@ def apply_args(args):
     if args.openclaw_executable:
         set_setting("openclaw_executable", args.openclaw_executable)
         logging.info(f"OpenClaw executable set to: {args.openclaw_executable}")
+
+    if args.max_concurrent_workers:
+        set_setting("max_concurrent_workers", args.max_concurrent_workers)
+        logging.info(f"Max concurrent workers set to: {args.max_concurrent_workers}")
 
     # Ollama settings
     if args.ollama_url:

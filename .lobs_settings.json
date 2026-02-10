@@ -5,5 +5,6 @@
   "poll_interval": 10,
   "openclaw_executable": "openclaw",
   "ollama_model": "llama3.1",
-  "ollama_keep_alive": "5m"
+  "ollama_keep_alive": "5m",
+  "max_concurrent_workers": 3
 }

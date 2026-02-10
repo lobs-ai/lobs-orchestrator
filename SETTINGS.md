@@ -24,6 +24,7 @@ You'll be prompted to confirm before deletion.
 # General settings
 python3 setup_config.py --base-dir /path/to/lobs
 python3 setup_config.py --poll-interval 5
+python3 setup_config.py --max-concurrent-workers 5
 python3 setup_config.py --openclaw-executable /usr/local/bin/openclaw
 
 # Ollama settings
@@ -51,6 +52,7 @@ python3 setup_config.py \
 | `control_repo_path` | `--control-repo` | `{base_dir}/lobs-control` | Control repo path |
 | `orchestrator_repo_path` | `--orchestrator-repo` | Current directory | Orchestrator repo path |
 | `poll_interval` | `--poll-interval` | `10` | Polling interval (seconds) |
+| `max_concurrent_workers` | `--max-concurrent-workers` | `3` | Maximum concurrent workers across all projects |
 | `openclaw_executable` | `--openclaw-executable` | `openclaw` | OpenClaw command |
 | `skip_prereqs` | N/A | `false` | Skip all prerequisite/tool checks |
 | `skip_prereqs_list` | N/A | `[]` | List of specific tools to skip checking |
@@ -106,21 +108,33 @@ You can also edit this file directly, but using `setup_config.py` is recommended
 python3 setup_config.py \
   --ollama-model llama3.1 \
   --ollama-keep-alive 1h \
-  --poll-interval 5
+  --poll-interval 5 \
+  --max-concurrent-workers 5
 ```
 
 ### For Production/Always-On
 ```bash
 python3 setup_config.py \
   --ollama-keep-alive -1 \
-  --poll-interval 10
+  --poll-interval 10 \
+  --max-concurrent-workers 3
 ```
 
 ### For Low-Memory Systems
 ```bash
 python3 setup_config.py \
   --ollama-model llama3.2 \
-  --ollama-keep-alive 2m
+  --ollama-keep-alive 2m \
+  --max-concurrent-workers 1
+```
+
+### For High-Throughput / Cost Control
+```bash
+# Increase concurrency for faster processing
+python3 setup_config.py --max-concurrent-workers 10
+
+# Decrease concurrency to control API costs
+python3 setup_config.py --max-concurrent-workers 1
 ```
 
 ### Using Remote Ollama
