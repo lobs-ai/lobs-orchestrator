@@ -59,7 +59,7 @@ def main():
     try:
         from orchestrator.api.server import DashboardAPIServer
 
-        DashboardAPIServer().start()
+        DashboardAPIServer(orchestrator).start()
     except Exception as e:
         logging.getLogger(__name__).error(f"Failed to start Dashboard API: {e}")
 

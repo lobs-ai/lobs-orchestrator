@@ -119,6 +119,66 @@ or skip specific tools:
 
 See [SETTINGS.md](SETTINGS.md) for complete documentation.
 
+## Monitoring & Dashboard API
+
+The orchestrator exposes a REST API for monitoring worker status and system health.
+
+### Worker Status Endpoint
+
+**Endpoint:** `GET http://localhost:7171/workers/status`
+
+Returns real-time information about:
+- Active workers (task ID, project, agent, duration)
+- Queue depth and queued tasks
+- Recent completions and failures
+- System metrics (uptime, completion counts, average duration)
+- Alerts (high queue depth, long-running workers, etc.)
+
+**Example:**
+
+```bash
+curl http://localhost:7171/workers/status | jq .
+```
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "activeWorkers": [
+    {
+      "taskId": "ABC123...",
+      "projectId": "my-project",
+      "taskTitle": "Implement feature X",
+      "agentId": "programmer",
+      "durationSeconds": 245,
+      "state": "running"
+    }
+  ],
+  "queueDepth": 3,
+  "metrics": {
+    "totalCompleted": 42,
+    "totalFailed": 3,
+    "activeCount": 1,
+    "averageDurationSeconds": 210
+  },
+  "alerts": []
+}
+```
+
+**Configuration:**
+
+Set custom port/host in `.lobs_settings.json`:
+
+```json
+{
+  "dashboard_api_port": 7171,
+  "dashboard_api_host": "127.0.0.1"
+}
+```
+
+For detailed API documentation, see [docs/WORKER_STATUS_API.md](docs/WORKER_STATUS_API.md).
+
 ## Development
 
 ### Running Tests
