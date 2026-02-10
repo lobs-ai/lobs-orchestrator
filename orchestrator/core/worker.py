@@ -597,7 +597,58 @@ class WorkerManager:
             # Launch OpenClaw
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
-            cmd = [executable, "agent", "--agent", agent_id, "-m", prompt]
+
+            # Per-agent model selection
+            #
+            # Agent templates define a human-readable "Model" in agents/<type>/IDENTITY.md,
+            # e.g. "Standard (Sonnet)" or "Higher tier (Opus)".
+            # We map these to OpenClaw model aliases and pass them on the CLI.
+            #
+            # Config override (cost control): if set, forces ALL tasks to use this model.
+            # Example: {"openclaw_model_override": "sonnet"}
+            model_override = (get_setting("openclaw_model_override", "") or "").strip()
+
+            def _model_alias_from_identity(model_str: str | None) -> str | None:
+                if not model_str:
+                    # Default to sonnet if not specified.
+                    return "sonnet"
+
+                s = model_str.strip().lower()
+
+                # Direct aliases
+                if s in ("sonnet", "standard"):
+                    return None  # default model
+                if s in ("opus", "higher"):
+                    return "opus"
+
+                # Heuristics for human-friendly strings
+                if "opus" in s or "higher" in s:
+                    return "opus"
+                if "sonnet" in s or "standard" in s:
+                    return None  # default model
+
+                # Unknown string; be safe and default to sonnet.
+                return "sonnet"
+
+            model_arg: str | None = None
+            if model_override:
+                model_arg = model_override
+            else:
+                try:
+                    cfg = self.registry.get_agent(effective_template_type)
+                    model_arg = _model_alias_from_identity(cfg.model)
+                except Exception as e:
+                    logger.warning(
+                        f"[WORKER] Failed to determine model for agent template '{effective_template_type}': {e}. "
+                        "Defaulting to sonnet"
+                    )
+                    model_arg = "sonnet"
+
+            cmd = [executable, "agent", "--agent", agent_id]
+            if model_arg:
+                cmd.extend(["--model", model_arg])
+            cmd.extend(["-m", prompt])
+
             
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
