@@ -87,10 +87,10 @@ def _write_agent_template_files(workspace_dir: Path, cfg: AgentConfig) -> None:
 
 class WorkerManager:
     """
-    Manages spawning and tracking a SINGLE worker subprocess.
+    Manages spawning and tracking multiple concurrent worker subprocesses.
 
     State is persisted to a single JSON file for crash recovery.
-    No per-project locks - just one worker at a time, period.
+    Workers are tracked in the active_workers dictionary.
 
     State file contains:
     - active: bool
@@ -142,8 +142,8 @@ class WorkerManager:
         self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
 
-        # Single-threaded executor ensures one spawn at a time
-        self.executor = ThreadPoolExecutor(max_workers=1)
+        # Thread pool executor for spawning workers concurrently
+        self.executor = ThreadPoolExecutor(max_workers=5)
         
         # Agent manager for provisioning the shared OpenClaw agent + legacy worker rules.
         # NOTE: `worker-template/` remains the source of WORKER_RULES.md (and fallback context)
@@ -440,16 +440,10 @@ class WorkerManager:
     ) -> bool:
         """
         Spawn a worker for the given task.
-        Returns True if spawned, False if queued (worker busy).
+        Returns True if spawned, False if max workers reached.
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
-
-        # Check if worker is busy
-        if self.active_workers or self.pending_workers:
-            active = list(self.active_workers.keys())[0] if self.active_workers else list(self.pending_workers)[0]
-            logger.info(f"[QUEUE] Worker busy with {active[:8]}. Queueing task {task_id[:8]} ({task_title})")
-            return False
 
         # Mark as pending and save state
         self.pending_workers.add(task_id)
@@ -675,10 +669,6 @@ class WorkerManager:
                 agent_id=agent_id,
                 agent_template=template_type,
             )
-
-            # Validation
-            if self.active_workers:
-                raise RuntimeError("Single-worker constraint violated")
 
             # Track active worker
             self.active_workers[task_id] = (

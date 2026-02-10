@@ -64,14 +64,14 @@ The Lobs Orchestrator is a long-running Python service that manages task schedul
 - LLMs receive bounded, well-defined tasks
 - Humans approve work through the control repository
 
-### 2. Single Worker Pattern
+### 2. Multi-Worker Pattern
 
-**Exactly ONE worker processes ALL tasks sequentially.**
+**Multiple workers process tasks concurrently (default: 5).**
 
-- No concurrent task execution
-- Automatic queueing when worker is busy
-- Clean session state between tasks
-- Predictable, deterministic execution order
+- Configurable concurrent task execution
+- Automatic queueing when all workers are busy
+- Clean session state between tasks for each worker
+- Parallel processing of eligible work items
 
 ### 3. Single Writer Pattern
 
@@ -130,11 +130,11 @@ while True:
 
 ### WorkerManager (`orchestrator/core/worker.py`)
 
-**Manages the single worker subprocess.**
+**Manages multiple concurrent worker subprocesses.**
 
 **Responsibilities:**
-- Enforce single-worker constraint
-- Spawn worker via `openclaw agent --agent worker`
+- Track multiple workers (default max: 5)
+- Spawn workers via `openclaw agent --agent worker`
 - Track worker lifecycle (syncing → running → finalizing)
 - Manage project locks
 - Handle worker success/failure

@@ -7,38 +7,38 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 - **Scripts own control.** LLMs do bounded work. Humans approve intent.
 - **Deterministic & Restart-safe.** The filesystem is the recovery log.
 - **Single Writer Pattern.** Exactly one component (`ControlManager`) writes to the control repo to avoid git races.
-- **Single Worker.** Exactly ONE worker runs at a time globally. All work is automatically queued and processed sequentially.
+- **Multi-Worker Support.** Multiple workers can run concurrently (default: 5). Tasks are assigned as workers become available.
 
 ## Architecture
 
 - **Engine:** Main loop that polls for state changes and triggers work.
 - **ControlManager:** Manages git operations and applies state updates serially.
-- **WorkerManager:** Manages the single shared worker subprocess.
+- **WorkerManager:** Manages multiple concurrent worker subprocesses.
   - Spawns via `openclaw agent --agent worker`
-  - Enforces single-worker constraint (max_workers=1)
-  - Automatic queueing: tasks wait in provider queue if worker is busy
+  - Supports concurrent execution (default max_workers=5)
+  - Tasks are assigned to available workers
   - Session reset between tasks for clean state
 - **Scanner:** Purely scripted fact detection (tasks, requests, failures).
 
 ## Queueing & Concurrency
 
-**IMPORTANT:** This orchestrator runs EXACTLY ONE worker at a time.
+**IMPORTANT:** This orchestrator supports multiple concurrent workers (default: 5).
 
-### How Queueing Works
+### How Work Distribution Works
 
 1. **Scanner** identifies all eligible work items
 2. **Engine** loops through eligible items
-3. **WorkerManager** checks if worker is busy:
-   - If **idle**: spawns worker for the task
-   - If **busy**: task remains in provider queue (automatic queueing)
-4. Next engine iteration picks up queued work when worker completes
+3. **WorkerManager** spawns workers up to the configured limit:
+   - If **slots available**: spawns worker for the task
+   - If **at capacity**: task remains in provider queue
+4. Next engine iteration picks up queued work as workers complete
 
-### Single Worker Guarantees
+### Multi-Worker Guarantees
 
-- No concurrent task execution
-- No race conditions between tasks
-- Predictable sequential processing
+- Configurable concurrent task execution (default: 5 workers)
+- Each worker maintains independent session state
 - Clean session state between tasks (session files cleared after each task)
+- Tasks are processed in parallel when multiple eligible items exist
 
 ### Worker Lifecycle
 
