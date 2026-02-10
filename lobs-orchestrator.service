@@ -10,6 +10,7 @@ RestartSec=10
 StandardOutput=append:/home/rafe/.openclaw/logs/lobs-orchestrator.log
 StandardError=append:/home/rafe/.openclaw/logs/lobs-orchestrator.err
 Environment="PATH=/home/rafe/.local/bin:/home/rafe/.npm-global/bin:/home/rafe/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+Environment="PYTHONUNBUFFERED=1"
 
 [Install]
 WantedBy=default.target

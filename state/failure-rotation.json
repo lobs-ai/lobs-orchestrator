@@ -1,11 +1,5 @@
 {
   "tasks": {
-    "374C777A-5861-4505-85C0-5F84F6E40410": {
-      "last_failure_ts": 1770762067.5808673,
-      "retry_count": 2,
-      "skip_until_ts": 1770762367.5808673,
-      "streak": 2
-    },
     "3BF63B5E-8907-49CD-9BE0-3FB01649FF67": {
       "last_failure_ts": 1770764630.4234111,
       "retry_count": 3,
