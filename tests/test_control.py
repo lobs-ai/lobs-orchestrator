@@ -77,12 +77,30 @@ def test_apply_op_update_worker_status(temp_control_repo):
     cm = ControlManager()
     status_file = temp_control_repo / "state" / "worker-status.json"
     
+    # Test new multi-worker schema
     op = {
         "type": "update_worker_status",
-        "updates": {"worker-1": "idle"}
+        "updates": {
+            "activeWorkers": [
+                {
+                    "workerId": "worker-1",
+                    "taskId": "task-123",
+                    "projectId": "test-project",
+                    "agentType": "programmer",
+                    "startedAt": "2024-01-01T00:00:00Z",
+                    "lastHeartbeat": "2024-01-01T00:05:00Z",
+                    "status": "running"
+                }
+            ],
+            "totalActiveWorkers": 1,
+            "lastUpdated": "2024-01-01T00:05:00Z"
+        }
     }
     cm.apply_op(op)
     
     with open(status_file, "r") as f:
         status = json.load(f)
-    assert status["worker-1"] == "idle"
+    assert "activeWorkers" in status
+    assert len(status["activeWorkers"]) == 1
+    assert status["activeWorkers"][0]["workerId"] == "worker-1"
+    assert status["totalActiveWorkers"] == 1

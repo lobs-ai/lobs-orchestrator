@@ -517,13 +517,20 @@ not_started → in_progress → completed
 **Worker Status:**
 ```
 {
-  "active": true/false,
-  "currentTask": "task-id",
-  "agentType": "worker",
-  "projectId": "project-id",
-  "startedAt": "ISO-8601",
-  "lastHeartbeat": "ISO-8601",
-  "uptimeSeconds": 12345
+  "activeWorkers": [
+    {
+      "workerId": "programmer-1707595200-task123",
+      "taskId": "task-id",
+      "projectId": "project-id",
+      "agentType": "programmer",
+      "startedAt": "ISO-8601",
+      "lastHeartbeat": "ISO-8601",
+      "status": "running",
+      "taskTitle": "Task description"
+    }
+  ],
+  "totalActiveWorkers": 1,
+  "lastUpdated": "ISO-8601"
 }
 ```
 

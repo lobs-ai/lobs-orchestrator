@@ -1,5 +1,5 @@
 {
-  "total_completed": 4,
+  "total_completed": 5,
   "total_failed": 0,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -38,8 +38,17 @@
       "kind": "task",
       "started_at": "2026-02-10T18:02:19.085907+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "49141F3F-ECBD-4FC8-8ED0-08865857EF5D",
+      "project_id": "lobs-orchestrator",
+      "title": "Implement per-project worker limit (one worker per project)",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:04:42.163576+00:00",
+      "status": "completed"
     }
   ],
   "failed": [],
-  "last_updated": "2026-02-10T18:04:31.930271+00:00"
+  "last_updated": "2026-02-10T18:08:18.349764+00:00"
 }

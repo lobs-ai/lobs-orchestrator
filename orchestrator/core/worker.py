@@ -138,8 +138,8 @@ class WorkerManager:
         self.awareness = awareness_monitor
 
         # In-memory tracking (primary source of truth while running)
-        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str, str]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
         
         # Per-project worker limiting: track which projects have active workers
@@ -266,6 +266,8 @@ class WorkerManager:
                     # We can't get the original Popen object, but we can monitor the PID
                     # Re-acquire project lock
                     self.project_locks[project_id] = task_id
+                    # Generate worker_id for re-adopted worker
+                    worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}-readopted"
                     self.active_workers[task_id] = (
                         _PidMonitor(pid),  # Wrapper to monitor PID
                         project_id,
@@ -274,6 +276,7 @@ class WorkerManager:
                         agent_id,
                         task_title,
                         agent_template,
+                        worker_id,
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
                     logger.info(f"[PROJECT-LOCK] Re-acquired lock for project {project_id} (re-adopted task {task_id[:8]})")
@@ -623,6 +626,9 @@ class WorkerManager:
         # Models are configured per-agent in OpenClaw config (agents.list[].model)
         template_type = _normalize_agent_template_type(agent_type)
         agent_id = template_type  # e.g., "programmer", "architect", "researcher"
+        
+        # Generate unique worker ID
+        worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}"
 
         try:
             logger.info(f"[WORKER] Using agent: {agent_id}")
@@ -707,6 +713,7 @@ class WorkerManager:
                 agent_id,
                 task_title,
                 template_type,
+                worker_id,
             )
             self.pending_workers.discard(task_id)
             
@@ -723,16 +730,8 @@ class WorkerManager:
                     kind=kind,
                 )
             
-            # Update provider status
-            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            self.provider.update_worker_status({
-                "active": True,
-                "currentTask": task_id,
-                "agentType": template_type,
-                "projectId": project_id,
-                "startedAt": now_iso,
-                "lastHeartbeat": now_iso,
-            })
+            # Update provider status with new schema
+            self._update_provider_status()
 
         except Exception as e:
             logger.error(f"Failed to spawn worker for {task_id}: {e}")
@@ -763,6 +762,7 @@ class WorkerManager:
             agent_id,
             task_title,
             agent_template,
+            worker_id,
         ) in list(self.active_workers.items()):
             retcode = process.poll()
             if retcode is not None:
@@ -1841,9 +1841,19 @@ class WorkerManager:
             try:
                 with open(worker_status_path) as f:
                     status_data = json.load(f)
-                worker_id = status_data.get("workerId")
-                if status_data.get("startedAt"):
-                    started_at = status_data["startedAt"]
+                # New schema: look for task_id in activeWorkers array
+                active_workers = status_data.get("activeWorkers", [])
+                for worker in active_workers:
+                    if worker.get("taskId") == task_id:
+                        worker_id = worker.get("workerId")
+                        if worker.get("startedAt"):
+                            started_at = worker["startedAt"]
+                        break
+                # If not found in activeWorkers (legacy or edge case), fall back
+                if worker_id is None:
+                    worker_id = status_data.get("workerId")
+                    if status_data.get("startedAt"):
+                        started_at = status_data["startedAt"]
             except Exception as e:
                 logger.warning(f"[USAGE] Failed reading worker-status.json for usage capture: {e}")
 
@@ -2036,11 +2046,36 @@ class WorkerManager:
         self._cleanup_worker_session(agent_id)
 
     def _update_provider_status(self):
-        """Update provider with current worker status."""
+        """Update provider with current worker status using multi-worker schema."""
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        # Build activeWorkers array from current active workers
+        active_workers_list = []
+        for task_id, (
+            process,
+            project_id,
+            log_file,
+            start_time,
+            agent_id,
+            task_title,
+            agent_template,
+            worker_id,
+        ) in self.active_workers.items():
+            active_workers_list.append({
+                "workerId": worker_id,
+                "taskId": task_id,
+                "projectId": project_id,
+                "agentType": agent_template,
+                "startedAt": datetime.fromtimestamp(start_time, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "lastHeartbeat": now_iso,
+                "status": "running",
+                "taskTitle": task_title,
+            })
+        
         self.provider.update_worker_status({
-            "active": len(self.active_workers) > 0,
-            "currentTask": list(self.active_workers.keys())[0] if self.active_workers else None,
-            "lastHeartbeat": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "activeWorkers": active_workers_list,
+            "totalActiveWorkers": len(active_workers_list),
+            "lastUpdated": now_iso,
         })
 
     # =========================================================================
