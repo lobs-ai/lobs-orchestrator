@@ -7,12 +7,20 @@ from orchestrator.core.registry import AgentRegistry
 
 def test_registry_loads_known_agent():
     repo_root = Path(__file__).resolve().parents[1]
-    registry = AgentRegistry(agents_root=repo_root / "agents")
+    agents_root = repo_root / "agents"
+    registry = AgentRegistry(agents_root=agents_root)
 
     cfg = registry.get_agent("programmer")
 
     assert cfg.type == "programmer"
-    assert "# IDENTITY" in cfg.identity_md or "# IDENTITY.md" in cfg.identity_md
+
+    # Ensure we loaded the actual on-disk content for each required file.
+    assert cfg.agents_md == (agents_root / "programmer" / "AGENTS.md").read_text(encoding="utf-8")
+    assert cfg.soul_md == (agents_root / "programmer" / "SOUL.md").read_text(encoding="utf-8")
+    assert cfg.tools_md == (agents_root / "programmer" / "TOOLS.md").read_text(encoding="utf-8")
+    assert cfg.user_md == (agents_root / "programmer" / "USER.md").read_text(encoding="utf-8")
+    assert cfg.identity_md == (agents_root / "programmer" / "IDENTITY.md").read_text(encoding="utf-8")
+
     assert isinstance(cfg.model, str) and cfg.model.strip()
     assert isinstance(cfg.capabilities, list)
     assert "code" in [c.lower() for c in cfg.capabilities]
