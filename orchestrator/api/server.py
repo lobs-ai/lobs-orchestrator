@@ -220,13 +220,27 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
         
         import time
         from datetime import datetime, timezone
+        from orchestrator.config import WORKER_WARNING_TIMEOUT, WORKER_KILL_TIMEOUT, WORKER_HEARTBEAT_TIMEOUT
         
         # Get active workers from WorkerManager
         worker_manager = orchestrator.worker_manager
         active_workers_data = []
+        current_time = time.time()
         
-        for task_id, (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id) in worker_manager.active_workers.items():
-            duration_sec = int(time.time() - start_time)
+        for task_id, (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label, last_heartbeat) in worker_manager.active_workers.items():
+            duration_sec = int(current_time - start_time)
+            heartbeat_age_sec = int(current_time - last_heartbeat)
+            
+            # Determine worker health status
+            status = "running"
+            health = "healthy"
+            
+            if duration_sec > WORKER_KILL_TIMEOUT or heartbeat_age_sec > WORKER_HEARTBEAT_TIMEOUT:
+                health = "stuck"
+                status = "stuck"
+            elif duration_sec > WORKER_WARNING_TIMEOUT:
+                health = "warning"
+            
             active_workers_data.append({
                 "taskId": task_id,
                 "projectId": project_id,
@@ -235,7 +249,9 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
                 "agentTemplate": agent_template,
                 "workerId": worker_id,
                 "durationSeconds": duration_sec,
-                "state": "running",
+                "heartbeatAgeSeconds": heartbeat_age_sec,
+                "state": status,
+                "health": health,
             })
         
         # Add pending workers (syncing/finalizing)
@@ -323,12 +339,36 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
                 "message": f"{len(recent_failures)} recent failure(s)",
             })
         
-        # Alert if worker has been running for a long time
+        # Alert for stuck or slow workers
         for worker in active_workers_data:
-            if worker.get("durationSeconds", 0) > 1800:  # 30 minutes
+            health = worker.get("health", "healthy")
+            duration_min = worker.get("durationSeconds", 0) // 60
+            heartbeat_age_min = worker.get("heartbeatAgeSeconds", 0) // 60
+            task_id_short = worker['taskId'][:8]
+            
+            if health == "stuck":
+                # Critical alert for stuck workers
+                if worker.get("heartbeatAgeSeconds", 0) > WORKER_HEARTBEAT_TIMEOUT:
+                    alerts.append({
+                        "level": "critical",
+                        "message": f"Worker for {task_id_short} is stuck (no heartbeat for {heartbeat_age_min}min)",
+                        "taskId": worker['taskId'],
+                        "projectId": worker.get('projectId'),
+                    })
+                else:
+                    alerts.append({
+                        "level": "critical",
+                        "message": f"Worker for {task_id_short} exceeded maximum runtime ({duration_min}min)",
+                        "taskId": worker['taskId'],
+                        "projectId": worker.get('projectId'),
+                    })
+            elif health == "warning":
+                # Warning for long-running workers
                 alerts.append({
                     "level": "warning",
-                    "message": f"Worker for {worker['taskId'][:8]} has been running for {worker['durationSeconds'] // 60} minutes",
+                    "message": f"Worker for {task_id_short} has been running for {duration_min}min",
+                    "taskId": worker['taskId'],
+                    "projectId": worker.get('projectId'),
                 })
         
         response = {

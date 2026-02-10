@@ -23,6 +23,11 @@ POLL_INTERVAL = get_setting("poll_interval", 10)
 # Controls resource usage and API costs by limiting how many workers can run simultaneously
 MAX_WORKERS = get_setting("max_concurrent_workers", 3)
 
+# Worker health monitoring timeouts (in seconds)
+WORKER_WARNING_TIMEOUT = get_setting("worker_warning_timeout_sec", 1800)  # 30 minutes
+WORKER_KILL_TIMEOUT = get_setting("worker_kill_timeout_sec", 3600)  # 1 hour
+WORKER_HEARTBEAT_TIMEOUT = get_setting("worker_heartbeat_timeout_sec", 300)  # 5 minutes
+
 # State directory (for compatibility; worker state is in ~/.openclaw/worker-state.json)
 STATE_DIR = (ORCHESTRATOR_REPO_PATH / "state").resolve()
 

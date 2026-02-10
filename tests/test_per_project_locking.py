@@ -68,8 +68,9 @@ def test_single_project_lock(worker_manager, mock_provider):
         # Simulate lock being acquired when worker starts
         worker_manager.project_locks[project_id] = "task-1"
         worker_manager.pending_workers.discard("task-1")
+        current_time = time.time()
         worker_manager.active_workers["task-1"] = (
-            Mock(), project_id, Mock(), time.time(), "programmer", "Task 1", "programmer", "worker-1"
+            Mock(), project_id, Mock(), current_time, "programmer", "Task 1", "programmer", "worker-1", "session-1", current_time
         )
         
         # Second spawn for same project should fail (queued)
@@ -103,8 +104,9 @@ def test_different_projects_parallel(worker_manager, mock_provider):
         # Simulate lock acquisition for project-a
         worker_manager.project_locks["project-a"] = "task-1"
         worker_manager.pending_workers.discard("task-1")
+        current_time = time.time()
         worker_manager.active_workers["task-1"] = (
-            Mock(), "project-a", Mock(), time.time(), "programmer", "Task 1", "programmer", "worker-1"
+            Mock(), "project-a", Mock(), current_time, "programmer", "Task 1", "programmer", "worker-1", "session-1", current_time
         )
         
         # Spawn worker for project-b should also succeed (different project)
@@ -131,8 +133,9 @@ def test_lock_released_on_completion(worker_manager, mock_provider):
     mock_log = Mock()
     
     worker_manager.project_locks[project_id] = "task-1"
+    current_time = time.time()
     worker_manager.active_workers["task-1"] = (
-        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer", "worker-1"
+        mock_process, project_id, mock_log, current_time, "programmer", "Task 1", "programmer", "worker-1", "session-1", current_time
     )
     
     # Check workers (should detect completion)
@@ -158,8 +161,9 @@ def test_lock_released_on_failure(worker_manager, mock_provider):
     mock_log = Mock()
     
     worker_manager.project_locks[project_id] = "task-1"
+    current_time = time.time()
     worker_manager.active_workers["task-1"] = (
-        mock_process, project_id, mock_log, time.time(), "programmer", "Task 1", "programmer", "worker-1"
+        mock_process, project_id, mock_log, current_time, "programmer", "Task 1", "programmer", "worker-1", "session-1", current_time
     )
     
     # Mock the finalization methods
@@ -219,9 +223,10 @@ def test_max_workers_capacity(worker_manager, mock_provider):
             # Simulate worker starting (acquire lock, move to active)
             worker_manager.project_locks[projects[i]] = tasks[i]["id"]
             worker_manager.pending_workers.discard(tasks[i]["id"])
+            current_time = time.time()
             worker_manager.active_workers[tasks[i]["id"]] = (
-                Mock(), projects[i], Mock(), time.time(), "programmer", 
-                f"Task {i}", "programmer", f"worker-{i}"
+                Mock(), projects[i], Mock(), current_time, "programmer", 
+                f"Task {i}", "programmer", f"worker-{i}", f"session-{i}", current_time
             )
         
         # Verify we're at capacity
@@ -262,9 +267,10 @@ def test_max_workers_with_project_locks(worker_manager, mock_provider):
         # Simulate worker 1 starting
         worker_manager.project_locks["project-a"] = tasks[0]["id"]
         worker_manager.pending_workers.discard(tasks[0]["id"])
+        current_time = time.time()
         worker_manager.active_workers[tasks[0]["id"]] = (
-            Mock(), "project-a", Mock(), time.time(), "programmer",
-            "Task 0", "programmer", "worker-0"
+            Mock(), "project-a", Mock(), current_time, "programmer",
+            "Task 0", "programmer", "worker-0", "session-0", current_time
         )
         
         # Second task for same project should fail due to project lock

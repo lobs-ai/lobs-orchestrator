@@ -16,7 +16,10 @@ from orchestrator.config import (
     WORKER_STATUS_JSON,
     ORCHESTRATOR_REPO_PATH,
     CONTROL_REPO_PATH,
-    PROJECTS_FILE
+    PROJECTS_FILE,
+    WORKER_WARNING_TIMEOUT,
+    WORKER_KILL_TIMEOUT,
+    WORKER_HEARTBEAT_TIMEOUT,
 )
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
@@ -141,8 +144,8 @@ class WorkerManager:
         self.awareness = awareness_monitor
 
         # In-memory tracking (primary source of truth while running)
-        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label)
-        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str, str, str]] = {}
+        # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label, last_heartbeat)
+        self.active_workers: dict[str, tuple[subprocess.Popen, str, Any, float, str, str, str, str, str, float]] = {}
         self.pending_workers: set[str] = set()  # Tasks in syncing/finalizing state
         
         # Per-project worker limiting: track which projects have active workers
@@ -272,16 +275,18 @@ class WorkerManager:
                     # Generate worker_id and session_label for re-adopted worker
                     worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}-readopted"
                     session_label = f"worker-{worker_id}"
+                    current_time = time.time()
                     self.active_workers[task_id] = (
                         _PidMonitor(pid),  # Wrapper to monitor PID
                         project_id,
                         log_file,
-                        time.time(),  # Approximate - we don't know exact start time
+                        current_time,  # Approximate - we don't know exact start time
                         agent_id,
                         task_title,
                         agent_template,
                         worker_id,
                         session_label,
+                        current_time,  # last_heartbeat
                     )
                     logger.info(f"Successfully re-adopted worker for {task_id[:8]}")
                     logger.info(f"[PROJECT-LOCK] Re-acquired lock for project {project_id} (re-adopted task {task_id[:8]})")
@@ -735,16 +740,18 @@ class WorkerManager:
 
             # Acquire project lock and track active worker
             self.project_locks[project_id] = task_id
+            current_time = time.time()
             self.active_workers[task_id] = (
                 process,
                 project_id,
                 log_file,
-                time.time(),
+                current_time,
                 agent_id,
                 task_title,
                 template_type,
                 worker_id,
                 session_label,
+                current_time,  # last_heartbeat
             )
             self.pending_workers.discard(task_id)
             
@@ -783,8 +790,18 @@ class WorkerManager:
     # =========================================================================
 
     def check_workers(self):
-        """Check status of active workers and handle completion."""
+        """Check status of active workers and handle completion.
+        
+        Also monitors for stuck workers based on:
+        1. Total runtime exceeding kill timeout (default: 1 hour)
+        2. No heartbeat/status update for heartbeat timeout (default: 5 minutes)
+        
+        Stuck workers are killed and their tasks are failed.
+        """
         finished = []
+        stuck = []
+        current_time = time.time()
+        
         for task_id, (
             process,
             project_id,
@@ -795,13 +812,94 @@ class WorkerManager:
             agent_template,
             worker_id,
             session_label,
+            last_heartbeat,
         ) in list(self.active_workers.items()):
             retcode = process.poll()
+            
+            # Check if worker finished normally
             if retcode is not None:
-                elapsed = time.time() - start_time
+                elapsed = current_time - start_time
                 logger.info(f"Worker for {task_id[:8]} finished with code {retcode} ({elapsed:.1f}s)")
                 log_file.close()
                 finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label))
+                continue
+            
+            # Check for stuck workers
+            elapsed = current_time - start_time
+            heartbeat_age = current_time - last_heartbeat
+            
+            # Log warning if worker has been running for a long time
+            if elapsed > WORKER_WARNING_TIMEOUT and elapsed < WORKER_KILL_TIMEOUT:
+                # Only log warning once per minute to avoid spam
+                if int(elapsed) % 60 < 10:  # Log in first 10 seconds of each minute
+                    logger.warning(
+                        f"Worker for task {task_id[:8]} ({project_id}) has been running for "
+                        f"{int(elapsed/60)} minutes (warning threshold: {int(WORKER_WARNING_TIMEOUT/60)}min, "
+                        f"kill threshold: {int(WORKER_KILL_TIMEOUT/60)}min)"
+                    )
+            
+            # Check if worker should be killed (exceeded timeout or no heartbeat)
+            should_kill = False
+            kill_reason = None
+            
+            if elapsed > WORKER_KILL_TIMEOUT:
+                should_kill = True
+                kill_reason = f"exceeded maximum runtime ({int(WORKER_KILL_TIMEOUT/60)}min)"
+                logger.error(
+                    f"Worker for task {task_id[:8]} ({project_id}) exceeded maximum runtime "
+                    f"({int(elapsed/60)}min > {int(WORKER_KILL_TIMEOUT/60)}min). Killing worker."
+                )
+            elif heartbeat_age > WORKER_HEARTBEAT_TIMEOUT:
+                should_kill = True
+                kill_reason = f"no heartbeat for {int(heartbeat_age/60)}min"
+                logger.error(
+                    f"Worker for task {task_id[:8]} ({project_id}) has not sent heartbeat for "
+                    f"{int(heartbeat_age/60)} minutes (threshold: {int(WORKER_HEARTBEAT_TIMEOUT/60)}min). "
+                    f"Worker appears stuck. Killing worker."
+                )
+            
+            if should_kill:
+                stuck.append((task_id, project_id, agent_id, agent_template, start_time, task_title, 
+                             session_label, process, log_file, kill_reason))
+        
+        # Handle stuck workers
+        for task_id, project_id, agent_id, agent_template, start_time, task_title, session_label, process, log_file, kill_reason in stuck:
+            try:
+                pid = process.pid if hasattr(process, 'pid') else None
+                if pid:
+                    logger.warning(f"Terminating stuck worker (PID {pid}) for task {task_id[:8]}")
+                    try:
+                        # Try graceful termination first (SIGTERM)
+                        process.terminate()
+                        time.sleep(2)  # Give it 2 seconds to terminate gracefully
+                        
+                        # Check if still running
+                        if process.poll() is None:
+                            # Force kill if still running
+                            logger.warning(f"Worker {task_id[:8]} did not respond to SIGTERM, sending SIGKILL")
+                            process.kill()
+                            process.wait(timeout=5)
+                        
+                        logger.info(f"Successfully killed stuck worker for task {task_id[:8]}")
+                    except Exception as e:
+                        logger.error(f"Failed to kill stuck worker for {task_id[:8]}: {e}")
+                
+                # Close log file
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
+                
+                # Mark as failed with stuck reason
+                finished.append((task_id, project_id, agent_id, agent_template, 1, start_time, task_title, session_label))
+                
+                # Add to finished list so normal cleanup happens
+                # But we need to record the specific failure reason
+                self._stuck_workers_reasons = getattr(self, '_stuck_workers_reasons', {})
+                self._stuck_workers_reasons[task_id] = kill_reason
+                
+            except Exception as e:
+                logger.error(f"Error handling stuck worker {task_id[:8]}: {e}", exc_info=True)
 
         for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label in finished:
             # Release project lock
@@ -868,6 +966,13 @@ class WorkerManager:
         except Exception as e:
             logger.warning(f"WIP finalization failed for {task_id[:8]}: {e}")
 
+        # Check if this was a stuck worker (killed by health monitoring)
+        stuck_reasons = getattr(self, '_stuck_workers_reasons', {})
+        failure_reason = "worker_nonzero_exit"
+        if task_id in stuck_reasons:
+            failure_reason = f"worker_stuck_{stuck_reasons[task_id].replace(' ', '_')}"
+            error_tail = f"Worker stuck: {stuck_reasons.pop(task_id)}\n\n{error_tail}"
+
         self.handle_worker_failure(
             task_id,
             project_id,
@@ -875,7 +980,7 @@ class WorkerManager:
             agent_id,
             start_time=start_time,
             task_title=task_title,
-            failure_reason="worker_nonzero_exit",
+            failure_reason=failure_reason,
             session_label=session_label,
         )
         self._clear_state()
@@ -2223,7 +2328,11 @@ class WorkerManager:
         self._cleanup_worker_session(agent_id, session_label)
 
     def _update_provider_status(self):
-        """Update provider with current worker status using multi-worker schema."""
+        """Update provider with current worker status using multi-worker schema.
+        
+        Also updates heartbeat timestamps for all active workers.
+        """
+        now = time.time()
         now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         
         # Build activeWorkers array from current active workers
@@ -2238,7 +2347,22 @@ class WorkerManager:
             agent_template,
             worker_id,
             session_label,
+            last_heartbeat,
         ) in self.active_workers.items():
+            # Update heartbeat timestamp for this worker
+            self.active_workers[task_id] = (
+                process,
+                project_id,
+                log_file,
+                start_time,
+                agent_id,
+                task_title,
+                agent_template,
+                worker_id,
+                session_label,
+                now,  # Updated heartbeat
+            )
+            
             active_workers_list.append({
                 "workerId": worker_id,
                 "taskId": task_id,
@@ -2345,6 +2469,7 @@ class WorkerManager:
                 agent_template,
                 worker_id,
                 session_label,
+                last_heartbeat,
             ) in list(self.active_workers.items()):
                 try:
                     pid = process.pid
