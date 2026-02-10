@@ -644,6 +644,17 @@ class WorkerManager:
         task_title = task.get("title", task_id[:8])
         workspace = self._get_repo_path(project_id)
         
+        # Clear retryAfter if this is a retry attempt
+        if task.get("workState") == "failed" and task.get("retryAfter"):
+            retry_attempt = task.get("failureCount", 0)
+            logger.info(
+                f"[AUTO-RETRY] Starting retry attempt #{retry_attempt} for task {task_id[:8]}"
+            )
+            self.provider.update_task(task_id, {
+                "retryAfter": None,
+                "workState": "in_progress",
+            })
+        
         # Use agent type directly as OpenClaw agent id
         # Models are configured per-agent in OpenClaw config (agents.list[].model)
         template_type = _normalize_agent_template_type(agent_type)
@@ -2042,6 +2053,9 @@ class WorkerManager:
                 "status": "completed",
                 "action": "complete",
                 "summary": "Task completed successfully",
+                "failureCount": 0,  # Reset failure count on success
+                "retryAfter": None,  # Clear retry timestamp
+                "failureReason": None,  # Clear failure reason
             },
         )
 
@@ -2121,13 +2135,85 @@ class WorkerManager:
         if current_task:
             current_failure_count = current_task.get("failureCount", 0)
         
-        # Update task with failure metadata
-        self.provider.update_task(task_id, {
-            "workState": "failed",
+        new_failure_count = current_failure_count + 1
+        
+        # Retry configuration: max retries and exponential backoff
+        MAX_RETRIES = 3
+        RETRY_DELAYS = [5 * 60, 15 * 60, 60 * 60]  # 5min, 15min, 1hr in seconds
+        
+        # Determine if we should retry or block
+        now = datetime.now(timezone.utc)
+        updates = {
             "failureReason": failure_reason,
-            "failedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "failureCount": current_failure_count + 1,
-        })
+            "failedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "failureCount": new_failure_count,
+        }
+        
+        if new_failure_count <= MAX_RETRIES:
+            # Schedule retry with exponential backoff
+            delay_index = min(new_failure_count - 1, len(RETRY_DELAYS) - 1)
+            retry_delay_seconds = RETRY_DELAYS[delay_index]
+            retry_after = now.timestamp() + retry_delay_seconds
+            
+            updates["workState"] = "failed"
+            updates["retryAfter"] = int(retry_after)
+            
+            # Convert to human-readable time for logging
+            from datetime import timedelta
+            retry_time = datetime.fromtimestamp(retry_after, tz=timezone.utc)
+            logger.info(
+                f"[AUTO-RETRY] Task {task_id[:8]} will retry after {retry_delay_seconds // 60}min "
+                f"(attempt {new_failure_count}/{MAX_RETRIES}) at {retry_time.strftime('%H:%M:%S UTC')}"
+            )
+        else:
+            # Max retries exceeded - mark as blocked and create alert
+            updates["workState"] = "blocked"
+            updates["retryAfter"] = None  # Clear retry timestamp
+            
+            logger.warning(
+                f"[AUTO-RETRY] Task {task_id[:8]} exceeded max retries ({MAX_RETRIES}), "
+                f"marking as blocked"
+            )
+            
+            # Create alert for blocked task
+            try:
+                task_title = task_title or current_task.get("title", "Unknown task") if current_task else "Unknown task"
+                alert_id = f"blocked-task-{task_id}"
+                alert = {
+                    "id": alert_id,
+                    "type": "blocked_task",
+                    "severity": "high",
+                    "status": "active",
+                    "taskId": task_id,
+                    "projectId": project_id,
+                    "title": f"Task blocked after {MAX_RETRIES} failures: {task_title[:50]}",
+                    "message": (
+                        f"Task '{task_title}' failed {MAX_RETRIES} times and has been blocked. "
+                        f"Last failure reason: {failure_reason}. "
+                        f"Manual intervention required."
+                    ),
+                    "createdAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "failureCount": new_failure_count,
+                    "lastFailureReason": failure_reason,
+                }
+                
+                # Add alert via provider
+                from orchestrator.config import CONTROL_REPO_PATH
+                import uuid
+                alerts_dir = CONTROL_REPO_PATH / "state" / "alerts"
+                alerts_dir.mkdir(parents=True, exist_ok=True)
+                alert_file = alerts_dir / f"{alert_id}.json"
+                
+                import json
+                with open(alert_file, "w") as f:
+                    json.dump(alert, f, indent=2)
+                    f.write("\n")
+                
+                logger.info(f"[AUTO-RETRY] Created alert for blocked task: {alert_id}")
+            except Exception as e:
+                logger.error(f"[AUTO-RETRY] Failed to create alert for blocked task: {e}")
+        
+        self.provider.update_task(task_id, updates)
         
         # Track failure in awareness monitor
         if self.awareness:

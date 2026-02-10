@@ -85,10 +85,30 @@ class Scanner:
             # open-work already filters out completed/done items.
             # We specifically want things that the orchestrator can pick up.
             eligible = []
+            now_timestamp = time.time()
+            
             for item in all_work:
                 if item.get("kind") == "task":
-                    if item.get("workState") == "not_started" and item.get("status") == "active":
+                    work_state = item.get("workState")
+                    
+                    # Skip tasks with retryAfter in the future
+                    retry_after = item.get("retryAfter")
+                    if retry_after and retry_after > now_timestamp:
+                        logger.debug(
+                            f"Skipping task {item.get('id', 'unknown')[:8]} - "
+                            f"retry scheduled for {int((retry_after - now_timestamp) / 60)}min from now"
+                        )
+                        continue
+                    
+                    # Include not_started tasks and failed tasks ready for retry
+                    if work_state == "not_started" and item.get("status") == "active":
                         eligible.append(item)
+                    elif work_state == "failed" and item.get("status") == "active":
+                        # Failed tasks are eligible if retryAfter has passed (or is not set)
+                        if not retry_after or retry_after <= now_timestamp:
+                            # Clear retryAfter when picking up for retry
+                            item["_clearing_retry"] = True
+                            eligible.append(item)
                 elif item.get("kind") in ("research_request", "tracker_request", "inbox_response", "text_dump"):
                     # These kinds usually don't have workState yet, so if they are in open-work they are eligible
                     eligible.append(item)
