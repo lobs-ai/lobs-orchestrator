@@ -1,0 +1,41 @@
+{
+  "tasks": {
+    "02850EF6-18B3-4321-B673-E366C57B63EB": {
+      "last_failure_ts": 1770755384.2567613,
+      "retry_count": 7,
+      "skip_until_ts": 1770776984.2567613,
+      "streak": 7
+    },
+    "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A": {
+      "last_failure_ts": 1770755100.8156137,
+      "retry_count": 8,
+      "skip_until_ts": 1770776700.8156137,
+      "streak": 8
+    },
+    "751E2364-8587-4785-9F69-E202CCA1FAAC": {
+      "last_failure_ts": 1770755039.8335936,
+      "retry_count": 8,
+      "skip_until_ts": 1770776639.8335936,
+      "streak": 8
+    },
+    "B8BC4739-2E87-4332-9C07-659604EAAA30": {
+      "last_failure_ts": 1770752446.6024497,
+      "retry_count": 4,
+      "skip_until_ts": 1770755146.6024497,
+      "streak": 4
+    },
+    "CBDB81AB-215F-4B03-AB7E-8061C80B8E93": {
+      "last_failure_ts": 1770755070.2978714,
+      "retry_count": 8,
+      "skip_until_ts": 1770776670.2978714,
+      "streak": 8
+    },
+    "F40534A7-9A58-4717-8445-EAD23426D651": {
+      "last_failure_ts": 1770755129.4491634,
+      "retry_count": 8,
+      "skip_until_ts": 1770776729.4491634,
+      "streak": 8
+    }
+  },
+  "version": 1
+}
