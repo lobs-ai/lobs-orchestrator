@@ -1,16 +1,16 @@
 {
   "tasks": {
     "02850EF6-18B3-4321-B673-E366C57B63EB": {
-      "last_failure_ts": 1770753008.790136,
-      "retry_count": 2,
-      "skip_until_ts": 1770753308.790136,
-      "streak": 2
+      "last_failure_ts": 1770753110.816867,
+      "retry_count": 3,
+      "skip_until_ts": 1770754010.816867,
+      "streak": 3
     },
     "1D55F3DE-1C62-4A26-91D7-CE5A510DD98A": {
-      "last_failure_ts": 1770752568.547007,
-      "retry_count": 4,
-      "skip_until_ts": 1770755268.547007,
-      "streak": 4
+      "last_failure_ts": 1770753202.668914,
+      "retry_count": 5,
+      "skip_until_ts": 1770761302.668914,
+      "streak": 5
     },
     "35B4338D-0B9E-4EB0-BD1D-032690B326DE": {
       "last_failure_ts": 1770753079.229647,
@@ -19,10 +19,10 @@
       "streak": 3
     },
     "751E2364-8587-4785-9F69-E202CCA1FAAC": {
-      "last_failure_ts": 1770752507.6275384,
-      "retry_count": 4,
-      "skip_until_ts": 1770755207.6275384,
-      "streak": 4
+      "last_failure_ts": 1770753141.4893963,
+      "retry_count": 5,
+      "skip_until_ts": 1770761241.4893963,
+      "streak": 5
     },
     "B8BC4739-2E87-4332-9C07-659604EAAA30": {
       "last_failure_ts": 1770752446.6024497,
@@ -31,16 +31,16 @@
       "streak": 4
     },
     "CBDB81AB-215F-4B03-AB7E-8061C80B8E93": {
-      "last_failure_ts": 1770752538.0886118,
-      "retry_count": 4,
-      "skip_until_ts": 1770755238.0886118,
-      "streak": 4
+      "last_failure_ts": 1770753171.9932017,
+      "retry_count": 5,
+      "skip_until_ts": 1770761271.9932017,
+      "streak": 5
     },
     "F40534A7-9A58-4717-8445-EAD23426D651": {
-      "last_failure_ts": 1770752598.822119,
-      "retry_count": 4,
-      "skip_until_ts": 1770755298.822119,
-      "streak": 4
+      "last_failure_ts": 1770753233.0798,
+      "retry_count": 5,
+      "skip_until_ts": 1770761333.0798,
+      "streak": 5
     }
   },
   "version": 1
