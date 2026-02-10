@@ -275,8 +275,7 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
                     "projectId": item.project_id,
                     "title": item.title,
                     "agentType": item.agent_type,
-                    "completedAt": item.completed_at,
-                    "durationSeconds": int(item.duration_sec) if item.duration_sec else None,
+                    "timestamp": item.started_at,  # WorkItem uses started_at
                 })
         
         # Get recent failures
@@ -288,7 +287,7 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
                     "projectId": item.project_id,
                     "title": item.title,
                     "agentType": item.agent_type,
-                    "completedAt": item.completed_at,
+                    "timestamp": item.started_at,
                 })
         
         # System metrics

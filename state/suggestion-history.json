@@ -1,0 +1,151 @@
+{
+  "suggestions": [
+    {
+      "hash": "5cef4f62a744b10a",
+      "title": "End-to-end test refactored onboarding flow (Dashboard + Server separation)",
+      "projectId": "default",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "348f0dffeb22223d",
+      "title": "Add unit + integration tests for new GitHub sync batch creation",
+      "projectId": "default",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "a7f4d7e73d8914d2",
+      "title": "Test git conflict recovery scenarios (rebase recovery, stash handling)",
+      "projectId": "default",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "34395dcdec7e5cd2",
+      "title": "Walk through and verify complete README setup instructions",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "d97d06deeb55b586",
+      "title": "Add critical path end-to-end tests (auth \u2192 events \u2192 deep links \u2192 push)",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "23c7120c61df653c",
+      "title": "Document and monitor observability endpoints in development",
+      "projectId": "flock",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8e0ae20720817ff9",
+      "title": "Test multi-worker refactoring against real workloads",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "3bf3a2ce2b3a956a",
+      "title": "Verify onboarding refactoring works end-to-end",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "f96b2e689b8aa26e",
+      "title": "Document and monitor new worker status dashboard API endpoint",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "154146f61647a118",
+      "title": "Create BOOTSTRAP.md with MVP scope and blocking tasks",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "f2c3f0612d4778ad",
+      "title": "Set up Git repo and Xcode project structure",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "0c1938276eb89c32",
+      "title": "Define YAML schema for first question type",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "0650b239d7431cf8",
+      "title": "Integration test multi-worker per-project locking",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "648d3b23158a247e",
+      "title": "Test worker status API endpoint with real worker workloads",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9af771a97773b4bc",
+      "title": "Document and test multi-agent architecture (Router, AgentManager, proactive work)",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ce3759bfe4fd2847",
+      "title": "Integration test refactored onboarding (Dashboard-only vs Server-dependent flows)",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "fa94036f96b86b87",
+      "title": "Test git conflict recovery and rebase detection under real conflicts",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "f284382a968e2348",
+      "title": "Validate gh CLI batch task creation feature",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "c17ec71f09d4b086",
+      "title": "Document and validate lobs-control state file schemas",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "35fac043cd91a70c",
+      "title": "Establish task archival and history cleanup policy",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    },
+    {
+      "hash": "bdd82b88335b99c2",
+      "title": "Add worker-status.json to .gitignore if not already",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T18:42:22Z",
+      "dismissed": false
+    }
+  ]
+}

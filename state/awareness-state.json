@@ -1,5 +1,5 @@
 {
-  "total_completed": 12,
+  "total_completed": 13,
   "total_failed": 0,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -110,8 +110,17 @@
       "kind": "task",
       "started_at": "2026-02-10T18:30:49.080968+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "C17DD960-F4A4-4522-B9B6-A811053C5A01",
+      "project_id": "lobs-orchestrator",
+      "title": "Fix: orchestrator should commit worker-status.json changes",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:34:35.878544+00:00",
+      "status": "completed"
     }
   ],
   "failed": [],
-  "last_updated": "2026-02-10T18:34:23.576364+00:00"
+  "last_updated": "2026-02-10T18:37:18.661547+00:00"
 }
