@@ -371,13 +371,7 @@ class WorkerManager:
             from orchestrator.config import CONTROL_REPO_PATH
             if self._is_git_repo(workspace) and workspace != CONTROL_REPO_PATH:
                 logger.info(f"Syncing project repo {project_id}...")
-                subprocess.run(
-                    ["git", "pull", "--rebase"],
-                    cwd=workspace,
-                    check=True,
-                    capture_output=True,
-                    timeout=60,
-                )
+                self._git_pull_rebase_with_autostash(workspace, task_id=task_id)
             else:
                 logger.info(f"Skipping git sync for project {project_id} (workspace={workspace})")
 
@@ -467,13 +461,7 @@ class WorkerManager:
             from orchestrator.config import CONTROL_REPO_PATH
             if self._is_git_repo(workspace) and workspace != CONTROL_REPO_PATH:
                 logger.info(f"Syncing project repo {project_id}...")
-                subprocess.run(
-                    ["git", "pull", "--rebase"],
-                    cwd=workspace,
-                    check=True,
-                    capture_output=True,
-                    timeout=60,
-                )
+                self._git_pull_rebase_with_autostash(workspace, task_id=task_id)
             else:
                 logger.info(f"Skipping git sync for project {project_id} (workspace={workspace})")
 
@@ -554,13 +542,24 @@ class WorkerManager:
                 self._save_state(task_id, project_id, state="finalizing", agent_id=agent_id)
                 self.executor.submit(self._async_finalize_flow, task_id, project_id, agent_id, start_time, task_title)
             else:
-                self._handle_immediate_failure(task_id, project_id, agent_id, start_time)
+                self._handle_immediate_failure(task_id, project_id, agent_id, start_time, task_title)
 
         if finished:
             self._update_provider_status()
 
-    def _handle_immediate_failure(self, task_id: str, project_id: str, agent_id: str, start_time: float | None = None):
-        """Handle worker failure (non-zero exit)."""
+    def _handle_immediate_failure(
+        self,
+        task_id: str,
+        project_id: str,
+        agent_id: str,
+        start_time: float | None = None,
+        task_title: str = "",
+    ):
+        """Handle worker failure (non-zero exit).
+
+        We attempt to finalize any repo changes as WIP before marking the task failed,
+        to avoid leaving orphaned uncommitted changes that would break the next spawn.
+        """
         log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
         error_tail = ""
         try:
@@ -569,7 +568,17 @@ class WorkerManager:
                 error_tail = "".join(lines[-50:])
         except Exception:
             pass
-        
+
+        try:
+            self.finalize_project_changes_wip(
+                task_id,
+                project_id,
+                task_title=task_title,
+                failure_reason="worker_failed",
+            )
+        except Exception as e:
+            logger.warning(f"WIP finalization failed for {task_id[:8]}: {e}")
+
         self.handle_worker_failure(task_id, project_id, error_tail, agent_id, start_time=start_time)
         self._clear_state()
 
@@ -786,6 +795,76 @@ class WorkerManager:
     # Git Operations
     # =========================================================================
 
+    def _git_status_porcelain(self, repo_path: Path, *, timeout_sec: float = 8.0) -> str:
+        """Return `git status --porcelain` output (decoded)."""
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            timeout=timeout_sec,
+        )
+        return (result.stdout or b"").decode()
+
+    def _git_pull_rebase_with_autostash(self, repo_path: Path, *, task_id: str, timeout_sec: float = 60.0):
+        """Run `git pull --rebase` while tolerating pre-existing uncommitted changes.
+
+        Workers can crash/timeout leaving a dirty repo, which would cause the next
+        `git pull --rebase` to fail. We auto-stash before pulling, then pop afterward.
+
+        Notes:
+        - Uses `git stash push -u` to include untracked files.
+        - If `stash pop` fails (e.g. conflicts), we log a warning and leave the stash
+          in place for manual inspection, rather than discarding work.
+        """
+        status = ""
+        try:
+            status = self._git_status_porcelain(repo_path)
+        except Exception as e:
+            logger.warning(f"Failed to read git status for autostash in {repo_path}: {e}")
+
+        did_stash = False
+        if status.strip():
+            stash_msg = f"lobs-orchestrator autostash before pull (task {task_id[:8]})"
+            logger.warning(
+                f"Repo {repo_path} has uncommitted changes before pull; stashing them (task {task_id[:8]})"
+            )
+            subprocess.run(
+                ["git", "stash", "push", "-u", "-m", stash_msg],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            did_stash = True
+
+        # Pull (rebase)
+        subprocess.run(
+            ["git", "pull", "--rebase"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            timeout=timeout_sec,
+        )
+
+        if did_stash:
+            pop = subprocess.run(
+                ["git", "stash", "pop"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+            if pop.returncode != 0:
+                # Keep stash entry for safety.
+                stderr = (pop.stderr or "").strip()
+                stdout = (pop.stdout or "").strip()
+                msg = stderr or stdout
+                logger.warning(
+                    f"Autostash pop failed in {repo_path} (task {task_id[:8]}). "
+                    f"Left stash for manual resolution. Details: {msg}"
+                )
+
     def _read_work_summary(self, project_path: Path) -> tuple[str, bool]:
         """Read and clean up .work-summary file if it exists."""
         summary_file = project_path / ".work-summary"
@@ -938,6 +1017,68 @@ class WorkerManager:
         except Exception as e:
             logger.error(f"Failed to scan repos for finalization: {e}")
             return finalized_repos
+
+    def finalize_project_changes_wip(
+        self,
+        task_id: str,
+        project_id: str,
+        *,
+        task_title: str = "",
+        failure_reason: str = "failed",
+    ) -> bool:
+        """Best-effort finalization on failure.
+
+        If the worker crashes/times out but left changes in the repo, we commit them
+        with a WIP message and attempt to push, so the next task doesn't get stuck
+        behind uncommitted changes.
+        """
+        project_path = self._get_repo_path(project_id)
+
+        from orchestrator.config import CONTROL_REPO_PATH
+        if (not self._is_git_repo(project_path)) or project_path == CONTROL_REPO_PATH:
+            logger.info(f"Skipping WIP git finalization for project {project_id} (workspace={project_path})")
+            return True
+
+        try:
+            status = self._git_status_porcelain(project_path)
+        except Exception as e:
+            logger.warning(f"Failed to read git status for WIP finalization in {project_path}: {e}")
+            return False
+
+        if not status.strip():
+            logger.info(f"No repo changes to WIP-commit for failed task {task_id[:8]} ({project_id})")
+            return True
+
+        subject_base = task_title or f"task {task_id[:8]}"
+        subject = f"WIP: {subject_base}"
+        subject = subject[:72]
+        body = f"Task: {task_id}\nProject: {project_id}\nReason: {failure_reason}"
+
+        try:
+            subprocess.run(["git", "add", "."], cwd=project_path, check=True)
+            subprocess.run(["git", "commit", "-m", subject, "-m", body], cwd=project_path, check=True)
+            logger.info(f"WIP-committed changes for failed task {task_id[:8]} in {project_id}")
+        except subprocess.CalledProcessError as e:
+            # If commit fails (e.g. conflicts), don't crash failure handling.
+            logger.warning(f"WIP commit failed for {project_id} (task {task_id[:8]}): {e}")
+            return False
+
+        try:
+            subprocess.run(["git", "push"], cwd=project_path, check=True)
+            logger.info(f"WIP-pushed changes for failed task {task_id[:8]} to {project_id}")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"WIP push failed for {project_id} (task {task_id[:8]}): {e}")
+            # Still consider it a partial success: repo is clean now.
+
+        # Also attempt to finalize any straggler changes elsewhere.
+        try:
+            finalized_repos = self._finalize_all_repo_changes(task_id)
+            if finalized_repos:
+                logger.info(f"Auto-finalized {len(finalized_repos)} additional repos after failure")
+        except Exception as e:
+            logger.warning(f"Cross-repo finalization after failure failed: {e}")
+
+        return True
 
     def finalize_project_changes(self, task_id: str, project_id: str, task_title: str = "") -> bool:
         """Commit and push changes in the project repository, then scan all other repos.
