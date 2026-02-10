@@ -1,5 +1,5 @@
 {
-  "total_completed": 27,
+  "total_completed": 28,
   "total_failed": 33,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -244,6 +244,15 @@
       "agent_type": "programmer",
       "kind": "task",
       "started_at": "2026-02-10T23:18:09.248064+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5A75370B-8DCB-47FC-8834-9F7E7A14C3ED",
+      "project_id": "lobs-orchestrator",
+      "title": "Fix log buffering - use PYTHONUNBUFFERED",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:40:49.344688+00:00",
       "status": "completed"
     }
   ],
@@ -546,5 +555,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T23:18:42.906678+00:00"
+  "last_updated": "2026-02-10T23:41:41.006620+00:00"
 }
