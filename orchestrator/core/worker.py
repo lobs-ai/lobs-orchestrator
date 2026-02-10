@@ -14,7 +14,9 @@ from orchestrator.config import (
     BASE_DIR,
     WORKER_RESULTS_DIR,
     WORKER_STATUS_JSON,
-    ORCHESTRATOR_REPO_PATH
+    ORCHESTRATOR_REPO_PATH,
+    CONTROL_REPO_PATH,
+    PROJECTS_FILE
 )
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
@@ -1291,21 +1293,21 @@ class WorkerManager:
         try:
             import json
             from pathlib import Path
-            state_dir = Path.home() / "lobs-control" / "state"
-            projects_file = state_dir / "projects.json"
             
-            if not projects_file.exists():
+            # Use configured project file path
+            if not PROJECTS_FILE.exists():
                 logger.warning("projects.json not found, skipping cross-repo finalization")
                 return finalized_repos
             
-            with open(projects_file) as f:
+            with open(PROJECTS_FILE) as f:
                 projects_data = json.load(f)
             
-            # Include orchestrator and control repos explicitly
-            repos_to_check = [
-                str(Path.home() / "lobs-orchestrator"),
-                str(Path.home() / "lobs-control"),
-            ]
+            # Include orchestrator and control repos explicitly (only if they exist)
+            repos_to_check = []
+            if ORCHESTRATOR_REPO_PATH.exists() and ORCHESTRATOR_REPO_PATH.is_dir():
+                repos_to_check.append(str(ORCHESTRATOR_REPO_PATH))
+            if CONTROL_REPO_PATH.exists() and CONTROL_REPO_PATH.is_dir():
+                repos_to_check.append(str(CONTROL_REPO_PATH))
             
             # Add all project repos
             for project in projects_data.get("projects", []):
@@ -1788,17 +1790,21 @@ class WorkerManager:
         if cost_usd is None:
             # Calculate cost using lobs-control pricing module if available.
             try:
-                sys.path.insert(0, str(ORCHESTRATOR_REPO_PATH / "lobs-control" / "bin"))
-                from lib.pricing import compute_cost
+                # Only try to compute cost if control repo exists
+                if CONTROL_REPO_PATH.exists():
+                    sys.path.insert(0, str(CONTROL_REPO_PATH / "bin"))
+                    from lib.pricing import compute_cost
 
-                cost_usd = float(compute_cost(input_tokens, output_tokens, str(model)))
+                    cost_usd = float(compute_cost(input_tokens, output_tokens, str(model)))
+                else:
+                    raise FileNotFoundError("Control repo not found")
             except Exception as e:
                 logger.warning(f"[USAGE] Could not compute cost precisely (model={model}): {e}. Using rough estimate")
                 # Generic rough estimate (kept intentionally conservative)
                 cost_usd = (input_tokens / 1_000_000 * 2.0) + (output_tokens / 1_000_000 * 8.0)
 
         # Read worker status to get workerId and startedAt
-        worker_status_path = ORCHESTRATOR_REPO_PATH / "lobs-control" / "state" / "worker-status.json"
+        worker_status_path = CONTROL_REPO_PATH / "state" / "worker-status.json"
         worker_id = None
         started_at = (
             datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat()

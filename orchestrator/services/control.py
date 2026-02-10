@@ -31,6 +31,11 @@ class ControlManager:
         return CONTROL_OPS_DIR
 
     def pull(self) -> None:
+        # Skip if control repo doesn't exist or isn't a git repo
+        if not CONTROL_REPO_PATH.exists() or not (CONTROL_REPO_PATH / ".git").exists():
+            logger.debug(f"Control repo not found or not a git repo, skipping pull")
+            return
+        
         try:
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -42,6 +47,11 @@ class ControlManager:
             logger.error(f"Git pull failed: {e.stderr.decode()}")
 
     def push(self, message: str) -> None:
+        # Skip if control repo doesn't exist or isn't a git repo
+        if not CONTROL_REPO_PATH.exists() or not (CONTROL_REPO_PATH / ".git").exists():
+            logger.debug(f"Control repo not found or not a git repo, skipping push")
+            return
+        
         try:
             # Check if there are changes to commit
             status = subprocess.run(
