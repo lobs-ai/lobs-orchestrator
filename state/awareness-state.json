@@ -1,6 +1,6 @@
 {
   "total_completed": 13,
-  "total_failed": 18,
+  "total_failed": 19,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -283,7 +283,16 @@
       "kind": "task",
       "started_at": "2026-02-10T20:04:38.251406+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "35B4338D-0B9E-4EB0-BD1D-032690B326DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Add failure reason tracking to task metadata",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T20:12:21.203936+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T20:04:56.967481+00:00"
+  "last_updated": "2026-02-10T20:12:42.517806+00:00"
 }
