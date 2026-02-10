@@ -1,4 +1,11 @@
 {
-  "tasks": {},
+  "tasks": {
+    "1F153946-E8EA-4482-867F-2918C6CCDD46": {
+      "last_failure_ts": 1770760171.986356,
+      "retry_count": 1,
+      "skip_until_ts": 1770760231.986356,
+      "streak": 1
+    }
+  },
   "version": 1
 }

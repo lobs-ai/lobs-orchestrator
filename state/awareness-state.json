@@ -1,5 +1,5 @@
 {
-  "total_completed": 23,
+  "total_completed": 24,
   "total_failed": 30,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -208,6 +208,15 @@
       "agent_type": "programmer",
       "kind": "task",
       "started_at": "2026-02-10T20:54:54.291279+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5504A971-FCE9-4F19-BCB8-8E5B1455130C",
+      "project_id": "lobs-dashboard",
+      "title": "Dashboard: Settings entry point to re-run onboarding",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T21:01:42.849622+00:00",
       "status": "completed"
     }
   ],
@@ -483,5 +492,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T21:01:51.772291+00:00"
+  "last_updated": "2026-02-10T21:05:54.849892+00:00"
 }

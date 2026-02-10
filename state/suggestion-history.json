@@ -1,0 +1,109 @@
+{
+  "suggestions": [
+    {
+      "hash": "1629a58957b3e026",
+      "title": "URGENT: Investigate task retry loop for same 6 task IDs",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "756f928ef041f477",
+      "title": "Implement task history cleanup and archival policy",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "1ccb4533f9305c78",
+      "title": "Track and surface task failure reasons in Dashboard",
+      "projectId": "chicago",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "4f57e302fe47f718",
+      "title": "Create BOOTSTRAP.md with MVP scope and first sprint plan",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "6722d8195ab42a17",
+      "title": "Set up Git repo, Xcode project, and package structure",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ce34e8faa489ed0b",
+      "title": "Define YAML schema for first question type (multiple-choice)",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8be0928616df04a2",
+      "title": "Test auto-retry with backoff implementation end-to-end",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "b3bb0cda3f4a1c27",
+      "title": "Validate setup wizard with all skip/resume/demo paths",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "adcccf1514bb6c84",
+      "title": "Document per-template model configuration and test edge cases",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "6aaf388d4730ebfe",
+      "title": "End-to-end test fresh install with both onboarding paths (Dashboard-only vs Server)",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "621cbe9037ab1fa0",
+      "title": "Test git conflict recovery under real rebase/merge scenarios",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ec36b5bc94fd1386",
+      "title": "Audit and clean up remaining TODO comments in codebase",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "2b77ed13d06e2f24",
+      "title": "URGENT: Stop and investigate 60+ commit retry loop for same 6 tasks",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "49a3bc20dde8b06d",
+      "title": "Add commit batching to reduce commit spam for rapid state updates",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    },
+    {
+      "hash": "6e70f86d0c28d50a",
+      "title": "Document and enforce task state machine with validation",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-10T21:28:46Z",
+      "dismissed": false
+    }
+  ]
+}
