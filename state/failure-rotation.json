@@ -1,11 +1,4 @@
 {
-  "tasks": {
-    "B8BC4739-2E87-4332-9C07-659604EAAA30": {
-      "last_failure_ts": 1770752446.6024497,
-      "retry_count": 4,
-      "skip_until_ts": 1770755146.6024497,
-      "streak": 4
-    }
-  },
+  "tasks": {},
   "version": 1
 }
