@@ -692,8 +692,12 @@ class WorkerManager:
             from orchestrator.utils.settings import get_setting
             executable = get_setting("openclaw_executable", "openclaw")
             
-            # Optional global model override for cost control
-            model_override = (get_setting("openclaw_model_override", "") or "").strip()
+            # Per-template model configuration (e.g., {"programmer": "codex-5.2", "architect": "sonnet"})
+            # Falls back to openclaw_model_override if template not specified
+            model_per_template = get_setting("model_per_template", {})
+            model_override = model_per_template.get(template_type, "").strip()
+            if not model_override:
+                model_override = (get_setting("openclaw_model_override", "") or "").strip()
 
             cmd = [executable, "agent", "--agent", agent_id, "--label", session_label]
             if model_override:
