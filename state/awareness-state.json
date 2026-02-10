@@ -1,5 +1,5 @@
 {
-  "total_completed": 11,
+  "total_completed": 12,
   "total_failed": 0,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -101,8 +101,17 @@
       "kind": "task",
       "started_at": "2026-02-10T18:26:22.062544+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "BA4903B8-EC0B-4884-A3D1-2A2A48701D61",
+      "project_id": "lobs-orchestrator",
+      "title": "Graceful shutdown with multiple active workers",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T18:30:49.080968+00:00",
+      "status": "completed"
     }
   ],
   "failed": [],
-  "last_updated": "2026-02-10T18:30:39.022037+00:00"
+  "last_updated": "2026-02-10T18:34:23.576364+00:00"
 }
