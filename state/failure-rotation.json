@@ -43,10 +43,10 @@
       "streak": 3
     },
     "D61D908E-52E4-415A-A531-4F9DD5963908": {
-      "last_failure_ts": 1770767429.481484,
-      "retry_count": 3,
-      "skip_until_ts": 1770768329.481484,
-      "streak": 3
+      "last_failure_ts": 1770767542.9754639,
+      "retry_count": 4,
+      "skip_until_ts": 1770770242.9754639,
+      "streak": 4
     }
   },
   "version": 1

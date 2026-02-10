@@ -1,6 +1,6 @@
 {
   "total_completed": 31,
-  "total_failed": 33,
+  "total_failed": 34,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -580,7 +580,16 @@
       "kind": "task",
       "started_at": "2026-02-10T23:02:57.709276+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "D61D908E-52E4-415A-A531-4F9DD5963908",
+      "project_id": "lobs-orchestrator",
+      "title": "Gateway timeout handling - retry and fallback",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:51:21.407933+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T23:51:29.627409+00:00"
+  "last_updated": "2026-02-10T23:52:22.981054+00:00"
 }
