@@ -507,7 +507,7 @@ class Orchestrator:
 
         # 9. Proactive Work Discovery (when idle)
         # After all explicit work is processed, check for proactive opportunities
-        if not eligible_work and not self.worker_manager.get_worker_status()["busy"]:
+        if not eligible_work:
             self._process_proactive_work(projects, eligible_work)
 
         return activity
