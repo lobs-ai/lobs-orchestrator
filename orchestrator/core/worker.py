@@ -464,7 +464,13 @@ class WorkerManager:
 
             # Build prompt
             from orchestrator.services.prompter import Prompter
-            prompt = Prompter.build_task_prompt(task, project_id, rules=rules, workspace_path=workspace)
+            prompt = Prompter.build_task_prompt(
+                task,
+                project_id,
+                rules=rules,
+                workspace_path=workspace,
+                agent_type=agent_type,
+            )
 
             # Run Ollama
             logger.info(f"Running Ollama for {task_id[:8]} with model {self.ollama.model}")
@@ -580,7 +586,13 @@ class WorkerManager:
 
             # Build prompt
             from orchestrator.services.prompter import Prompter
-            prompt = Prompter.build_task_prompt(task, project_id, rules=rules, workspace_path=workspace)
+            prompt = Prompter.build_task_prompt(
+                task,
+                project_id,
+                rules=rules,
+                workspace_path=workspace,
+                agent_type=agent_type,
+            )
 
             # Launch OpenClaw
             from orchestrator.utils.settings import get_setting
