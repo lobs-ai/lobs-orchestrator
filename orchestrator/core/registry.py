@@ -50,6 +50,7 @@ class AgentConfig:
     user_md: str
     model: str
     capabilities: List[str]
+    proactive: List[str]
 
 
 class AgentRegistry:
@@ -104,7 +105,7 @@ class AgentRegistry:
         identity_md = (agent_dir / "IDENTITY.md").read_text(encoding="utf-8")
         user_md = (agent_dir / "USER.md").read_text(encoding="utf-8")
 
-        model, capabilities = _parse_identity(identity_md)
+        model, capabilities, proactive = _parse_identity(identity_md)
 
         return AgentConfig(
             type=key,
@@ -115,21 +116,23 @@ class AgentRegistry:
             user_md=user_md,
             model=model,
             capabilities=capabilities,
+            proactive=proactive,
         )
 
 
 _IDENTITY_FIELD_RE = re.compile(r"^\s*-\s*\*\*(?P<key>[^*]+)\*\*\s*:\s*(?P<value>.+?)\s*$")
 
 
-def _parse_identity(identity_md: str) -> tuple[str, List[str]]:
-    """Parse model + capabilities from IDENTITY.md.
+def _parse_identity(identity_md: str) -> tuple[str, List[str], List[str]]:
+    """Parse model + capabilities + proactive from IDENTITY.md.
 
     Expected bullet format (case-insensitive):
     - **Model:** <value>
     - **Capabilities:** a, b, c
+    - **Proactive:** x, y, z
 
     Returns:
-        (model, capabilities)
+        (model, capabilities, proactive)
 
     Raises:
         ValueError if required fields cannot be parsed.
@@ -137,6 +140,7 @@ def _parse_identity(identity_md: str) -> tuple[str, List[str]]:
 
     model: Optional[str] = None
     capabilities: Optional[List[str]] = None
+    proactive: List[str] = []  # Optional field, defaults to empty
 
     for line in identity_md.splitlines():
         m = _IDENTITY_FIELD_RE.match(line)
@@ -151,13 +155,16 @@ def _parse_identity(identity_md: str) -> tuple[str, List[str]]:
         elif k == "capabilities":
             # Split on commas. Keep raw tokens (no special normalization beyond strip).
             capabilities = [c.strip() for c in v.split(",") if c.strip()]
+        elif k == "proactive":
+            # Split on commas. Keep raw tokens (no special normalization beyond strip).
+            proactive = [c.strip() for c in v.split(",") if c.strip()]
 
     if model is None:
         raise ValueError("IDENTITY.md missing required field: Model")
     if capabilities is None:
         raise ValueError("IDENTITY.md missing required field: Capabilities")
 
-    return model, capabilities
+    return model, capabilities, proactive
 
 
 # Convenience singleton for call-sites that don't want to manage an instance.
