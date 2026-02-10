@@ -10,7 +10,7 @@
   "model_per_template": {
     "programmer": "codex-5.2",
     "researcher": "codex-5.2",
-    "architect": "sonnet"
+    "architect": "opus"
   },
   "openclaw_model_override": "codex-5.2"
 }
