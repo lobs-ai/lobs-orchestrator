@@ -170,6 +170,10 @@ class WorkerManager:
         # agent_type -> task_id
         self.agent_locks: dict[str, str] = {}
 
+        # Circuit breaker: pause spawning on infrastructure failures
+        from orchestrator.core.circuit_breaker import CircuitBreaker
+        self.circuit_breaker = CircuitBreaker(threshold=3, cooldown_seconds=120)
+
         # Thread pool executor for spawning workers concurrently
         self.executor = ThreadPoolExecutor(max_workers=5)
         
