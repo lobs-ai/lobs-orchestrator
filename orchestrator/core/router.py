@@ -30,7 +30,7 @@ def _compile_keywords(words: Iterable[str]) -> re.Pattern[str]:
     # Word-boundary match on any keyword, case-insensitive.
     # NOTE: We intentionally keep this simple/transparent (no stemming).
     escaped = [re.escape(w) for w in words]
-    return re.compile(r"\\b(?:" + "|".join(escaped) + r")\\b", re.IGNORECASE)
+    return re.compile(r"\b(?:" + "|".join(escaped) + r")\b", re.IGNORECASE)
 
 
 # Order matters: first match wins.
