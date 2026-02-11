@@ -1,6 +1,6 @@
 {
   "total_completed": 31,
-  "total_failed": 35,
+  "total_failed": 36,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -598,7 +598,16 @@
       "kind": "task",
       "started_at": "2026-02-10T23:52:33.651906+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "CF039286-4A8D-464B-AD05-F71686A389B8",
+      "project_id": "lobs-orchestrator",
+      "title": "Integration tests for orchestrator",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-10T23:53:03.907921+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-10T23:52:53.385038+00:00"
+  "last_updated": "2026-02-10T23:53:49.748907+00:00"
 }

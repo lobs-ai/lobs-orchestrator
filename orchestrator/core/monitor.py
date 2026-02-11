@@ -31,6 +31,10 @@ class Monitor:
         self.check_interval = 600  # 10 minutes
         self.last_proactive_check = 0
         self.proactive_interval = 3600  # 1 hour
+        
+        # Failure pattern detection
+        self.failure_history_path = STATE_DIR / "failure-history.json"
+        self.diagnostic_tasks_path = STATE_DIR / "diagnostic-tasks.json"
 
         # Lightweight agent for proactive analysis.
         template_dir = (STATE_DIR.parent / "worker-template").resolve()
@@ -46,6 +50,7 @@ class Monitor:
 
         logger.info("Running periodic system monitoring and inbox processing...")
         self.check_stuck_tasks()
+        self.check_failure_patterns()
         
         if now - self.last_proactive_check >= self.proactive_interval:
             self.generate_proactive_suggestions()
@@ -107,6 +112,254 @@ class Monitor:
             }
             self.provider.update_task(new_task["id"], new_task)
             self.provider.update_inbox_item(item["id"], {"status": "resolved", "taskId": new_task["id"]})
+
+    def check_failure_patterns(self) -> None:
+        """Detect patterns of failures and trigger diagnostic tasks.
+        
+        Analyzes recent task failures to identify:
+        - Same project failing repeatedly
+        - Same agent type failing repeatedly
+        - Similar error patterns across tasks
+        
+        When patterns are detected, creates diagnostic tasks for investigation.
+        """
+        try:
+            # Load failure history
+            history = self._load_failure_history()
+            recent_failures = self._get_recent_failures(history, hours=24)
+            
+            if not recent_failures:
+                return
+            
+            # Detect patterns
+            patterns = self._detect_patterns(recent_failures)
+            
+            # Create diagnostic tasks for significant patterns
+            for pattern in patterns:
+                if self._should_create_diagnostic(pattern):
+                    self._create_diagnostic_task(pattern)
+                    
+        except Exception as e:
+            logger.error(f"Failed to check failure patterns: {e}", exc_info=True)
+
+    def _load_failure_history(self) -> list[dict[str, Any]]:
+        """Load failure history from state file."""
+        if not self.failure_history_path.exists():
+            return []
+        try:
+            with open(self.failure_history_path, "r") as f:
+                data = json.load(f)
+                return data.get("failures", [])
+        except Exception:
+            return []
+
+    def _get_recent_failures(self, history: list[dict[str, Any]], hours: int = 24) -> list[dict[str, Any]]:
+        """Filter failures from the last N hours."""
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        recent = []
+        for failure in history:
+            try:
+                failed_at = datetime.fromisoformat(failure.get("failedAt", "").replace("Z", "+00:00"))
+                if failed_at >= cutoff:
+                    recent.append(failure)
+            except Exception:
+                continue
+        return recent
+
+    def _detect_patterns(self, failures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Detect failure patterns worthy of investigation."""
+        patterns = []
+        
+        # Pattern 1: Same project failing repeatedly
+        project_failures: dict[str, int] = {}
+        for f in failures:
+            pid = f.get("projectId", "unknown")
+            project_failures[pid] = project_failures.get(pid, 0) + 1
+        
+        for project_id, count in project_failures.items():
+            if count >= 3:  # 3+ failures in 24h
+                patterns.append({
+                    "type": "project_failures",
+                    "project_id": project_id,
+                    "count": count,
+                    "severity": "high" if count >= 5 else "medium"
+                })
+        
+        # Pattern 2: Same agent type failing repeatedly
+        agent_failures: dict[str, int] = {}
+        for f in failures:
+            agent = f.get("agentType", "unknown")
+            agent_failures[agent] = agent_failures.get(agent, 0) + 1
+        
+        for agent_type, count in agent_failures.items():
+            if count >= 4:  # 4+ failures in 24h
+                patterns.append({
+                    "type": "agent_failures",
+                    "agent_type": agent_type,
+                    "count": count,
+                    "severity": "high" if count >= 7 else "medium"
+                })
+        
+        # Pattern 3: Similar error messages (simple keyword matching)
+        error_keywords = {}
+        for f in failures:
+            error = (f.get("error") or "").lower()
+            for keyword in ["git", "permission", "timeout", "conflict", "npm", "python"]:
+                if keyword in error:
+                    error_keywords[keyword] = error_keywords.get(keyword, 0) + 1
+        
+        for keyword, count in error_keywords.items():
+            if count >= 3:  # 3+ failures with same keyword
+                patterns.append({
+                    "type": "error_pattern",
+                    "keyword": keyword,
+                    "count": count,
+                    "severity": "medium"
+                })
+        
+        return patterns
+
+    def _should_create_diagnostic(self, pattern: dict[str, Any]) -> bool:
+        """Check if we should create a diagnostic task for this pattern."""
+        # Load diagnostic tasks log
+        if not self.diagnostic_tasks_path.exists():
+            diag_data = {"tasks": []}
+        else:
+            try:
+                with open(self.diagnostic_tasks_path, "r") as f:
+                    diag_data = json.load(f)
+            except Exception:
+                diag_data = {"tasks": []}
+        
+        # Check if we recently created a diagnostic for this pattern
+        pattern_key = self._pattern_key(pattern)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=12)
+        
+        for task in diag_data.get("tasks", []):
+            if task.get("pattern_key") == pattern_key:
+                try:
+                    created = datetime.fromisoformat(task.get("createdAt", "").replace("Z", "+00:00"))
+                    if created >= cutoff:
+                        return False  # Recently created diagnostic for this pattern
+                except Exception:
+                    pass
+        
+        return True
+
+    def _pattern_key(self, pattern: dict[str, Any]) -> str:
+        """Generate a unique key for a pattern."""
+        ptype = pattern.get("type", "unknown")
+        if ptype == "project_failures":
+            return f"project:{pattern.get('project_id')}"
+        elif ptype == "agent_failures":
+            return f"agent:{pattern.get('agent_type')}"
+        elif ptype == "error_pattern":
+            return f"error:{pattern.get('keyword')}"
+        return f"unknown:{ptype}"
+
+    def _create_diagnostic_task(self, pattern: dict[str, Any]) -> None:
+        """Create a diagnostic task to investigate a failure pattern."""
+        try:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            task_id = f"DIAG-{int(time.time())}-{pattern.get('type', 'unknown')[:8].upper()}"
+            
+            # Build task description based on pattern type
+            ptype = pattern.get("type")
+            if ptype == "project_failures":
+                title = f"Investigate failures in {pattern.get('project_id')}"
+                notes = (
+                    f"The project '{pattern.get('project_id')}' has failed {pattern.get('count')} times "
+                    f"in the last 24 hours. Please investigate:\n\n"
+                    f"1. Review recent error logs\n"
+                    f"2. Check for common issues (dependencies, configuration, tests)\n"
+                    f"3. Identify root cause\n"
+                    f"4. Propose fix or workaround\n\n"
+                    f"This is a {pattern.get('severity')} severity issue."
+                )
+                project_id = pattern.get("project_id", "lobs-control")
+                agent = "researcher"  # Researcher investigates
+                
+            elif ptype == "agent_failures":
+                title = f"Investigate {pattern.get('agent_type')} agent failures"
+                notes = (
+                    f"The {pattern.get('agent_type')} agent has failed {pattern.get('count')} times "
+                    f"in the last 24 hours. Please investigate:\n\n"
+                    f"1. Review agent prompts and configuration\n"
+                    f"2. Check for common failure patterns\n"
+                    f"3. Identify if this is a systemic issue\n"
+                    f"4. Propose improvements to agent setup\n\n"
+                    f"This is a {pattern.get('severity')} severity issue."
+                )
+                project_id = "lobs-control"  # System-level investigation
+                agent = "researcher"
+                
+            elif ptype == "error_pattern":
+                title = f"Investigate recurring '{pattern.get('keyword')}' errors"
+                notes = (
+                    f"Detected {pattern.get('count')} failures with '{pattern.get('keyword')}' errors "
+                    f"in the last 24 hours. Please investigate:\n\n"
+                    f"1. Review error logs containing this keyword\n"
+                    f"2. Identify common root cause\n"
+                    f"3. Determine if this is environmental or code-related\n"
+                    f"4. Propose solution\n\n"
+                    f"This is a {pattern.get('severity')} severity issue."
+                )
+                project_id = "lobs-control"
+                agent = "researcher"
+            else:
+                logger.warning(f"Unknown pattern type: {ptype}")
+                return
+            
+            # Create the diagnostic task
+            task = {
+                "id": task_id,
+                "kind": "task",
+                "projectId": project_id,
+                "title": title,
+                "notes": notes,
+                "status": "active",
+                "workState": "not_started",
+                "agent": agent,
+                "tags": ["diagnostic", "auto-generated", f"severity:{pattern.get('severity')}"],
+                "createdAt": now,
+                "updatedAt": now,
+                "diagnosticMeta": {
+                    "pattern": pattern,
+                    "patternKey": self._pattern_key(pattern)
+                }
+            }
+            
+            # Save task via provider
+            self.provider.update_task(task_id, task)
+            
+            # Log diagnostic task creation
+            diag_data = {"tasks": []}
+            if self.diagnostic_tasks_path.exists():
+                try:
+                    with open(self.diagnostic_tasks_path, "r") as f:
+                        diag_data = json.load(f)
+                except Exception:
+                    pass
+            
+            diag_data.setdefault("tasks", []).append({
+                "task_id": task_id,
+                "pattern_key": self._pattern_key(pattern),
+                "createdAt": now,
+                "pattern": pattern
+            })
+            
+            self.diagnostic_tasks_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.diagnostic_tasks_path, "w") as f:
+                json.dump(diag_data, f, indent=2)
+                f.write("\n")
+            
+            logger.info(
+                f"[MONITOR] Created diagnostic task {task_id} for {ptype} pattern "
+                f"({pattern.get('count')} occurrences)"
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to create diagnostic task: {e}", exc_info=True)
 
     def check_stuck_tasks(self) -> None:
         """Verify that running tasks haven't exceeded timeout.

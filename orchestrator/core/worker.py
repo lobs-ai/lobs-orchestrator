@@ -1321,6 +1321,93 @@ class WorkerManager:
         
         return summary, was_blocked
 
+    def _trigger_automatic_review(self, task: dict[str, Any], agent_template: str, project_id: str) -> None:
+        """Trigger automatic code review after programmer task completion (quality gate).
+        
+        Creates a review task if:
+        - Agent was programmer (code changes likely)
+        - Task is part of an initiative (significant work)
+        - Auto-review is enabled in config
+        - Task is not already a review task
+        """
+        try:
+            from orchestrator.utils.settings import get_setting
+            
+            # Check if auto-review is enabled
+            auto_review_config = get_setting("auto_review", {})
+            if isinstance(auto_review_config, dict):
+                enabled = auto_review_config.get("enabled", False)
+            else:
+                enabled = get_setting("auto_review_enabled", False)
+            
+            if not enabled:
+                return
+            
+            # Only review programmer tasks
+            if agent_template != "programmer":
+                return
+            
+            # Don't review review tasks (avoid loops)
+            tags = task.get("tags", [])
+            if "review" in tags or "diagnostic" in tags:
+                return
+            
+            # Check if task is part of an initiative (significant work worth reviewing)
+            initiative = task.get("initiative") or task.get("collaboration", {}).get("initiative")
+            if not initiative:
+                # Optionally review all programmer tasks, or skip standalone tasks
+                review_all = False
+                if isinstance(auto_review_config, dict):
+                    review_all = auto_review_config.get("review_all_tasks", False)
+                if not review_all:
+                    return
+            
+            task_id = task.get("id")
+            task_title = task.get("title", "")
+            
+            # Create review task via collaboration manager
+            if not self.collaboration:
+                logger.debug("[AUTO-REVIEW] Collaboration manager not available, skipping auto-review")
+                return
+            
+            review_payload = {
+                "from": "programmer",
+                "to": "reviewer",
+                "initiative": initiative or f"review-{task_id[:8]}",
+                "work": {
+                    "title": f"Review: {task_title}",
+                    "context": (
+                        f"Please review the changes from task {task_id[:8]}.\n\n"
+                        f"Original task: {task_title}\n\n"
+                        f"Focus on:\n"
+                        f"- Code correctness and logic\n"
+                        f"- Test coverage\n"
+                        f"- Code quality and maintainability\n"
+                        f"- Potential bugs or edge cases\n\n"
+                        f"If you find issues, create follow-up tasks via handoffs."
+                    ),
+                    "acceptance": (
+                        "Review complete with feedback documented. "
+                        "Critical issues should result in follow-up tasks."
+                    ),
+                },
+                "projectId": project_id,
+            }
+            
+            review_task_id = self.collaboration.process_handoff(
+                review_payload,
+                parent_task_id=task_id,
+                default_project_id=project_id,
+            )
+            
+            logger.info(
+                f"[AUTO-REVIEW] Created review task {review_task_id[:8]} for completed task {task_id[:8]}"
+            )
+            
+        except Exception as e:
+            # Don't fail task completion if auto-review fails
+            logger.error(f"[AUTO-REVIEW] Failed to create review task: {e}", exc_info=True)
+
     def _process_handoffs(self, task_id: str, project_id: str, from_agent: str) -> None:
         """Read and process agent handoffs from .handoffs/ directory.
         
@@ -1633,9 +1720,9 @@ class WorkerManager:
                 subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
                 logger.info(f"Committed changes for task {task_id}")
 
-                # Push
-                subprocess.run(["git", "push"], cwd=project_path, check=True)
-                logger.info(f"Pushed changes for task {task_id} to {project_id}")
+                # Push with retry and conflict recovery
+                if not self._safe_push_with_retry(project_path, task_id, project_id):
+                    return False
             else:
                 logger.info(f"No changes to commit for task {task_id} in project repo")
 
@@ -1648,6 +1735,183 @@ class WorkerManager:
             
         except subprocess.CalledProcessError as e:
             logger.error(f"Git operation failed for {project_id}: {e.stderr.decode() if e.stderr else str(e)}")
+            return False
+    
+    def _safe_push_with_retry(self, repo_path: Path, task_id: str, project_id: str, max_retries: int = 3) -> bool:
+        """Push with automatic retry and conflict recovery.
+        
+        Implements exponential backoff and attempts to resolve simple conflicts.
+        """
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                subprocess.run(
+                    ["git", "push"],
+                    cwd=repo_path,
+                    check=True,
+                    capture_output=True,
+                    timeout=60
+                )
+                logger.info(f"Pushed changes for task {task_id} to {project_id}")
+                return True
+                
+            except subprocess.CalledProcessError as e:
+                stderr = e.stderr.decode() if e.stderr else ""
+                
+                # Check if this is a reject/conflict that we can recover from
+                if "rejected" in stderr.lower() or "conflict" in stderr.lower():
+                    logger.warning(
+                        f"Push rejected for {project_id} (attempt {attempt + 1}/{max_retries}). "
+                        f"Attempting rebase recovery..."
+                    )
+                    
+                    if self._attempt_conflict_recovery(repo_path, task_id, project_id):
+                        # Recovery successful, try push again
+                        continue
+                    else:
+                        logger.error(f"Conflict recovery failed for {project_id}")
+                        return False
+                else:
+                    # Other error, retry with backoff
+                    if attempt < max_retries - 1:
+                        backoff = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                        logger.warning(
+                            f"Push failed for {project_id} (attempt {attempt + 1}/{max_retries}): {stderr}. "
+                            f"Retrying in {backoff}s..."
+                        )
+                        time.sleep(backoff)
+                        continue
+                    else:
+                        logger.error(f"Push failed after {max_retries} attempts for {project_id}: {stderr}")
+                        return False
+            
+            except subprocess.TimeoutExpired:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Push timed out for {project_id}, retrying...")
+                    continue
+                else:
+                    logger.error(f"Push timed out after {max_retries} attempts for {project_id}")
+                    return False
+        
+        return False
+    
+    def _record_failure_for_monitoring(
+        self,
+        task_id: str,
+        project_id: str,
+        agent_id: str,
+        failure_reason: str,
+        error_log: str
+    ) -> None:
+        """Record failure in history for Monitor pattern detection."""
+        try:
+            from orchestrator.core.monitor import Monitor
+            
+            failure_entry = {
+                "taskId": task_id,
+                "projectId": project_id,
+                "agentType": agent_id,
+                "failureReason": failure_reason,
+                "error": error_log[:500] if error_log else "",  # Truncate for storage
+                "failedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            
+            # Append to failure history
+            history_path = STATE_DIR / "failure-history.json"
+            history_data = {"failures": []}
+            
+            if history_path.exists():
+                try:
+                    with open(history_path, "r") as f:
+                        history_data = json.load(f)
+                except Exception:
+                    pass
+            
+            # Keep only last 100 failures to avoid unbounded growth
+            failures = history_data.get("failures", [])
+            failures.append(failure_entry)
+            if len(failures) > 100:
+                failures = failures[-100:]
+            
+            history_data["failures"] = failures
+            
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(history_path, "w") as f:
+                json.dump(history_data, f, indent=2)
+                f.write("\n")
+            
+            logger.debug(f"[MONITORING] Recorded failure for task {task_id[:8]} in failure history")
+            
+        except Exception as e:
+            # Don't fail the failure handler if monitoring fails
+            logger.debug(f"Failed to record failure for monitoring: {e}")
+    
+    def _attempt_conflict_recovery(self, repo_path: Path, task_id: str, project_id: str) -> bool:
+        """Attempt to recover from git conflicts by rebasing.
+        
+        Returns True if recovery successful, False otherwise.
+        """
+        try:
+            # Fetch latest changes
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=30
+            )
+            
+            # Get current branch
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=10
+            )
+            branch = branch_result.stdout.decode().strip()
+            
+            # Attempt rebase
+            rebase_result = subprocess.run(
+                ["git", "rebase", f"origin/{branch}"],
+                cwd=repo_path,
+                capture_output=True,
+                timeout=60
+            )
+            
+            if rebase_result.returncode == 0:
+                logger.info(f"Successfully rebased {project_id} for task {task_id}")
+                return True
+            else:
+                # Rebase had conflicts
+                stderr = rebase_result.stderr.decode() if rebase_result.stderr else ""
+                if "conflict" in stderr.lower():
+                    logger.warning(f"Rebase conflicts in {project_id}, aborting rebase")
+                    # Abort the rebase to restore clean state
+                    subprocess.run(
+                        ["git", "rebase", "--abort"],
+                        cwd=repo_path,
+                        check=False,
+                        timeout=10
+                    )
+                return False
+                
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Git conflict recovery failed for {project_id}: {e}")
+            # Try to abort rebase if it's in progress
+            try:
+                subprocess.run(
+                    ["git", "rebase", "--abort"],
+                    cwd=repo_path,
+                    check=False,
+                    timeout=10
+                )
+            except Exception:
+                pass
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error during conflict recovery for {project_id}: {e}")
             return False
 
     # =========================================================================
@@ -2150,6 +2414,9 @@ class WorkerManager:
 
         # Process any handoffs created by the agent
         self._process_handoffs(task_id, project_id, agent_template)
+        
+        # Quality gate: trigger automatic review for programmer tasks (if enabled)
+        self._trigger_automatic_review(task, agent_template, project_id)
 
         self.provider.update_task(
             task_id,
@@ -2233,6 +2500,9 @@ class WorkerManager:
             logger.debug("Failed to record failure for failure backoff", exc_info=True)
 
         self.escalation.process_failure(task_id, project_id, error_log)
+        
+        # Record failure in history for Monitor pattern detection
+        self._record_failure_for_monitoring(task_id, project_id, agent_id, failure_reason, error_log)
         
         # Get current task data to increment failure count
         current_task = self.provider.get_task(task_id)

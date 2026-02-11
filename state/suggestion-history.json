@@ -1,0 +1,144 @@
+{
+  "suggestions": [
+    {
+      "hash": "4fecf0c9ab588046",
+      "title": "Complete WIP onboarding fix for existing repo case",
+      "projectId": "default",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "670ce31b3530bf39",
+      "title": "Unblock 3 critical lobs-orchestrator production readiness tasks",
+      "projectId": "default",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "84fe0a3f5e3a5cde",
+      "title": "Resolve 8 blocked flock TODOs/HACKs before release",
+      "projectId": "default",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "38998a5585de77c1",
+      "title": "Prioritize and resolve 8 blocked flock TODO/HACK tasks",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "459cd6d6a6ba5360",
+      "title": "Test newly added chat deep link support (934bebf)",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "36ba797608f30df8",
+      "title": "Validate end-to-end README setup against fresh install",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "bea0c7838449c10b",
+      "title": "CRITICAL: Stop and investigate task retry loop",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8de69e7b62201532",
+      "title": "Unblock 3 critical lobs-orchestrator production tasks",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ed33b3c36e8eec4b",
+      "title": "Audit and categorize 9 blocked flock TODO/HACK tasks",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "38763c932dbfcf5d",
+      "title": "Create BOOTSTRAP.md with MVP scope and first sprint",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "83f8fae5a4587cad",
+      "title": "Set up Git repo, Xcode project, and basic Swift structure",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "d66ff5ece40f6bc6",
+      "title": "Complete and test 3 WIP production-readiness features",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "973a0faf833a807b",
+      "title": "Test worker health monitoring and task state recovery",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "3299f4033b8b4f98",
+      "title": "Validate Discord alerting for critical failures",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "5a14551899d214e0",
+      "title": "Complete and test WIP onboarding fix for pre-existing repos",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "83120fa050dbddf0",
+      "title": "Integration test git conflict recovery features end-to-end",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "5b98e35ecfd3abf5",
+      "title": "Document onboarding paths and test both Dashboard-only vs Full modes",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "cb98a3d5ff8fb304",
+      "title": "CRITICAL: Stop and diagnose task retry loop",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "c7e26510c2f81d40",
+      "title": "Unblock 3 critical lobs-orchestrator production readiness tasks",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    },
+    {
+      "hash": "872cf4dd3d88f9f4",
+      "title": "Audit and categorize 9 blocked flock TODO/HACK tasks",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T01:21:54Z",
+      "dismissed": false
+    }
+  ]
+}
