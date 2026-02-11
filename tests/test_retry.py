@@ -30,7 +30,7 @@ def test_retry_pattern_matching():
     """Test that retry patterns correctly match error messages."""
     pattern = RetryPattern(
         name="test_pattern",
-        patterns=[r"timeout", r"connection.*reset"],
+        patterns=[r"timeout", r"ETIMEDOUT", r"connection.*reset"],
         guidance="Test guidance",
     )
     

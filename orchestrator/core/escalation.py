@@ -161,26 +161,257 @@ class EscalationManager:
             self._handle_level_2(alert)
 
     def _handle_level_2(self, alert: dict[str, Any]):
-        """Level 2: LLM Diagnosis."""
-        logger.info(f"Escalation Level 2 for {alert['id']}: Spawning diagnostic agent.")
-        
-        # We create a new task for a diagnostic agent
-        diagnostic_task = {
-            "id": f"diag_{alert['id']}",
-            "projectId": alert["projectId"],
-            "title": f"Diagnostic: analyze failure {alert['taskId']}",
-            "notes": f"Analyze this error and propose a fix:\n\n{alert['errorLog'][:1500]}",
+        """Level 2: Failure diagnosis via reviewer agent (failure-analysis mode)."""
+        logger.info(f"Escalation Level 2 for {alert['id']}: Spawning reviewer failure-analysis task.")
+
+        task_id = alert.get("taskId")
+        project_id = alert.get("projectId")
+        error_log = (alert.get("errorLog") or "")
+
+        failed_task = self.provider.get_task(task_id) if task_id else None
+
+        # Reviewer task should emit a machine-readable JSON recommendation.
+        reviewer_task_id = f"review_{alert['id']}"
+        reviewer_notes = self._build_reviewer_failure_prompt(
+            alert_id=alert["id"],
+            failed_task=failed_task,
+            project_id=project_id,
+            error_log=error_log,
+        )
+
+        reviewer_task = {
+            "id": reviewer_task_id,
+            "projectId": project_id,
+            "title": f"Failure analysis: {task_id}",
+            "notes": reviewer_notes,
             "status": "active",
             "workState": "not_started",
-            "agentType": "diagnostic",
-            "priority": 0,  # High priority
+            "agent": "reviewer",
+            "agentType": "reviewer",
+            "priority": 0,
+            # Metadata so WorkerManager can route the result back here.
+            "escalationMeta": {
+                "alertId": alert["id"],
+                "failedTaskId": task_id,
+                "projectId": project_id,
+            },
         }
-        self.provider.update_task(diagnostic_task["id"], diagnostic_task)
-        self.provider.update_alert(alert["id"], {
-            "level": 3,
-            "diagnosticTaskId": diagnostic_task["id"],
-            "note": "Diagnostic agent spawned."
-        })
+
+        self.provider.update_task(reviewer_task_id, reviewer_task)
+        self.provider.update_alert(
+            alert["id"],
+            {
+                "level": 2,
+                "reviewerTaskId": reviewer_task_id,
+                "status": "waiting_reviewer",
+                "note": "Reviewer failure-analysis task spawned.",
+            },
+        )
+
+    def process_reviewer_result(self, reviewer_task: dict[str, Any]) -> None:
+        """Process a completed reviewer failure-analysis task and act on recommendation."""
+        meta = reviewer_task.get("escalationMeta") or {}
+        alert_id = meta.get("alertId")
+        failed_task_id = meta.get("failedTaskId")
+        project_id = meta.get("projectId") or reviewer_task.get("projectId")
+
+        if not alert_id or not failed_task_id or not project_id:
+            logger.warning("Reviewer result missing escalationMeta; cannot process")
+            return
+
+        from orchestrator.config import WORKER_RESULTS_DIR
+
+        log_path = WORKER_RESULTS_DIR / f"{reviewer_task['id']}.log"
+        try:
+            text = log_path.read_text(encoding="utf-8", errors="ignore") if log_path.exists() else ""
+        except Exception as e:
+            logger.warning(f"Failed to read reviewer log for {reviewer_task['id']}: {e}")
+            text = ""
+
+        rec = self._extract_reviewer_recommendation(text)
+        if rec is None:
+            logger.info(f"Reviewer task {reviewer_task['id']} produced no parseable recommendation; escalating")
+            self.provider.update_alert(alert_id, {"level": 3, "status": "active", "note": "Reviewer output not parseable; escalating to human."})
+            self._handle_level_3({"id": alert_id, "taskId": failed_task_id, "projectId": project_id, "errorLog": text})
+            return
+
+        recommendation = (rec.get("recommendation") or "").strip().lower()
+        guidance = (rec.get("guidance") or "").strip()
+        root_cause = (rec.get("rootCause") or rec.get("root_cause") or "").strip()
+
+        failed_task = self.provider.get_task(failed_task_id)
+        if not failed_task:
+            logger.warning(f"Failed task {failed_task_id} not found; cannot apply reviewer recommendation")
+            return
+
+        if recommendation == "retry":
+            self._apply_reviewer_retry(
+                alert_id=alert_id,
+                failed_task=failed_task,
+                guidance=guidance,
+                root_cause=root_cause,
+                reviewer_task_id=reviewer_task.get("id"),
+            )
+            return
+
+        if recommendation == "subtask":
+            self._apply_reviewer_subtask(
+                alert_id=alert_id,
+                failed_task=failed_task,
+                rec=rec,
+                reviewer_task_id=reviewer_task.get("id"),
+            )
+            return
+
+        # Default / explicit escalate
+        self.provider.update_alert(
+            alert_id,
+            {
+                "level": 3,
+                "status": "active",
+                "note": f"Reviewer recommended escalation (recommendation={recommendation or 'unknown'}).",
+            },
+        )
+        self._handle_level_3({"id": alert_id, "taskId": failed_task_id, "projectId": project_id, "errorLog": failed_task.get("failureReason") or ""})
+
+    def _build_reviewer_failure_prompt(
+        self,
+        *,
+        alert_id: str,
+        failed_task: dict[str, Any] | None,
+        project_id: str,
+        error_log: str,
+    ) -> str:
+        import json
+
+        task_blob = json.dumps(failed_task or {}, indent=2)[:6000]
+        err_blob = (error_log or "")[:3000]
+
+        return (
+            "You are in FAILURE ANALYSIS mode.\n\n"
+            "Analyze the failed task and error logs. Produce a diagnosis and an actionable recommendation.\n\n"
+            "IMPORTANT: End your response with a single JSON object on its own lines, like:\n"
+            "{\"recommendation\": \"retry\", \"guidance\": \"...\", \"rootCause\": \"...\"}\n"
+            "Valid recommendation values: retry | subtask | escalate\n\n"
+            f"Alert ID: {alert_id}\n"
+            f"Project: {project_id}\n\n"
+            "Failed task JSON:\n`````\n"
+            f"{task_blob}\n"
+            "`````\n\n"
+            "Worker error log (truncated):\n`````\n"
+            f"{err_blob}\n"
+            "`````\n"
+        )
+
+    def _extract_reviewer_recommendation(self, text: str) -> dict[str, Any] | None:
+        """Best-effort extraction of a trailing JSON object from reviewer output."""
+        import json
+
+        if not text:
+            return None
+
+        # Fast path: whole text is JSON.
+        s = text.strip()
+        try:
+            obj = json.loads(s)
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+
+        # Heuristic: find last JSON object in text.
+        start = s.rfind("{")
+        end = s.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+
+        blob = s[start : end + 1]
+        try:
+            obj = json.loads(blob)
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            return None
+        return None
+
+    def _apply_reviewer_retry(
+        self,
+        *,
+        alert_id: str,
+        failed_task: dict[str, Any],
+        guidance: str,
+        root_cause: str,
+        reviewer_task_id: str | None,
+    ) -> None:
+        retry_manager = get_retry_manager()
+
+        # Enforce max retry and prevent repeating same root cause.
+        retry_count = int(failed_task.get("retryCount") or 0)
+        if retry_count >= 3:
+            self.provider.update_alert(alert_id, {"level": 3, "status": "active", "note": "Reviewer suggested retry but max retryCount reached; escalating."})
+            return
+
+        reason = (root_cause or "reviewer_guidance").strip()[:80] or "reviewer_guidance"
+        pattern_name = f"reviewer:{reason}"
+
+        last_reason = (failed_task.get("lastRetryReason") or "")
+        if last_reason == pattern_name:
+            self.provider.update_alert(alert_id, {"level": 3, "status": "active", "note": "Reviewer suggested retry but same root cause as last retry; escalating."})
+            return
+
+        guidance_msg = guidance or "Reviewer recommended retry with updated approach."
+        updates = retry_manager.prepare_retry(failed_task, pattern_name, guidance_msg, "")
+        self.provider.update_task(failed_task["id"], updates)
+
+        self.provider.update_alert(
+            alert_id,
+            {
+                "status": "resolved",
+                "note": f"Reviewer recommended retry (reason={pattern_name}).",
+                "reviewerTaskId": reviewer_task_id,
+            },
+        )
+
+    def _apply_reviewer_subtask(
+        self,
+        *,
+        alert_id: str,
+        failed_task: dict[str, Any],
+        rec: dict[str, Any],
+        reviewer_task_id: str | None,
+    ) -> None:
+        import time
+
+        title = (rec.get("subtaskTitle") or rec.get("title") or "Fix blocker from failure analysis").strip()
+        context = (rec.get("guidance") or rec.get("context") or "").strip()
+        to_agent = (rec.get("to") or "programmer").strip().lower()
+        if to_agent not in {"programmer", "architect", "researcher", "writer", "reviewer"}:
+            to_agent = "programmer"
+
+        sub_id = f"sub_{failed_task['id']}_{int(time.time())}"
+        subtask = {
+            "id": sub_id,
+            "projectId": failed_task.get("projectId"),
+            "title": title,
+            "notes": (
+                f"Created from failure analysis of task {failed_task['id']}.\n\n"
+                f"Context / guidance:\n{context}\n"
+            ),
+            "status": "active",
+            "workState": "not_started",
+            "agent": to_agent,
+            "agentType": to_agent,
+        }
+
+        self.provider.update_task(sub_id, subtask)
+        self.provider.update_alert(
+            alert_id,
+            {
+                "status": "resolved",
+                "note": f"Reviewer recommended subtask; created {sub_id} assigned to {to_agent}.",
+                "reviewerTaskId": reviewer_task_id,
+            },
+        )
 
     def _handle_level_3(self, alert: dict[str, Any]):
         """Level 3: Human help needed."""

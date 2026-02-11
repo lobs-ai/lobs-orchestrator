@@ -2570,6 +2570,20 @@ class WorkerManager:
         # Get task data to check for GitHub integration
         task = self.provider.get_task(task_id)
 
+        # If this was a reviewer failure-analysis task spawned by escalation level 2,
+        # process its recommendation before marking it complete.
+        try:
+            if task and isinstance(task.get("escalationMeta"), dict):
+                meta = task.get("escalationMeta") or {}
+                if meta.get("alertId") and meta.get("failedTaskId"):
+                    logger.info(
+                        f"[ESCALATION] Processing reviewer result for alert {str(meta.get('alertId'))[:8]} "
+                        f"(failedTask={str(meta.get('failedTaskId'))[:8]})"
+                    )
+                    self.escalation.process_reviewer_result(task)
+        except Exception as e:
+            logger.warning(f"[ESCALATION] Failed to process reviewer result for task {task_id[:8]}: {e}", exc_info=True)
+
         # Reset failure streak on success
         try:
             self.failure_rotation.record_success(task_id)
