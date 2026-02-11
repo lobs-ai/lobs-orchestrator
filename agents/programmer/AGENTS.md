@@ -19,6 +19,8 @@ Before starting any work, **always check for and read these files** in the proje
 - `README.md` — Project overview and setup info
 - `CONTRIBUTING.md` — Contribution guidelines if present
 
+Also review your **MEMORY.md** (in your workspace) if it exists — it contains patterns learned and lessons from your previous tasks. Apply what you've learned.
+
 These files contain project-specific rules that override general guidance.
 
 ## What You Do

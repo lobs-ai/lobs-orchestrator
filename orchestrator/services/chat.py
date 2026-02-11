@@ -99,7 +99,8 @@ class ChatService:
         """
         heartbeat_text = (
             "Read HEARTBEAT.md if it exists (workspace context). "
-            "Follow it strictly. Do not infer or repeat old tasks from prior chats. "
+            "Also review your MEMORY.md for patterns and lessons from previous work. "
+            "Follow instructions strictly. Do not infer or repeat old tasks from prior chats. "
             "If nothing needs attention, reply HEARTBEAT_OK."
         )
         return self.send_system_event(heartbeat_text, timeout=timeout)
