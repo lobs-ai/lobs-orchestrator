@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Recurring task scheduler CLI.
+
+Usage:
+    bin/recurring list
+    bin/recurring status
+    bin/recurring run <id>
+
+Configuration lives in .lobs_settings.json under key: "recurring".
+"""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Add orchestrator to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from orchestrator.config import STATE_DIR, TASKS_DIR
+from orchestrator.core.recurring_scheduler import RecurringScheduler
+
+
+def _fmt_dt(dt: datetime | None) -> str:
+    if not dt:
+        return "-"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def main() -> None:
+    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=STATE_DIR / "recurring-state.json")
+
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd in {"list", "status"}:
+        items = scheduler.load_items()
+        if not items:
+            print("No recurring items configured.")
+            return
+
+        now = datetime.now(timezone.utc)
+        for it in items:
+            last = scheduler.get_last_run(it.id)
+            try:
+                next_local = scheduler.next_run_time(it, now_utc=now)
+                next_str = next_local.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                next_str = "?"
+
+            print(f"- {it.id}  ({'enabled' if it.enabled else 'disabled'})")
+            print(f"  name:     {it.name}")
+            print(f"  schedule: {it.schedule}  tz={it.tz}")
+            print(f"  task:     {it.task.title}  agent={it.task.agent}  projectId={it.task.project_id}")
+            if it.task.notes:
+                print(f"  notes:    {it.task.notes}")
+            print(f"  lastRun:  {_fmt_dt(last)}")
+            print(f"  nextRun:  {next_str} ({it.tz})")
+
+    elif cmd == "run":
+        if len(sys.argv) < 3:
+            print("Missing id.\n")
+            print(__doc__)
+            sys.exit(1)
+
+        rid = sys.argv[2]
+        created = scheduler.run_now(rid)
+        if created:
+            print(f"Created task: {created}")
+            return
+        else:
+            print(f"No task created (not found, disabled, or already exists today): {rid}")
+            sys.exit(2)
+
+    else:
+        print(f"Unknown command: {cmd}\n")
+        print(__doc__)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

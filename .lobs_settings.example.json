@@ -15,5 +15,22 @@
   "skip_prereqs": false,
   
   "_comment_skip_prereqs_list": "List specific tools to skip checking (e.g., ['node', 'gh', 'tsc'])",
-  "skip_prereqs_list": []
+  "skip_prereqs_list": [],
+
+  "recurring": [
+    {
+      "id": "nightly-example",
+      "name": "Nightly example",
+      "schedule": "0 22 * * *",
+      "tz": "America/New_York",
+      "enabled": false,
+      "task": {
+        "title": "Nightly scan",
+        "agent": "researcher",
+        "projectId": "lobs-control",
+        "notes": "Example recurring task. Enable and edit me."
+      }
+    }
+  ]
 }
+

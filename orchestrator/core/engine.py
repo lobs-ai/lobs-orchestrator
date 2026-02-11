@@ -28,6 +28,7 @@ from orchestrator.core.failure_rotation import FailureRotation
 from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
 from orchestrator.core.workflow import WorkflowEngine
+from orchestrator.core.recurring_scheduler import RecurringScheduler
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
 from orchestrator.core.observer import Observer, Opportunity, OpportunityPriority
@@ -74,6 +75,13 @@ class Orchestrator:
         self.heartbeat = HeartbeatManager()
         self.message_processor = MessageProcessor(provider)
         self.observer = Observer()
+
+        # Cron-like recurring tasks
+        self.recurring = RecurringScheduler(
+            tasks_dir=TASKS_DIR,
+            state_path=STATE_DIR / "recurring-state.json",
+        )
+
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
         self.last_heartbeat = 0
@@ -439,6 +447,14 @@ class Orchestrator:
 
         # 4. System Monitoring
         self.monitor.tick()
+
+        # 4.5 Recurring work scheduler (cron-like)
+        try:
+            created = self.recurring.tick_with_persistence()
+            if created:
+                activity = True
+        except Exception as e:
+            logger.error(f"[RECURRING] Tick failed: {e}", exc_info=True)
 
         # 5. Scan for new work and facts from provider
         projects = self.provider.get_projects()

@@ -64,6 +64,35 @@ python3 setup_config.py \
 | `ollama_model` | `--ollama-model` | `llama3.1` | Model to use |
 | `ollama_keep_alive` | `--ollama-keep-alive` | `5m` | Model memory retention |
 
+### Recurring (cron-like)
+| Setting | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `recurring` | N/A | `[]` | List of cron-based recurring task definitions |
+
+Each recurring item has this shape:
+```json
+{
+  "id": "unique-id",
+  "name": "Human readable name",
+  "schedule": "0 22 * * *",
+  "tz": "America/New_York",
+  "enabled": true,
+  "task": {
+    "title": "...",
+    "agent": "researcher",
+    "projectId": "...",
+    "notes": "..."
+  }
+}
+```
+
+CLI:
+```bash
+bin/recurring list
+bin/recurring status
+bin/recurring run <id>
+```
+
 ### Prerequisite Checks
 | Setting | Flag | Default | Description |
 |---------|------|---------|-------------|
