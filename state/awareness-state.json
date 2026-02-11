@@ -1,6 +1,6 @@
 {
-  "total_completed": 2,
-  "total_failed": 10,
+  "total_completed": 3,
+  "total_failed": 13,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -19,6 +19,15 @@
       "agent_type": "reviewer",
       "kind": "task",
       "started_at": "2026-02-11T22:57:51.995964+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5A598823-6644-42B8-87F8-E6941A734C14",
+      "project_id": "flock",
+      "title": "Design notification system architecture for Flock",
+      "agent_type": "writer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:26.219765+00:00",
       "status": "completed"
     }
   ],
@@ -112,7 +121,34 @@
       "kind": "task",
       "started_at": "2026-02-11T23:01:25.037505+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
+      "project_id": "lobs-dashboard",
+      "title": "Add task count badge to project sidebar items",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:01:51.389415+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
+      "project_id": "lobs-dashboard",
+      "title": "Move push notification UI to top left near updates area",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:01:52.383904+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "A2C3591D-BC03-41AA-ACC3-79576F99B744",
+      "project_id": "lobs-dashboard",
+      "title": "Dashboard is laggy when scrolling quickly - optimize performance",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:01:53.406724+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:03:06.815480+00:00"
+  "last_updated": "2026-02-11T23:03:40.800376+00:00"
 }
