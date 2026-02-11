@@ -6,12 +6,6 @@
       "skip_until_ts": 1770851361.954439,
       "streak": 2
     },
-    "5EA7229E-58EC-4801-BA84-FF51FD587CDC": {
-      "last_failure_ts": 1770850915.4789991,
-      "retry_count": 2,
-      "skip_until_ts": 1770851215.4789991,
-      "streak": 2
-    },
     "775CE1B3-8D71-4665-8BD7-CA2A685B63DA": {
       "last_failure_ts": 1770851025.815552,
       "retry_count": 2,
@@ -19,10 +13,10 @@
       "streak": 2
     },
     "8575D965-1142-4020-A891-43A671EB6FC2": {
-      "last_failure_ts": 1770851013.628182,
-      "retry_count": 2,
-      "skip_until_ts": 1770851313.628182,
-      "streak": 2
+      "last_failure_ts": 1770851555.0717719,
+      "retry_count": 3,
+      "skip_until_ts": 1770852455.0717719,
+      "streak": 3
     },
     "930C51F4-93DA-41A1-914C-492291939CF1": {
       "last_failure_ts": 1770851291.6930199,
@@ -31,16 +25,16 @@
       "streak": 1
     },
     "A2C3591D-BC03-41AA-ACC3-79576F99B744": {
-      "last_failure_ts": 1770851020.799371,
-      "retry_count": 2,
-      "skip_until_ts": 1770851320.799371,
-      "streak": 2
+      "last_failure_ts": 1770851554.4331598,
+      "retry_count": 3,
+      "skip_until_ts": 1770852454.4331598,
+      "streak": 3
     },
     "A7546CDB-07A4-4139-95BE-D57CBC21E13F": {
-      "last_failure_ts": 1770851017.349764,
-      "retry_count": 2,
-      "skip_until_ts": 1770851317.349764,
-      "streak": 2
+      "last_failure_ts": 1770851554.9773839,
+      "retry_count": 3,
+      "skip_until_ts": 1770852454.9773839,
+      "streak": 3
     },
     "BE127EAA-5308-4223-B065-F71484093B44": {
       "last_failure_ts": 1770851025.886992,
