@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Setup agent workspaces in ~/.openclaw/workspace-{agent}.
+
+Copies template files from agents/{type}/ as read-only.
+Creates writable memory/ directory for agent-specific memories.
+Idempotent — safe to re-run.
+"""
+
+import os
+import sys
+import shutil
+import stat
+from pathlib import Path
+
+ORCHESTRATOR_DIR = Path(__file__).resolve().parent.parent
+AGENTS_DIR = ORCHESTRATOR_DIR / "agents"
+OPENCLAW_DIR = Path.home() / ".openclaw"
+WORKER_TEMPLATE_DIR = ORCHESTRATOR_DIR / "worker-template"
+
+# Files that come from agent templates (read-only, managed by orchestrator)
+TEMPLATE_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md", "USER.md", "IDENTITY.md"]
+
+# Files from worker-template that are shared across all agents
+SHARED_FILES = ["HEARTBEAT.md"]
+
+AGENT_TYPES = ["programmer", "researcher", "architect", "reviewer", "writer"]
+
+
+def setup_agent_workspace(agent_type: str, force: bool = False) -> None:
+    """Setup workspace for a single agent type."""
+    workspace = OPENCLAW_DIR / f"workspace-{agent_type}"
+    agent_template = AGENTS_DIR / agent_type
+    
+    if not agent_template.exists():
+        print(f"  ⚠️  Template not found: {agent_template}")
+        return
+
+    workspace.mkdir(parents=True, exist_ok=True)
+    
+    # Copy template files as read-only
+    for filename in TEMPLATE_FILES:
+        src = agent_template / filename
+        dst = workspace / filename
+        
+        if not src.exists():
+            continue
+        
+        # Remove existing file (even if read-only) before copying
+        if dst.exists():
+            dst.chmod(stat.S_IRUSR | stat.S_IWUSR)  # make writable to delete
+            dst.unlink()
+        
+        shutil.copy2(src, dst)
+        # Set read-only (owner read only)
+        dst.chmod(stat.S_IRUSR | stat.S_IRGRP)
+        print(f"  📄 {filename} (read-only)")
+    
+    # Copy shared files from worker-template
+    for filename in SHARED_FILES:
+        src = WORKER_TEMPLATE_DIR / filename
+        dst = workspace / filename
+        
+        if not src.exists():
+            continue
+            
+        if dst.exists():
+            dst.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            dst.unlink()
+        
+        shutil.copy2(src, dst)
+        dst.chmod(stat.S_IRUSR | stat.S_IRGRP)
+        print(f"  📄 {filename} (read-only, shared)")
+    
+    # Copy WORKER_RULES.md if it exists
+    worker_rules = WORKER_TEMPLATE_DIR / "WORKER_RULES.md"
+    if worker_rules.exists():
+        dst = workspace / "WORKER_RULES.md"
+        if dst.exists():
+            dst.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            dst.unlink()
+        shutil.copy2(worker_rules, dst)
+        dst.chmod(stat.S_IRUSR | stat.S_IRGRP)
+        print(f"  📄 WORKER_RULES.md (read-only, shared)")
+    
+    # Create writable memory directory
+    memory_dir = workspace / "memory"
+    memory_dir.mkdir(exist_ok=True)
+    print(f"  📁 memory/ (writable)")
+    
+    # Create MEMORY.md if it doesn't exist (writable, agent-owned)
+    memory_file = workspace / "MEMORY.md"
+    if not memory_file.exists():
+        memory_file.write_text(
+            f"# {agent_type.title()} Agent Memory\n\n"
+            "Write lessons learned, patterns discovered, and notes here.\n"
+            "This file persists across tasks.\n",
+            encoding="utf-8",
+        )
+        print(f"  📝 MEMORY.md (created, writable)")
+    else:
+        print(f"  📝 MEMORY.md (exists, writable)")
+
+
+def main():
+    force = "--force" in sys.argv
+    agents = [a for a in sys.argv[1:] if not a.startswith("--")]
+    
+    if not agents:
+        agents = AGENT_TYPES
+    
+    print(f"Setting up agent workspaces in {OPENCLAW_DIR}/\n")
+    
+    for agent_type in agents:
+        if agent_type not in AGENT_TYPES:
+            print(f"❌ Unknown agent type: {agent_type}")
+            continue
+        print(f"🔧 {agent_type}:")
+        setup_agent_workspace(agent_type, force)
+        print()
+    
+    print("✅ Done. Template files are read-only; MEMORY.md and memory/ are writable.")
+
+
+if __name__ == "__main__":
+    main()

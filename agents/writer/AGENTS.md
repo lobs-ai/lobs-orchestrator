@@ -190,3 +190,14 @@ exit 1
 ## Begin
 
 Read your writing task and produce the content. When done, exit.
+
+## Workspace Memory
+
+Your workspace has writable memory files. Use them to persist lessons learned:
+
+- **`MEMORY.md`** — Your long-term memory. Write patterns, lessons, gotchas, and notes here. This persists across tasks.
+- **`memory/`** — Directory for detailed notes, organized however you like.
+
+**Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
+
+After completing a task, update MEMORY.md with anything worth remembering for next time.

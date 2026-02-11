@@ -436,50 +436,31 @@ class WorkerManager:
                 logger.warning("[WORKER] Failed to overlay personal %s: %s", filename, e)
 
     def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
-        """Sync the per-agent workspace to match the selected agent template.
+        """Prepare the per-agent workspace for a task.
+
+        Template files (AGENTS.md, SOUL.md, etc.) are managed by bin/setup-agents
+        and are read-only. This method only writes task-specific memory context.
 
         Returns the effective template type used (may fall back to 'programmer').
         """
 
-        workspace_dir = self.agent_manager.openclaw_dir / f"workspace-{agent_template_type}"
-
-        # Always ensure WORKER_RULES.md exists (legacy behavior).
-        worker_rules_src = self.agent_manager.template_dir / "WORKER_RULES.md"
-        if worker_rules_src.exists():
-            (workspace_dir / "WORKER_RULES.md").write_text(
-                worker_rules_src.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-
         requested = (agent_template_type or "").strip().lower() or "programmer"
+        workspace_dir = self.agent_manager.openclaw_dir / f"workspace-{requested}"
 
-        def _try_sync(t: str) -> bool:
-            try:
-                cfg = self.registry.get_agent(t)
-                _write_agent_template_files(workspace_dir, cfg)
-                logger.info(f"[WORKER] Synced worker workspace to agent template: {t}")
-                return True
-            except Exception as e:
-                logger.warning(f"[WORKER] Failed to sync agent template '{t}': {e}")
-                return False
+        # Verify workspace exists (setup-agents should have created it)
+        if not workspace_dir.exists():
+            logger.warning(f"[WORKER] Workspace not found for {requested}, falling back to programmer")
+            if requested != "programmer":
+                requested = "programmer"
+                workspace_dir = self.agent_manager.openclaw_dir / "workspace-programmer"
+            if not workspace_dir.exists():
+                logger.error("[WORKER] No agent workspace found. Run bin/setup-agents first.")
+                workspace_dir.mkdir(parents=True, exist_ok=True)
 
-        # Primary: agents/<type>/
-        if _try_sync(requested):
-            self._write_memory_to_workspace(workspace_dir, requested)
-            return requested
-
-        # Fallback: programmer
-        if requested != "programmer" and _try_sync("programmer"):
-            self._write_memory_to_workspace(workspace_dir, "programmer")
-            return "programmer"
-
-        # Last resort: legacy worker-template/ sync (includes AGENTS/SOUL/etc).
-        logger.warning("[WORKER] Falling back to legacy worker-template/ workspace sync")
-        if not self.agent_manager.sync_worker_templates("worker"):
-            logger.warning("[WORKER] Legacy template sync failed")
-
-        self._write_memory_to_workspace(workspace_dir, "programmer")
-        return "programmer"
+        # Only write memory context — template files are read-only
+        self._write_memory_to_workspace(workspace_dir, requested)
+        logger.info(f"[WORKER] Prepared workspace for agent template: {requested}")
+        return requested
 
     # =========================================================================
     # Worker Spawning
