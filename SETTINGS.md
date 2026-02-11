@@ -69,6 +69,8 @@ python3 setup_config.py \
 |---------|------|---------|-------------|
 | `recurring` | N/A | `[]` | List of cron-based recurring task definitions |
 
+Recurring tasks also support passing additional fields into the created task (e.g. `outputPathTemplate`, `pipelineMeta`, `inputPathTemplate`).
+
 Each recurring item has this shape:
 ```json
 {
@@ -92,6 +94,33 @@ bin/recurring list
 bin/recurring status
 bin/recurring run <id>
 ```
+
+### Pipelines (multi-stage)
+| Setting | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `pipelines` | N/A | `[]` | Multi-stage pipeline definitions with optional approval gates |
+
+Each pipeline has this shape:
+```json
+{
+  "id": "research-to-implementation",
+  "stages": [
+    { "id": "research", "agent": "researcher", "outputPath": "state/research/{pipeline}/{date}.md" },
+    { "id": "document", "agent": "writer", "dependsOn": "research", "outputPath": "state/reports/pending/{pipeline}-{date}.md" },
+    { "id": "approve", "type": "approval", "dependsOn": "document" },
+    { "id": "design", "agent": "architect", "dependsOn": "approve" },
+    { "id": "implement", "agent": "programmer", "dependsOn": "design" }
+  ]
+}
+```
+
+Stage fields supported:
+- `id` (required)
+- `type`: `task` (default) or `approval`
+- `agent`: required for `type=task`
+- `dependsOn`: prior stage id
+- `outputPath`: optional output path template
+- `title`, `notes`, `projectId`: optional task fields
 
 ### Prerequisite Checks
 | Setting | Flag | Default | Description |

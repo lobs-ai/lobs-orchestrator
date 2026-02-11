@@ -19,17 +19,65 @@
 
   "recurring": [
     {
-      "id": "nightly-example",
-      "name": "Nightly example",
+      "id": "openclaw-community-research-nightly",
+      "name": "Nightly OpenClaw community research (pipeline starter)",
       "schedule": "0 22 * * *",
       "tz": "America/New_York",
       "enabled": false,
       "task": {
-        "title": "Nightly scan",
+        "title": "OpenClaw community research (nightly)",
         "agent": "researcher",
         "projectId": "lobs-control",
-        "notes": "Example recurring task. Enable and edit me."
+        "notes": "Research how people are using OpenClaw successfully. Focus on real usage patterns, success stories, pain points, and feature requests.\n\nSources to check (as available):\n- OpenClaw Discord (success stories, help threads, feature requests)\n- GitHub issues + discussions\n- Twitter/X (search for OpenClaw)\n- Blog posts / demos / writeups\n\nOutput format:\n- Title + date\n- 5-10 bullet summary\n- Success stories (with links)\n- Pain points / blockers (with links)\n- Feature requests (with links)\n- Suggested next actions\n",
+        "outputPathTemplate": "state/research/openclaw-usage/{date}.md",
+        "pipelineMeta": {
+          "pipelineId": "openclaw-community-research",
+          "stageId": "research"
+        }
       }
+    }
+  ],
+
+  "pipelines": [
+    {
+      "id": "openclaw-community-research",
+      "stages": [
+        {
+          "id": "research",
+          "agent": "researcher",
+          "title": "[openclaw-community-research] research",
+          "outputPath": "state/research/openclaw-usage/{date}.md",
+          "notes": "Goal: gather actionable insights about how people are using OpenClaw successfully.\n\nLook for:\n- Success stories and concrete workflows\n- Common pain points / failure modes\n- Feature requests and missing docs\n- Confusions about setup/config\n\nStructure your output:\n1) Executive summary (bullets)\n2) Notable success stories (link + 1-2 sentences)\n3) Pain points (link + impact)\n4) Feature requests (link + frequency)\n5) Recommendations for next steps\n"
+        },
+        {
+          "id": "document",
+          "agent": "writer",
+          "dependsOn": "research",
+          "title": "[openclaw-community-research] report",
+          "outputPath": "state/reports/pending/openclaw-usage-{date}.md",
+          "notes": "Write a concise, decision-ready report based on the research input.\n\nFormat:\n- Executive summary (5 bullets max)\n- Key themes (with supporting examples)\n- Recommendations (ordered, with rationale)\n- Appendix: source links\n\nKeep it actionable; avoid raw dumps.\n"
+        },
+        {
+          "id": "approve",
+          "type": "approval",
+          "dependsOn": "document"
+        },
+        {
+          "id": "design",
+          "agent": "architect",
+          "dependsOn": "approve",
+          "title": "[openclaw-community-research] design",
+          "outputPath": "state/designs/pending/openclaw-usage-{date}.md",
+          "notes": "Create a design proposal for the top recommended improvements from the approved report. Include tradeoffs and an incremental implementation plan.\n"
+        },
+        {
+          "id": "implement",
+          "agent": "programmer",
+          "dependsOn": "design",
+          "title": "[openclaw-community-research] implement",
+          "notes": "Implement the approved design changes. Use the design doc as input and keep changes scoped + tested.\n"
+        }
+      ]
     }
   ]
 }

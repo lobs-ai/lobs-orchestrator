@@ -22,6 +22,7 @@ class RecurringTaskSpec:
     agent: str
     project_id: str
     notes: str | None = None
+    extra: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -103,11 +104,20 @@ class RecurringScheduler:
                 continue
             try:
                 task_raw = entry.get("task") or {}
+                # Allow extra task fields (e.g., outputPathTemplate, pipelineMeta, etc.)
+                extra = {}
+                if isinstance(task_raw, dict):
+                    for k, v in task_raw.items():
+                        if k in {"title", "agent", "projectId", "notes"}:
+                            continue
+                        extra[k] = v
+
                 task = RecurringTaskSpec(
                     title=str(task_raw.get("title") or "").strip(),
                     agent=str(task_raw.get("agent") or "").strip(),
                     project_id=str(task_raw.get("projectId") or "").strip(),
                     notes=(str(task_raw.get("notes")) if task_raw.get("notes") is not None else None),
+                    extra=(extra or None),
                 )
                 item = RecurringItem(
                     id=str(entry.get("id") or "").strip(),
@@ -174,6 +184,20 @@ class RecurringScheduler:
                 "tz": item.tz,
             },
         }
+
+        # Merge any extra task fields from config.
+        if item.task.extra:
+            for k, v in item.task.extra.items():
+                # Don't allow clobbering required keys.
+                if k in {"id", "recurringMeta", "createdAt", "updatedAt"}:
+                    continue
+                task[k] = v
+
+        # If configured with pipelineMeta but without date, fill it in.
+        if isinstance(task.get("pipelineMeta"), dict):
+            pm = task.get("pipelineMeta")
+            if pm.get("pipelineId") and pm.get("stageId") and not pm.get("date"):
+                pm["date"] = date_iso
 
         self._tasks_dir.mkdir(parents=True, exist_ok=True)
         out = self._tasks_dir / f"{task_id}.json"

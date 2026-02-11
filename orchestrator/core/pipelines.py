@@ -22,6 +22,9 @@ class PipelineStage:
     type: str = "task"  # "task" | "approval"
     depends_on: str | None = None
     output_path: str | None = None
+    title: str | None = None
+    notes: str | None = None
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,9 +97,22 @@ class PipelineManager:
                 agent_str = str(agent).strip() if agent is not None else None
                 depends_on = str(s.get("dependsOn") or "").strip() or None
                 output_path = str(s.get("outputPath") or "").strip() or None
+                title = str(s.get("title") or "").strip() or None
+                notes = str(s.get("notes") or "").strip() or None
+                project_id = str(s.get("projectId") or "").strip() or None
 
                 if stype == "approval":
-                    stages.append(PipelineStage(id=sid, type="approval", depends_on=depends_on, output_path=output_path))
+                    stages.append(
+                        PipelineStage(
+                            id=sid,
+                            type="approval",
+                            depends_on=depends_on,
+                            output_path=output_path,
+                            title=title,
+                            notes=notes,
+                            project_id=project_id,
+                        )
+                    )
                 else:
                     if not agent_str:
                         logger.warning("Invalid pipeline %s stage %s: missing agent", pid, sid)
@@ -108,6 +124,9 @@ class PipelineManager:
                             type="task",
                             depends_on=depends_on,
                             output_path=output_path,
+                            title=title,
+                            notes=notes,
+                            project_id=project_id,
                         )
                     )
 
@@ -392,9 +411,9 @@ class PipelineManager:
             return []
 
         # Use pipeline id as initiative and for default path variables.
-        title = f"[{pipeline_id}] {now_stage.id}"
-        notes = ""  # can be expanded later
-        project_id = "lobs-control"
+        title = now_stage.title or f"[{pipeline_id}] {now_stage.id}"
+        notes = now_stage.notes or ""
+        project_id = now_stage.project_id or "lobs-control"
 
         # If pipeline config includes per-stage outputPath, stage.output_path already wired.
         task_id = self._create_stage_task(
