@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "A7546CDB-07A4-4139-95BE-D57CBC21E13F": {
+      "last_failure_ts": 1770852228.467086,
+      "retry_count": 1,
+      "skip_until_ts": 1770852288.467086,
+      "streak": 1
+    }
+  },
+  "version": 1
+}
