@@ -6,12 +6,6 @@
       "skip_until_ts": 1770851361.954439,
       "streak": 2
     },
-    "5A5D1985-1426-491B-BD51-CC928460A80D": {
-      "last_failure_ts": 1770850679.910028,
-      "retry_count": 1,
-      "skip_until_ts": 1770850739.910028,
-      "streak": 1
-    },
     "5EA7229E-58EC-4801-BA84-FF51FD587CDC": {
       "last_failure_ts": 1770850915.4789991,
       "retry_count": 2,
