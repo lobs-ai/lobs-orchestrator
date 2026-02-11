@@ -11,6 +11,14 @@
           "projectId": "self-improvement",
           "taskId": "10010961-CF0A-40C0-8164-5FAB52809281",
           "to": "writer"
+        },
+        {
+          "createdAt": "2026-02-11T23:54:14Z",
+          "from": "researcher",
+          "parentTaskId": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+          "projectId": "self-improvement",
+          "taskId": "EE9C08B1-0FCF-46D1-9120-1A90718FB4C3",
+          "to": "writer"
         }
       ],
       "tasks": [
@@ -21,6 +29,14 @@
           "parentTaskId": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
           "projectId": "self-improvement",
           "title": "Polish OpenClaw creative use cases research for dashboard"
+        },
+        {
+          "agent": "writer",
+          "createdAt": "2026-02-11T23:54:14Z",
+          "id": "EE9C08B1-0FCF-46D1-9120-1A90718FB4C3",
+          "parentTaskId": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+          "projectId": "self-improvement",
+          "title": "Polish OpenClaw creative use case research for dashboard"
         }
       ]
     }

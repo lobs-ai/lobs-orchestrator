@@ -103,6 +103,10 @@ class Orchestrator:
         self.reconciler = Reconciler(provider)
         self.monitor = Monitor(provider)
         self.heartbeat = HeartbeatManager()
+
+        # Autonomous agent launcher
+        from orchestrator.core.autonomous import AutonomousLauncher
+        self.autonomous = AutonomousLauncher()
         self.message_processor = MessageProcessor(provider)
         self.observer = Observer()
 
@@ -769,12 +773,72 @@ class Orchestrator:
                 else:
                     self.provider.update_task(work_id, {"status": "in_progress"})
 
-        # 10. Proactive Work Discovery (when idle)
-        # After all explicit work is processed, check for proactive opportunities
-        if not eligible_work:
-            self._process_proactive_work(projects, eligible_work)
+        # 10. Proactive Work Discovery
+        self._process_proactive_work(projects, eligible_work)
+
+        # 11. Autonomous Agent Launches
+        # When agents have no queued tasks, launch them to do their standing work
+        self._launch_autonomous_agents(eligible_work)
 
         return activity
+
+    def _launch_autonomous_agents(self, eligible_work: list[dict[str, Any]]) -> None:
+        """Launch idle agents to do autonomous work (their standing mission)."""
+        # Determine which agent types are active or have queued work
+        active_types = set(self.worker_manager.agent_locks.keys())
+        
+        # Figure out which agent types have queued tasks
+        queued_types: set[str] = set()
+        for item in eligible_work:
+            explicit = (item.get("agent") or "").strip()
+            if explicit:
+                queued_types.add(explicit)
+            else:
+                try:
+                    routed = self.router.route(item)
+                    queued_types.add(routed)
+                except Exception:
+                    queued_types.add("programmer")  # default
+
+        idle_agents = self.autonomous.get_idle_agents(active_types, queued_types)
+        
+        if not idle_agents:
+            return
+
+        for agent_type, config in idle_agents:
+            # Check circuit breaker
+            allowed, reason = self.worker_manager.circuit_breaker.should_allow_spawn()
+            if not allowed:
+                logger.debug(f"[AUTONOMOUS] Skipping {agent_type}: {reason}")
+                break
+
+            # Build a synthetic task for the autonomous run
+            import uuid
+            task_id = str(uuid.uuid4()).upper()
+            project_id = config["project"]
+            
+            task = {
+                "id": task_id,
+                "title": f"Autonomous: {agent_type} standing work",
+                "prompt": config["prompt"],
+                "notes": config["prompt"],
+                "projectId": project_id,
+                "kind": "task",
+                "agent": agent_type,
+                "autonomous": True,
+            }
+            
+            rules = self.provider.get_engineering_rules()
+            spawned = self.worker_manager.spawn_worker(
+                task, project_id, agent_type=agent_type, rules=rules
+            )
+            
+            if spawned:
+                self.autonomous.mark_launched(agent_type)
+                logger.info(
+                    f"[AUTONOMOUS] Launched {agent_type} for autonomous work "
+                    f"(project: {project_id})"
+                )
 
     def loop(self):
         """Main orchestration loop."""
