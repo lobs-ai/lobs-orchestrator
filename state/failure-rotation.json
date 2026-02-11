@@ -48,6 +48,12 @@
       "skip_until_ts": 1770765484.8897452,
       "streak": 3
     },
+    "5654486C-D323-4AB3-B6F5-780B963ADBFC": {
+      "last_failure_ts": 1770785647.390423,
+      "retry_count": 1,
+      "skip_until_ts": 1770785707.390423,
+      "streak": 1
+    },
     "609F57F0-96D4-4D1B-A958-35199A4178E1": {
       "last_failure_ts": 1770771201.2186556,
       "retry_count": 4,
@@ -84,6 +90,12 @@
       "skip_until_ts": 1770798705.5471418,
       "streak": 7
     },
+    "A00A547B-3C41-4C4C-B410-D681C6282037": {
+      "last_failure_ts": 1770785762.4028468,
+      "retry_count": 3,
+      "skip_until_ts": 1770786662.4028468,
+      "streak": 3
+    },
     "B0E97D72-925F-4358-ACEF-01A5D287AEF9": {
       "last_failure_ts": 1770762321.3466303,
       "retry_count": 1,
@@ -95,6 +107,12 @@
       "retry_count": 3,
       "skip_until_ts": 1770786295.67111,
       "streak": 3
+    },
+    "E9F4BF45-043D-4CDE-A6DF-6FF811CB6EBC": {
+      "last_failure_ts": 1770785649.9213545,
+      "retry_count": 1,
+      "skip_until_ts": 1770785709.9213545,
+      "streak": 1
     },
     "EF697622-7408-4A57-B07E-E238D642AF87": {
       "last_failure_ts": 1770777116.4460487,
