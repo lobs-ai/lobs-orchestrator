@@ -165,6 +165,10 @@ class WorkerManager:
         # Per-project worker limiting: track which projects have active workers
         # project_id -> task_id
         self.project_locks: dict[str, str] = {}
+        
+        # Per-agent-type limiting: only one instance of each agent type at a time
+        # agent_type -> task_id
+        self.agent_locks: dict[str, str] = {}
 
         # Thread pool executor for spawning workers concurrently
         self.executor = ThreadPoolExecutor(max_workers=5)
@@ -276,8 +280,10 @@ class WorkerManager:
                     log_file = open(log_file_path, "a")  # Append mode
                     # Create a pseudo-process object to track the PID
                     # We can't get the original Popen object, but we can monitor the PID
-                    # Re-acquire project lock
+                    # Re-acquire project and agent locks
                     self.project_locks[project_id] = task_id
+                    agent_template = _normalize_agent_template_type(agent_type) if agent_type else agent_id
+                    self.agent_locks[agent_template] = task_id
                     # Generate worker_id and session_label for re-adopted worker
                     worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}-readopted"
                     session_label = f"worker-{worker_id}"
@@ -501,6 +507,16 @@ class WorkerManager:
             )
             return False
 
+        # Check if this agent type already has an active worker (1 instance per agent type)
+        template_type = _normalize_agent_template_type(agent_type)
+        if template_type in self.agent_locks:
+            existing_task = self.agent_locks[template_type]
+            logger.info(
+                f"[AGENT-LOCK] Agent type '{template_type}' already has active worker (task {existing_task[:8]}). "
+                f"Queueing task {task_id[:8]}."
+            )
+            return False
+
         # Mark as pending and save state
         self.pending_workers.add(task_id)
         self._save_state(
@@ -531,8 +547,9 @@ class WorkerManager:
         start_time = time.time()
 
         try:
-            # Acquire project lock (Ollama workers don't go through active_workers tracking)
+            # Acquire project and agent locks
             self.project_locks[project_id] = task_id
+            self.agent_locks[agent_type] = task_id
             logger.info(f"[PROJECT-LOCK] Acquired lock for project {project_id} (Ollama task {task_id[:8]})")
             # Sync repo (skip for research projects without repos)
             from orchestrator.config import CONTROL_REPO_PATH
@@ -644,10 +661,14 @@ class WorkerManager:
                 session_label="",
             )
         finally:
-            # Release project lock
+            # Release project and agent locks
             if project_id in self.project_locks and self.project_locks[project_id] == task_id:
                 del self.project_locks[project_id]
                 logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (LLM task {task_id[:8]})")
+            for atype, tid in list(self.agent_locks.items()):
+                if tid == task_id:
+                    del self.agent_locks[atype]
+                    break
             
             self._clear_state()
             self.pending_workers.discard(task_id)
@@ -757,8 +778,9 @@ class WorkerManager:
                 agent_template=template_type,
             )
 
-            # Acquire project lock and track active worker
+            # Acquire project and agent locks, track active worker
             self.project_locks[project_id] = task_id
+            self.agent_locks[template_type] = task_id
             current_time = time.time()
             self.active_workers[task_id] = (
                 process,
@@ -803,6 +825,11 @@ class WorkerManager:
         except Exception as e:
             logger.error(f"Failed to spawn worker for {task_id}: {e}")
             self._clear_state()
+            # Release agent lock on spawn failure
+            for atype, tid in list(self.agent_locks.items()):
+                if tid == task_id:
+                    del self.agent_locks[atype]
+                    break
             self.handle_worker_failure(
                 task_id,
                 project_id,
@@ -944,10 +971,14 @@ class WorkerManager:
                 logger.error(f"Error handling stuck worker {task_id[:8]}: {e}", exc_info=True)
 
         for task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label in finished:
-            # Release project lock
+            # Release project and agent locks
             if project_id in self.project_locks and self.project_locks[project_id] == task_id:
                 del self.project_locks[project_id]
                 logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (task {task_id[:8]})")
+            for atype, tid in list(self.agent_locks.items()):
+                if tid == task_id:
+                    del self.agent_locks[atype]
+                    break
             
             del self.active_workers[task_id]
             
@@ -3040,10 +3071,14 @@ class WorkerManager:
                     except Exception:
                         pass
                     
-                    # Release project lock
+                    # Release project and agent locks
                     if project_id in self.project_locks and self.project_locks[project_id] == task_id:
                         del self.project_locks[project_id]
                         logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (shutdown)")
+                    for atype, tid in list(self.agent_locks.items()):
+                        if tid == task_id:
+                            del self.agent_locks[atype]
+                            break
                     
                     # WIP finalization to avoid leaving dirty repos
                     try:
