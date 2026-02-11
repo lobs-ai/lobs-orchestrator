@@ -1,5 +1,5 @@
 {
-  "total_completed": 43,
+  "total_completed": 44,
   "total_failed": 42,
   "start_time": 1770741531.7130227,
   "completed": [
@@ -389,6 +389,15 @@
       "kind": "task",
       "started_at": "2026-02-11T04:18:56.493952+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "91FDCE34-8138-40CB-8106-0ED70029AC8A",
+      "project_id": "lobs-dashboard",
+      "title": "Fix onboarding showing at 100% complete",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T04:41:23.548942+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -771,5 +780,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T04:21:35.670232+00:00"
+  "last_updated": "2026-02-11T04:42:08.906875+00:00"
 }

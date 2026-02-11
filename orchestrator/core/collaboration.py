@@ -56,6 +56,7 @@ _ALLOWED_HANDOFFS: set[tuple[AgentType, AgentType]] = {
     ("reviewer", "programmer"),
     ("reviewer", "architect"),
     ("researcher", "architect"),
+    ("researcher", "writer"),  # Research → formatted write-up
 }
 
 
