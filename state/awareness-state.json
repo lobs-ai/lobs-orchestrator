@@ -1,6 +1,6 @@
 {
   "total_completed": 39,
-  "total_failed": 40,
+  "total_failed": 41,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -715,7 +715,16 @@
       "kind": "task",
       "started_at": "2026-02-11T03:33:33.126576+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "C54EA979-A7ED-4A27-BD1D-7011E4357759",
+      "project_id": "lobs-orchestrator",
+      "title": "Recurring task scheduler - cron-like scheduling for orchestrator",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T03:57:20.028762+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T03:58:02.565687+00:00"
+  "last_updated": "2026-02-11T04:03:36.461208+00:00"
 }
