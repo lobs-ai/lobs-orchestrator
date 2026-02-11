@@ -61,10 +61,10 @@
       "streak": 7
     },
     "9726C0D3-4126-41B9-A1C4-FAA0C9C8F0B8": {
-      "last_failure_ts": 1770782205.0467155,
-      "retry_count": 1,
-      "skip_until_ts": 1770782265.0467155,
-      "streak": 1
+      "last_failure_ts": 1770782247.8431447,
+      "retry_count": 2,
+      "skip_until_ts": 1770782547.8431447,
+      "streak": 2
     },
     "B0E97D72-925F-4358-ACEF-01A5D287AEF9": {
       "last_failure_ts": 1770762321.3466303,
