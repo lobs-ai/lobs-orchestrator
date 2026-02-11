@@ -66,12 +66,6 @@
       "skip_until_ts": 1770786185.7867541,
       "streak": 3
     },
-    "65732AC1-0421-4DAA-81EB-2F0C61741718": {
-      "last_failure_ts": 1770785285.7690947,
-      "retry_count": 3,
-      "skip_until_ts": 1770786185.7690947,
-      "streak": 3
-    },
     "8211CF97-7C9B-467D-B7A6-B6F777CFF12D": {
       "last_failure_ts": 1770777070.377652,
       "retry_count": 7,
@@ -94,6 +88,12 @@
       "last_failure_ts": 1770762321.3466303,
       "retry_count": 1,
       "skip_until_ts": 1770762381.3466303,
+      "streak": 1
+    },
+    "B7485AA8-0C26-40D5-B633-2D92A2D6C793": {
+      "last_failure_ts": 1770786048.022188,
+      "retry_count": 1,
+      "skip_until_ts": 1770786108.022188,
       "streak": 1
     },
     "BE59BFEB-45B3-463D-85F1-D6C1E285EF34": {
