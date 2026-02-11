@@ -1,6 +1,6 @@
 {
   "total_completed": 0,
-  "total_failed": 6,
+  "total_failed": 9,
   "start_time": 1770850534.1043148,
   "completed": [],
   "failed": [
@@ -57,7 +57,34 @@
       "kind": "task",
       "started_at": "2026-02-11T22:58:04.509204+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "41D2E1DB-34A3-48FD-A6C7-585979D3E8AC",
+      "project_id": "lobs-dashboard",
+      "title": "Detailed status panel opens way below other UI - fix positioning",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:08.143121+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1D2BCC97-C020-46D0-8CCB-85200E0E0A50",
+      "project_id": "lobs-dashboard",
+      "title": "Onboarding showed up when already 100% complete - fix condition",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:14.832011+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "D6E457C9-E362-4D0B-9195-C4803935D1B2",
+      "project_id": "lobs-dashboard",
+      "title": "Hide artifacts from inbox view",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:20.059895+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:00:57.165694+00:00"
+  "last_updated": "2026-02-11T23:01:19.871170+00:00"
 }
