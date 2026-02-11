@@ -7,9 +7,15 @@
       "streak": 1
     },
     "6272FF61-622D-4B48-8A6A-DBB4DD19FC62": {
-      "last_failure_ts": 1770853576.2133372,
+      "last_failure_ts": 1770854122.531895,
+      "retry_count": 2,
+      "skip_until_ts": 1770854422.531895,
+      "streak": 2
+    },
+    "73A5F3C5-82D4-46D2-ADF0-CE7F63547760": {
+      "last_failure_ts": 1770854122.512928,
       "retry_count": 1,
-      "skip_until_ts": 1770853636.2133372,
+      "skip_until_ts": 1770854182.512928,
       "streak": 1
     },
     "9129FA76-34AD-4D8E-A714-089DAF6851FB": {
@@ -19,16 +25,16 @@
       "streak": 2
     },
     "A7546CDB-07A4-4139-95BE-D57CBC21E13F": {
-      "last_failure_ts": 1770853034.5427,
-      "retry_count": 2,
-      "skip_until_ts": 1770853334.5427,
-      "streak": 2
+      "last_failure_ts": 1770854122.469861,
+      "retry_count": 3,
+      "skip_until_ts": 1770855022.469861,
+      "streak": 3
     },
     "BE59BFEB-45B3-463D-85F1-D6C1E285EF34": {
-      "last_failure_ts": 1770853581.002752,
-      "retry_count": 1,
-      "skip_until_ts": 1770853641.002752,
-      "streak": 1
+      "last_failure_ts": 1770854122.456053,
+      "retry_count": 2,
+      "skip_until_ts": 1770854422.456053,
+      "streak": 2
     }
   },
   "version": 1
