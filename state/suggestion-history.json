@@ -1,0 +1,151 @@
+{
+  "suggestions": [
+    {
+      "hash": "753e1e8bd617886d",
+      "title": "Resolve 5 failed lobs-dashboard tasks blocking UI cleanup",
+      "projectId": "default",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "65d081f9e32cad8a",
+      "title": "Clear 5 blocked TODOs in database_constants.py (flock project)",
+      "projectId": "default",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "a4393fa3d8e36988",
+      "title": "Tighten commit message hygiene and adopt conventional commit format",
+      "projectId": "default",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "d6dd6a756da04c46",
+      "title": "Unblock 4 flock tasks by resolving database_constants.py TODOs",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "3135370f12bc9180",
+      "title": "Resolve AvailabilitySettingsView.swift:224 TODO to unblock task 43473F01",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9913da928d8019d2",
+      "title": "Add test coverage for database schema changes and TODO resolution",
+      "projectId": "flock",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "4b53e4335e2235bb",
+      "title": "Implement idempotency and deduplication for task state updates",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "3bdf1de80e200419",
+      "title": "Add validation and recovery for corrupted task files",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "267adafcee7a3bce",
+      "title": "Investigate task state thrashing pattern and implement rate limiting",
+      "projectId": "chicago",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "06699099335391d3",
+      "title": "Define core YAML schema and validation for PrairieLearn content types",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ef591e3882f69006",
+      "title": "Add development setup guide and Swift package dependencies",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "5be0f68bffa35a27",
+      "title": "Prototype PrairieLearn file generator with test fixtures before UI",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "bdd33d97e895cc39",
+      "title": "Expand integration test suite to cover PipelineManager, RecurringScheduler, and ApprovalGates",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "24fc0696542d5a33",
+      "title": "Audit and test router regex patterns for edge cases",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "9c6a727a8c5a1820",
+      "title": "Add per-project queue depth and lock contention metrics to monitoring API",
+      "projectId": "lobs-orchestrator",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "92c6e219002c8d6d",
+      "title": "Implement deduplication layer to prevent duplicate task state commits",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "81a1b5a42724f79c",
+      "title": "Investigate task state thrashing pattern (in_progress \u2194 not_started cycles)",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "8b7c12d865063c1a",
+      "title": "Audit 'remove broken task file' (13f867f9) and add data integrity checks",
+      "projectId": "lobs-control",
+      "createdAt": "2026-02-11T04:50:03Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ae745ea60851a52b",
+      "title": "Root cause analysis for 5 consistently-failing UI cleanup tasks",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T04:53:35Z",
+      "dismissed": false
+    },
+    {
+      "hash": "ca2a7e4a77e273d2",
+      "title": "Enforce commit message standards to improve history and automation",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T04:53:35Z",
+      "dismissed": false
+    },
+    {
+      "hash": "56d0fdb3e6c0aae8",
+      "title": "Add unit/integration tests for critical git sync operations",
+      "projectId": "lobs-dashboard",
+      "createdAt": "2026-02-11T04:53:35Z",
+      "dismissed": false
+    }
+  ]
+}
