@@ -169,7 +169,14 @@ class Prompter:
             code_ctx = Prompter._summarize_project_files(project_path)
             return (
                 "## Agent Mode: Programmer\n\n"
-                "Focus on implementation. Prefer small, correct changes. Add tests when appropriate.\n\n"
+                "Focus on implementation. Prefer small, correct changes.\n\n"
+                "**Testing is MANDATORY:**\n"
+                "1. Run existing tests first to understand the baseline\n"
+                "2. Write new tests for every change (happy path + edge cases)\n"
+                "3. Run the full test suite — ALL tests must pass before you finish\n"
+                "4. Mention test results in your `.work-summary`\n\n"
+                "**Be proactive:** Fix related issues blocking your task. Improve test coverage for code you touch. "
+                "If you discover problems outside your scope, create handoffs.\n\n"
                 + code_ctx
             )
 

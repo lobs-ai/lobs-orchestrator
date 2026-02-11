@@ -51,12 +51,24 @@ AgentType = Literal["programmer", "researcher", "reviewer", "writer", "architect
 
 
 _ALLOWED_HANDOFFS: set[tuple[AgentType, AgentType]] = {
+    # Architect can delegate to anyone
     ("architect", "programmer"),
     ("architect", "researcher"),
+    ("architect", "writer"),
+    # Programmer can request help
+    ("programmer", "reviewer"),
+    ("programmer", "researcher"),
+    ("programmer", "architect"),
+    # Reviewer can request fixes or escalate
     ("reviewer", "programmer"),
     ("reviewer", "architect"),
+    # Researcher can feed into design or docs
     ("researcher", "architect"),
-    ("researcher", "writer"),  # Research → formatted write-up
+    ("researcher", "programmer"),
+    ("researcher", "writer"),
+    # Writer can request technical input
+    ("writer", "researcher"),
+    ("writer", "architect"),
 }
 
 
