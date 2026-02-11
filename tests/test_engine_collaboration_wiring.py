@@ -55,11 +55,27 @@ class _StubProvider(TaskProvider):
         pass
 
 
-def test_orchestrator_wires_collaboration_manager_into_worker(monkeypatch):
+class _StubMonitor:
+    def __init__(self, provider):
+        pass
+
+    def tick(self):
+        pass
+
+
+class _StubReconciler:
+    def __init__(self, provider):
+        pass
+
+    def reconcile(self, project_ids):
+        pass
+
+
+def test_orchestrator_wires_collaboration_manager_into_worker(monkeypatch, tmp_path):
     captured: dict[str, Any] = {}
 
     class _WM:
-        def __init__(self, state_dir, provider, failure_rotation=None, collaboration_manager=None, awareness_monitor=None):
+        def __init__(self, state_dir, provider, failure_rotation=None, collaboration_manager=None, **kwargs):
             captured["collaboration_manager"] = collaboration_manager
             self.active_workers = {}
             self.pending_workers = set()
@@ -74,6 +90,15 @@ def test_orchestrator_wires_collaboration_manager_into_worker(monkeypatch):
             return False
 
     monkeypatch.setattr(engine_mod, "WorkerManager", _WM)
+    monkeypatch.setattr(engine_mod, "Monitor", _StubMonitor)
+    monkeypatch.setattr(engine_mod, "Reconciler", _StubReconciler)
+    monkeypatch.setattr(engine_mod, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(engine_mod, "TASKS_DIR", tmp_path / "tasks")
+    monkeypatch.setattr(engine_mod, "CONTROL_REPO_PATH", tmp_path / "control")
+
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "control" / "state" / "agents").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "control" / "memory").mkdir(parents=True, exist_ok=True)
 
     orch = engine_mod.Orchestrator(_StubProvider())
 

@@ -58,29 +58,47 @@ class _StubProvider(TaskProvider):
         pass
 
 
-def test_orchestrator_has_workflow_engine(monkeypatch, tmp_path):
-    """Verify that Orchestrator instantiates a WorkflowEngine."""
-    
-    # Mock WorkerManager to avoid dependencies
+class _StubMonitor:
+    def __init__(self, provider):
+        pass
+    def tick(self):
+        pass
+
+class _StubReconciler:
+    def __init__(self, provider):
+        pass
+    def reconcile(self, project_ids):
+        pass
+
+
+def _patch_engine(monkeypatch, tmp_path):
+    """Apply common engine monkeypatches for testing."""
     class _WM:
         def __init__(self, state_dir, provider, **kwargs):
             self.active_workers = {}
             self.pending_workers = set()
-
         def check_workers(self):
             pass
-
         def get_worker_status(self):
             return {"busy": False, "current_task": None, "state": "idle"}
-
         def spawn_worker(self, *args, **kwargs):
             return False
 
     monkeypatch.setattr(engine_mod, "WorkerManager", _WM)
-    
-    # Mock state directory
+    monkeypatch.setattr(engine_mod, "Monitor", _StubMonitor)
+    monkeypatch.setattr(engine_mod, "Reconciler", _StubReconciler)
     monkeypatch.setattr(engine_mod, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(engine_mod, "TASKS_DIR", tmp_path / "tasks")
+    monkeypatch.setattr(engine_mod, "CONTROL_REPO_PATH", tmp_path / "control")
+
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "control" / "state" / "agents").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "control" / "memory").mkdir(parents=True, exist_ok=True)
+
+
+def test_orchestrator_has_workflow_engine(monkeypatch, tmp_path):
+    """Verify that Orchestrator instantiates a WorkflowEngine."""
+    _patch_engine(monkeypatch, tmp_path)
 
     orch = engine_mod.Orchestrator(_StubProvider())
 
@@ -92,33 +110,12 @@ def test_orchestrator_has_workflow_engine(monkeypatch, tmp_path):
 
 def test_orchestrator_updates_workflow_state(monkeypatch, tmp_path):
     """Verify that workflow state is updated during run_once."""
-    
-    # Mock WorkerManager
-    class _WM:
-        def __init__(self, state_dir, provider, **kwargs):
-            self.active_workers = {}
-            self.pending_workers = set()
+    _patch_engine(monkeypatch, tmp_path)
 
-        def check_workers(self):
-            pass
-
-        def get_worker_status(self):
-            return {"busy": False, "current_task": None, "state": "idle"}
-
-        def spawn_worker(self, *args, **kwargs):
-            return False
-
-    monkeypatch.setattr(engine_mod, "WorkerManager", _WM)
-    
-    # Setup test environment
-    state_dir = tmp_path / "state"
     tasks_dir = tmp_path / "tasks"
-    state_dir.mkdir(parents=True)
-    tasks_dir.mkdir(parents=True)
-    
-    monkeypatch.setattr(engine_mod, "STATE_DIR", state_dir)
-    monkeypatch.setattr(engine_mod, "TASKS_DIR", tasks_dir)
-    
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    state_dir = tmp_path / "state"
+
     # Create a test task with initiative
     import json
     task = {
@@ -158,33 +155,11 @@ def test_orchestrator_updates_workflow_state(monkeypatch, tmp_path):
 
 def test_orchestrator_get_initiative_status(monkeypatch, tmp_path):
     """Verify get_initiative_status returns correct data."""
-    
-    # Mock WorkerManager
-    class _WM:
-        def __init__(self, state_dir, provider, **kwargs):
-            self.active_workers = {}
-            self.pending_workers = set()
+    _patch_engine(monkeypatch, tmp_path)
 
-        def check_workers(self):
-            pass
-
-        def get_worker_status(self):
-            return {"busy": False, "current_task": None, "state": "idle"}
-
-        def spawn_worker(self, *args, **kwargs):
-            return False
-
-    monkeypatch.setattr(engine_mod, "WorkerManager", _WM)
-    
-    # Setup test environment
-    state_dir = tmp_path / "state"
     tasks_dir = tmp_path / "tasks"
-    state_dir.mkdir(parents=True)
-    tasks_dir.mkdir(parents=True)
-    
-    monkeypatch.setattr(engine_mod, "STATE_DIR", state_dir)
-    monkeypatch.setattr(engine_mod, "TASKS_DIR", tasks_dir)
-    
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+
     # Create test tasks
     import json
     tasks = [
@@ -206,7 +181,7 @@ def test_orchestrator_get_initiative_status(monkeypatch, tmp_path):
             "collaboration": {"parentTaskId": "task1"},
         },
     ]
-    
+
     for task in tasks:
         (tasks_dir / f"{task['id']}.json").write_text(json.dumps(task))
 
