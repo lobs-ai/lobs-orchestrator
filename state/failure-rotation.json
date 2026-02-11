@@ -89,12 +89,6 @@
       "retry_count": 8,
       "skip_until_ts": 1770798716.4460487,
       "streak": 8
-    },
-    "FA38B000-87DD-4270-9DA4-F4451EC8CEE7": {
-      "last_failure_ts": 1770782205.0332897,
-      "retry_count": 1,
-      "skip_until_ts": 1770782265.0332897,
-      "streak": 1
     }
   },
   "version": 1
