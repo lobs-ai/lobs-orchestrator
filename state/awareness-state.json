@@ -1,0 +1,36 @@
+{
+  "total_completed": 0,
+  "total_failed": 3,
+  "start_time": 1770850534.1043148,
+  "completed": [],
+  "failed": [
+    {
+      "task_id": "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC",
+      "project_id": "lobs-dashboard",
+      "title": "Add mark all as read button for inbox",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:57:53.810397+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
+      "project_id": "lobs-dashboard",
+      "title": "Add task count badge to project sidebar items",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:57:55.174493+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
+      "project_id": "lobs-dashboard",
+      "title": "Move push notification UI to top left near updates area",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:57:56.210095+00:00",
+      "status": "failed"
+    }
+  ],
+  "last_updated": "2026-02-11T23:00:33.064749+00:00"
+}
