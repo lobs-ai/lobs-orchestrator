@@ -147,10 +147,10 @@ class AgentMemoryManager:
     def recover_personal_files_from_workspace(
         self, agent_type: str, workspace_dir: Path
     ) -> None:
-        """Read back personal files from the OpenClaw workspace after a run.
+        """Copy personal files from agent workspace to lobs-control after a run.
 
-        If the agent modified SOUL.md or IDENTITY.md during its run, save the
-        updated version to lobs-control so it persists across future runs.
+        The workspace is the source of truth. We mirror MEMORY.md, SOUL.md,
+        and IDENTITY.md to lobs-control for dashboard display.
         """
         for filename in self.PERSONAL_FILES:
             workspace_file = workspace_dir / filename

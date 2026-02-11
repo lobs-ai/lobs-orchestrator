@@ -421,23 +421,12 @@ class WorkerManager:
         return "openclaw"
 
     def _write_memory_to_workspace(self, workspace_dir: Path, agent_type: str) -> None:
-        """Write per-agent personal files (MEMORY.md, SOUL.md, IDENTITY.md) into the worker workspace.
+        """No-op. The workspace IS the agent's home — files persist there between runs.
         
-        The agent owns these files. We copy the full versions from lobs-control
-        into the workspace before each run, and recover them after.
+        We don't overwrite workspace files. The agent owns them.
+        After runs, we copy workspace files to lobs-control for dashboard display.
         """
-        if not self.agent_memory:
-            return
-
-        # Overlay all personal files the agent has evolved versions of.
-        for filename in self.agent_memory.PERSONAL_FILES:
-            try:
-                personal = self.agent_memory.load_personal_file(agent_type, filename)
-                if personal is not None:
-                    (workspace_dir / filename).write_text(personal, encoding="utf-8")
-                    logger.debug("[WORKER] Overlaid personal %s for %s", filename, agent_type)
-            except Exception as e:
-                logger.warning("[WORKER] Failed to overlay personal %s: %s", filename, e)
+        pass
 
     def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
         """Prepare the per-agent workspace for a task.
