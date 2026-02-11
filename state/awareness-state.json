@@ -1,8 +1,18 @@
 {
-  "total_completed": 0,
-  "total_failed": 9,
+  "total_completed": 1,
+  "total_failed": 10,
   "start_time": 1770850534.1043148,
-  "completed": [],
+  "completed": [
+    {
+      "task_id": "035E6E39-4EF0-497F-838C-859B040AD224",
+      "project_id": "lobs-dashboard",
+      "title": "Design improved task management UX",
+      "agent_type": "architect",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:28.413593+00:00",
+      "status": "completed"
+    }
+  ],
   "failed": [
     {
       "task_id": "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC",
@@ -84,7 +94,16 @@
       "kind": "task",
       "started_at": "2026-02-11T22:58:20.059895+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "C0F2A07F-909E-4EC1-9C9D-77D02F476110",
+      "project_id": "default",
+      "title": "Research: New ways people are using OpenClaw",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:01:25.037505+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:01:19.871170+00:00"
+  "last_updated": "2026-02-11T23:02:09.210877+00:00"
 }

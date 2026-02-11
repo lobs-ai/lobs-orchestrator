@@ -1,10 +1,10 @@
 {
   "tasks": {
     "056D98A6-C4D3-4E7F-B1C7-9EFF06346ACB": {
-      "last_failure_ts": 1770850679.902766,
-      "retry_count": 1,
-      "skip_until_ts": 1770850739.902766,
-      "streak": 1
+      "last_failure_ts": 1770850915.4202921,
+      "retry_count": 2,
+      "skip_until_ts": 1770851215.4202921,
+      "streak": 2
     },
     "1D2BCC97-C020-46D0-8CCB-85200E0E0A50": {
       "last_failure_ts": 1770850872.9467251,
@@ -25,10 +25,10 @@
       "streak": 1
     },
     "5EA7229E-58EC-4801-BA84-FF51FD587CDC": {
-      "last_failure_ts": 1770850679.873622,
-      "retry_count": 1,
-      "skip_until_ts": 1770850739.873622,
-      "streak": 1
+      "last_failure_ts": 1770850915.4789991,
+      "retry_count": 2,
+      "skip_until_ts": 1770851215.4789991,
+      "streak": 2
     },
     "775CE1B3-8D71-4665-8BD7-CA2A685B63DA": {
       "last_failure_ts": 1770850849.330261,
@@ -43,10 +43,10 @@
       "streak": 1
     },
     "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC": {
-      "last_failure_ts": 1770850805.034202,
-      "retry_count": 1,
-      "skip_until_ts": 1770850865.034202,
-      "streak": 1
+      "last_failure_ts": 1770850915.474977,
+      "retry_count": 2,
+      "skip_until_ts": 1770851215.474977,
+      "streak": 2
     },
     "A2C3591D-BC03-41AA-ACC3-79576F99B744": {
       "last_failure_ts": 1770850841.716794,
@@ -67,10 +67,10 @@
       "streak": 1
     },
     "C0F2A07F-909E-4EC1-9C9D-77D02F476110": {
-      "last_failure_ts": 1770850679.908653,
-      "retry_count": 1,
-      "skip_until_ts": 1770850739.908653,
-      "streak": 1
+      "last_failure_ts": 1770850929.109736,
+      "retry_count": 2,
+      "skip_until_ts": 1770851229.109736,
+      "streak": 2
     },
     "D6E457C9-E362-4D0B-9195-C4803935D1B2": {
       "last_failure_ts": 1770850879.86886,
