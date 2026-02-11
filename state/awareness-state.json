@@ -1,6 +1,6 @@
 {
   "total_completed": 12,
-  "total_failed": 1,
+  "total_failed": 2,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -121,7 +121,16 @@
       "kind": "task",
       "started_at": "2026-02-11T23:23:45.616790+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "9129FA76-34AD-4D8E-A714-089DAF6851FB",
+      "project_id": "flock",
+      "title": "Resolve TODO in AvailabilitySettingsView.swift:224",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:31:53.379994+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:29:12.787454+00:00"
+  "last_updated": "2026-02-11T23:37:08.766958+00:00"
 }

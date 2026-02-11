@@ -480,6 +480,12 @@ class WorkerManager:
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
 
+        # Check circuit breaker — pause if infrastructure is broken
+        allowed, cb_reason = self.circuit_breaker.should_allow_spawn()
+        if not allowed:
+            logger.info(f"[CIRCUIT] Spawn blocked for {task_id[:8]}: {cb_reason}")
+            return False
+
         # Check global worker capacity
         active_count = len(self.active_workers)
         if active_count >= self.max_workers:
@@ -969,6 +975,9 @@ class WorkerManager:
             del self.active_workers[task_id]
             
             if retcode == 0:
+                # Task succeeded — close circuit breaker if open
+                self.circuit_breaker.record_success()
+                
                 self._save_state(
                     task_id,
                     project_id,
@@ -2776,20 +2785,39 @@ class WorkerManager:
         # Record failure in history for Monitor pattern detection
         self._record_failure_for_monitoring(task_id, project_id, agent_id, failure_reason, error_log)
         
+        # Classify failure: infrastructure vs task-level
+        is_infra = self.circuit_breaker.record_failure(error_log, failure_reason)
+        
         # Get current task data to increment failure count
         current_task = self.provider.get_task(task_id)
         current_failure_count = 0
         if current_task:
             current_failure_count = current_task.get("failureCount", 0)
         
+        now = datetime.now(timezone.utc)
+        
+        if is_infra:
+            # Infrastructure failure — don't count against the task, just re-queue
+            logger.warning(
+                f"[INFRA-FAIL] Task {task_id[:8]} failed due to infrastructure "
+                f"({self.circuit_breaker.state.last_failure_type}). "
+                f"Re-queuing without incrementing failure count."
+            )
+            updates = {
+                "workState": "not_started",
+                "failureReason": f"infra:{self.circuit_breaker.state.last_failure_type}",
+                "failedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                # Don't increment failureCount — not the task's fault
+            }
+            self.provider.update_task(task_id, updates)
+            return
+        
         new_failure_count = current_failure_count + 1
         
-        # Retry configuration: max retries and exponential backoff
+        # Task-level failure: retry with backoff
         MAX_RETRIES = 3
-        RETRY_DELAYS = [5 * 60, 15 * 60, 60 * 60]  # 5min, 15min, 1hr in seconds
+        RETRY_DELAYS = [5 * 60, 15 * 60, 60 * 60]  # 5min, 15min, 1hr
         
-        # Determine if we should retry or block
-        now = datetime.now(timezone.utc)
         updates = {
             "failureReason": failure_reason,
             "failedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
