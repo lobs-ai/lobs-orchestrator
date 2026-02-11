@@ -2592,6 +2592,15 @@ class WorkerManager:
 
         # Process any handoffs created by the agent
         self._process_handoffs(task_id, project_id, agent_template)
+
+        # Pipeline auto-advance (if this task is part of a pipeline)
+        try:
+            from orchestrator.core.pipelines import PipelineManager
+
+            if task:
+                PipelineManager().on_task_completed(task)
+        except Exception:
+            logger.warning("[PIPELINE] Failed to auto-advance pipeline after task completion", exc_info=True)
         
         # Quality gate: trigger automatic review for programmer tasks (if enabled)
         self._trigger_automatic_review(task, agent_template, project_id)

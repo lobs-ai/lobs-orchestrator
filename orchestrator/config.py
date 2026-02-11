@@ -20,6 +20,7 @@ PROJECTS_FILE = (CONTROL_REPO_PATH / "state" / "projects.json").resolve()
 RESEARCH_DIR = (CONTROL_REPO_PATH / "state" / "research").resolve()
 REPORTS_DIR = (CONTROL_REPO_PATH / "state" / "reports").resolve()
 DESIGNS_DIR = (CONTROL_REPO_PATH / "state" / "designs").resolve()
+PIPELINES_DIR = (CONTROL_REPO_PATH / "state" / "pipelines").resolve()
 
 # Polling interval in seconds
 POLL_INTERVAL = get_setting("poll_interval", 10)

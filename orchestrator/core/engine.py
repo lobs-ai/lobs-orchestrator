@@ -29,6 +29,7 @@ from orchestrator.core.reconciler import Reconciler
 from orchestrator.core.heartbeat import HeartbeatManager
 from orchestrator.core.workflow import WorkflowEngine
 from orchestrator.core.recurring_scheduler import RecurringScheduler
+from orchestrator.core.pipelines import PipelineManager
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
 from orchestrator.core.observer import Observer, Opportunity, OpportunityPriority
@@ -83,6 +84,9 @@ class Orchestrator:
             tasks_dir=TASKS_DIR,
             state_path=RECURRING_STATE_FILE,
         )
+
+        # Multi-stage pipeline manager
+        self.pipelines = PipelineManager()
 
         self.last_reconcile = 0
         self.reconcile_interval = 300  # 5 minutes
@@ -457,6 +461,14 @@ class Orchestrator:
                 activity = True
         except Exception as e:
             logger.error(f"[RECURRING] Tick failed: {e}", exc_info=True)
+
+        # 4.6 Pipeline approvals / auto-advance tick
+        try:
+            created = self.pipelines.tick()
+            if created:
+                activity = True
+        except Exception as e:
+            logger.error(f"[PIPELINE] Tick failed: {e}", exc_info=True)
 
         # 5. Scan for new work and facts from provider
         projects = self.provider.get_projects()
