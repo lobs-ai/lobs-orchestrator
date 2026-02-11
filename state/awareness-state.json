@@ -1,6 +1,6 @@
 {
   "total_completed": 35,
-  "total_failed": 37,
+  "total_failed": 39,
   "start_time": 1770741531.7130227,
   "completed": [
     {
@@ -652,7 +652,25 @@
       "kind": "task",
       "started_at": "2026-02-11T03:04:06.748316+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "00A3286A-C147-44B7-BFB4-D73843738C55",
+      "project_id": "lobs-orchestrator",
+      "title": "Add auto-retry capability for transient failures",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T03:18:50.955545+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "FBDF5359-137D-4F90-AAB4-AAFF17F3C422",
+      "project_id": "lobs-orchestrator",
+      "title": "Expand reviewer agent to support failure analysis mode",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T03:24:24.657690+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T03:12:23.225846+00:00"
+  "last_updated": "2026-02-11T03:30:04.642027+00:00"
 }
