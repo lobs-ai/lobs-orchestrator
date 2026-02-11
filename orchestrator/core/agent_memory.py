@@ -85,21 +85,33 @@ class AgentMemoryManager:
         success: bool,
         duration_seconds: float,
     ) -> None:
-        """Append a task outcome entry to MEMORY.md under ## Task Outcomes."""
+        """Record a brief task outcome. Only successes are logged to keep memory clean.
+        
+        The agent's own MEMORY.md updates (written during task execution) are the
+        primary source of curated knowledge. This method only adds a lightweight
+        record of completed work for context.
+        """
+        if not success:
+            # Don't pollute memory with failure logs — the agent learns from
+            # its own reflections, not from a list of failures
+            logger.info(
+                "[AGENT_MEMORY] Skipping failed task outcome for %s: %s",
+                agent_type,
+                task_title[:60],
+            )
+            return
+
         path = self._memory_path(agent_type)
         content = self.load_memory(agent_type)
 
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         duration_min = int(duration_seconds / 60)
-        result = "succeeded" if success else "failed"
-        entry = f"- [{project_id}] {task_title} — {result}, {duration_min} min"
+        entry = f"- [{project_id}] {task_title} ({duration_min} min)"
 
         date_header = f"### {today}"
 
         if date_header in content:
-            # Append under existing date header
             idx = content.index(date_header) + len(date_header)
-            # Find end of this date section (next ### or ## or end of file)
             rest = content[idx:]
             next_header = re.search(r"\n##", rest)
             if next_header:
@@ -107,32 +119,28 @@ class AgentMemoryManager:
                 content = content[:insert_at] + "\n" + entry + content[insert_at:]
             else:
                 content = content.rstrip() + "\n" + entry + "\n"
-        elif "## Task Outcomes" in content:
-            # Add new date header after ## Task Outcomes
-            idx = content.index("## Task Outcomes") + len("## Task Outcomes")
+        elif "## Recent Work" in content:
+            idx = content.index("## Recent Work") + len("## Recent Work")
             content = (
                 content[:idx] + "\n\n" + date_header + "\n" + entry + content[idx:]
             )
         else:
-            # No Task Outcomes section — append one
             content = (
                 content.rstrip()
-                + "\n\n## Task Outcomes\n\n"
+                + "\n\n## Recent Work\n\n"
                 + date_header
                 + "\n"
                 + entry
                 + "\n"
             )
 
-        # Prune old entries
         content = self._prune_old_outcomes(content)
 
         try:
             path.write_text(content, encoding="utf-8")
-            self._git_commit_memory(agent_type, f"memory: {agent_type} task outcome")
+            self._git_commit_memory(agent_type, f"memory: {agent_type} completed {task_title[:40]}")
             logger.info(
-                "[AGENT_MEMORY] Recorded %s outcome for %s: %s",
-                result,
+                "[AGENT_MEMORY] Recorded completion for %s: %s",
                 agent_type,
                 task_title[:60],
             )

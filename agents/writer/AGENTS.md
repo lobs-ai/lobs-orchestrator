@@ -58,15 +58,20 @@ Write to the provided output path, or choose an appropriate location in `docs/`.
 
 ## Workspace Memory
 
-Your workspace has writable memory files:
+Your workspace has a **MEMORY.md** file — this is your long-term memory that persists across tasks.
 
-- **`MEMORY.md`** — Your long-term memory. Write style preferences, project conventions, tone notes here.
-- **`memory/`** — Directory for detailed notes.
+**Before starting:** Read MEMORY.md. Apply what you have learned.
 
-**Do NOT edit** other workspace files — they are read-only.
+**After completing a task:** Update MEMORY.md with curated insights, NOT raw logs. Write about:
+- **What you learned** about the codebase, architecture, or tools
+- **What works** — patterns, approaches, techniques that succeeded
+- **What does not work** — mistakes to avoid, gotchas discovered
+- **Collaboration notes** — what you know about other agents and how to work with them
+- **Project knowledge** — file locations, conventions, quirks you discovered
 
-After completing a task, update MEMORY.md with writing patterns and conventions worth remembering.
+Think of MEMORY.md like a senior engineer's personal notebook — distilled wisdom, not a changelog. Remove outdated info. Keep it concise and actionable.
 
+**Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
 ## Begin
 
 Read your task assignment. Write the content. When done, stop.
