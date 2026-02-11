@@ -2,116 +2,69 @@
 
 ## Purpose
 
-This file documents the **worker architecture and implementation details** for developers/operators.
+Operational quick reference for orchestrator maintainers.
 
-**For worker prompts**, see `WORKER_RULES.md` (sent to workers in task prompts).
-**This file** contains implementation details that workers don't need to know.
+- Keep this file small and actionable.
+- Put deep detail in `docs/`.
+- Worker behavior rules belong in `WORKER_RULES.md` (synced into worker workspace).
 
 ---
 
-## Design Principles
+## Core Operating Rules
 
 **Scripts control. Agents execute. Humans approve.**
 
-- Agents are task-scoped executors (not planners, schedulers, or product managers)
-- Single unit of work per agent invocation
-- No proactive action outside explicit tasks
-- Stop and report when blocked or unclear
+- Agents are task-scoped executors.
+- One unit of work per invocation.
+- No proactive action outside explicit tasks unless explicitly configured by orchestrator features.
+- Stop and report when blocked or unclear.
+
+---
+
+## Runtime Model (Must-Know)
+
+This orchestrator is **multi-agent + multi-worker**.
+
+- Agent templates live in `agents/<type>/` (programmer, reviewer, researcher, writer, architect).
+- Work is routed to an agent type via explicit task `agent` or router rules.
+- Workers run concurrently up to configured capacity (`max_concurrent_workers`).
+- One worker per project at a time is enforced with project locks.
+
+Implementation anchors:
+- `orchestrator/core/worker.py`
+- `orchestrator/core/engine.py`
+- `orchestrator/core/router.py`
+- `orchestrator/core/registry.py`
+
+---
+
+## Session Hygiene (Must-Know)
+
+After each task, worker session files are deleted from:
+
+- `~/.openclaw/agents/worker/sessions/*.jsonl`
+- `~/.openclaw/agents/worker/sessions/sessions.json`
+
+Use direct file cleanup (`_cleanup_worker_session`) to avoid broad resets.
 
 ---
 
 ## Worker Template Sync
 
-Worker workspace files are automatically synced before each task spawn:
+Before each task spawn, template files are synced:
 
-1. **Source**: `worker-template/` directory (template files)
-2. **Destination**: `~/.openclaw/workspace-worker/` (worker workspace)
-3. **Sync trigger**: Before each task spawn (in `_async_spawn_openclaw_flow`)
+- Source: `worker-template/`
+- Destination: `~/.openclaw/workspace-worker/`
+- Trigger: worker spawn flow (`_async_spawn_openclaw_flow`)
 
-**Files synced:**
-- `WORKER_RULES.md` - Core rules for workers (sent to workers via workspace, not prompt)
-- `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, `IDENTITY.md` - Context files
-
-**Updating worker files:**
-1. Edit `WORKER_RULES.md` in orchestrator root
-2. Run `scripts/sync-worker-template.sh` to copy to `worker-template/`
-3. Next task spawn will automatically sync to worker workspace
-
-This ensures workers always have the latest rules without needing to restart the orchestrator.
+If updating worker instructions:
+1. Edit root files (usually `WORKER_RULES.md` and relevant template docs).
+2. Run `scripts/sync-worker-template.sh`.
+3. Next spawn picks up changes automatically.
 
 ---
 
-## Worker Architecture
-
-This orchestrator uses a **single shared worker** model with **automatic queueing**.
-
-### Core Constraints
-
-- **ONE worker** runs at a time globally (not per-project, not per-task)
-- **All work is queued** automatically when worker is busy
-- **Sequential processing** - tasks execute one after another
-- **No concurrency** - zero concurrent task execution
-
-### Implementation Details
-
-- Worker spawned with `openclaw agent --agent worker`
-- All projects share the same `worker` agent
-- Worker session files cleared between tasks for fresh context
-- ThreadPoolExecutor limited to `max_workers=1` enforces constraint
-- Queueing happens in the provider - tasks wait for next engine iteration
-
-### Worker Agent Details
-
-- **Agent ID**: `worker` (hardcoded, never changes)
-- **Agent Directory**: `~/.openclaw/agents/worker/`
-- **Workspace**: `~/.openclaw/workspace-worker/`
-- **Registration**: Single "Lobs Worker" agent in openclaw.json
-- **Model**: Claude Sonnet 4.5 (configurable per-agent)
-
-### Queueing Behavior
-
-When a task is assigned:
-1. WorkerManager checks if worker is busy (`active_workers` or `pending_workers`)
-2. If busy: logs "[QUEUE]" message, task remains in provider queue
-3. If idle: spawns worker, acquires lock, begins work
-4. Next engine iteration (poll interval) picks up queued tasks
-
-This ensures:
-- **No concurrent work conflicts** - only one task modifies files at a time
-- **Clean session state** - each task starts with fresh agent context
-- **Simplified management** - one agent to provision/configure
-- **Predictable execution** - deterministic FIFO order
-
-### Session Cleanup Between Tasks
-
-**CRITICAL: Proper session cleanup is essential to prevent context leakage.**
-
-After each task completes, the orchestrator clears the worker's session files:
-
-```python
-# Location: ~/.openclaw/agents/worker/sessions/
-# Deleted files:
-- *.jsonl           # Conversation transcripts
-- sessions.json     # Session metadata store
-```
-
-**Why NOT `sessions.reset`:**
-- ❌ `sessions.reset` with `agentId: "worker"` resets ALL sessions for that agent
-- ❌ Could interfere with main chat sessions or other system sessions
-- ❌ API calls can have unintended side effects
-
-**Why Direct File Deletion:**
-- ✅ Only affects worker agent's sessions (surgical, isolated)
-- ✅ No risk of affecting user's main chat session
-- ✅ Simple file operations - predictable and safe
-- ✅ Files are recreated automatically on next worker spawn
-- ✅ Ensures clean context for each task
-
-**Implementation:** See `orchestrator/core/worker.py::_cleanup_worker_session()`
-
----
-
-## Git Rules (Mandatory)
+## Git Rule (Mandatory)
 
 Before making changes:
 
@@ -119,3 +72,41 @@ Before making changes:
 git pull --rebase
 ```
 
+---
+
+## Minimal Doc Loading Guide
+
+Read only what the current change needs:
+
+- `docs/ARCHITECTURE.md`
+When changing scheduling, concurrency, routing, lifecycles, or control flow.
+
+- `WORKER_RULES.md`
+When changing worker prompt rules, output style, scope limits, or `.work-summary` behavior.
+
+- `docs/agents/WORKER_AGENTS.md`
+When changing provisioning, template sync flow, worker registration, or agent-template loading.
+
+- `docs/agents/WORKER_RUNTIME.md`
+When changing queueing/capacity behavior, locks, runtimes, lifecycle states, or session cleanup.
+
+- `docs/agents/AWARENESS.md`
+When changing awareness context, metrics, pattern detection, prompt injection, or state persistence.
+
+---
+
+## Code Pointers
+
+- Worker runtime/lifecycle: `orchestrator/core/worker.py`
+- Engine assignment loop: `orchestrator/core/engine.py`
+- Agent provisioning/registration: `orchestrator/core/agents.py`
+- Agent registry/templates: `orchestrator/core/registry.py`, `agents/`
+- Prompt construction: `orchestrator/services/prompter.py`
+- Worker template source: `worker-template/`
+- Worker management CLI: `bin/manage-workers`
+
+---
+
+## Maintenance Note
+
+If detail grows here, move it into `docs/` and keep `AGENTS.md` as the short entrypoint.

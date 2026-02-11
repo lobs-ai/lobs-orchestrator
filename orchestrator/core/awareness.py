@@ -11,7 +11,7 @@ This component tracks:
 Agents receive this context in their prompts to make informed decisions about
 what work to do next and how to prioritize their tasks.
 
-Reference: ARCHITECTURE-V2.md "Proactive System"
+Reference: docs/ARCHITECTURE.md (awareness + proactive context).
 """
 
 from __future__ import annotations

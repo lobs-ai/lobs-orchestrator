@@ -6,7 +6,7 @@ This module is *not* an LLM suggester. It scans project repositories for
 small, concrete opportunities that can be converted into tasks when the
 system is idle.
 
-Reference: ARCHITECTURE-V2.md "Proactive Work System".
+Reference: docs/ARCHITECTURE.md (proactive work discovery).
 """
 
 from __future__ import annotations

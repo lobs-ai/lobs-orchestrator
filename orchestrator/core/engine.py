@@ -751,7 +751,7 @@ class Orchestrator:
             # Get rules from provider
             rules = self.provider.get_engineering_rules()
 
-            # Spawn the single worker (will return False if busy/queued)
+            # Spawn a worker slot (returns False when queued by capacity/lock checks)
             spawned = self.worker_manager.spawn_worker(
                 item, project_id, agent_type=agent_type, rules=rules
             )

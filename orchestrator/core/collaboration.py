@@ -4,7 +4,7 @@ Collaboration Manager
 
 Handles agent-to-agent handoffs and work chains.
 
-Reference: ARCHITECTURE-V2.md "Agent Collaboration" section.
+Reference: docs/ARCHITECTURE.md (collaboration/handoff flow).
 
 This module is intentionally deterministic and filesystem-friendly:
 - Accepts a structured handoff payload

@@ -203,8 +203,8 @@ Agent Type: diagnostic
 
 ## Architecture Notes
 
-- **Single worker**: Only ONE worker (OpenClaw or Ollama) runs at a time
-- **Queueing**: Tasks queue automatically when worker is busy
+- **Multi-worker**: Multiple workers can run concurrently up to configured capacity
+- **Queueing**: Tasks queue automatically when capacity is full or a project lock is active
 - **Same tracking**: Ollama workers tracked the same as OpenClaw workers
 - **No sessions**: Ollama is stateless - no session cleanup needed
 - **Same locks**: Uses same domain locking mechanism

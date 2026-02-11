@@ -5,7 +5,7 @@ Workflow Engine
 This module provides deterministic initiative + work-chain tracking derived from the
 current task set (filesystem state).
 
-Responsibilities (ARCHITECTURE-V2.md "Workflow Engine"):
+Responsibilities (docs/ARCHITECTURE.md workflow model):
 - Track initiatives (groups of related tasks from one goal)
 - Manage work chains (parent/child links, "which tasks led to which")
 - Handle sequencing (task B waits for task A)

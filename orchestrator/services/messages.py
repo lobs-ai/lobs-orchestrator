@@ -117,7 +117,7 @@ class MessageProcessor:
     def _handoff(self, payload: Any, msg: dict[str, Any]) -> None:
         """Process an agent collaboration handoff.
 
-        Expected payload is the handoff object described in ARCHITECTURE-V2.md.
+        Expected payload is the handoff object described in docs/ARCHITECTURE.md.
 
         The original message may include context like parentTaskId/projectId.
         """

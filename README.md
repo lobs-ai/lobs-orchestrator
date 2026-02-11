@@ -15,7 +15,7 @@ Long-running Python service that manages scheduling, concurrency, and task execu
 - **ControlManager:** Manages git operations and applies state updates serially.
 - **WorkerManager:** Manages multiple concurrent worker subprocesses.
   - Spawns via `openclaw agent --agent worker`
-  - Supports concurrent execution (default max_workers=5)
+  - Supports concurrent execution (capacity from `max_concurrent_workers`)
   - Tasks are assigned to available workers
   - Session reset between tasks for clean state
 - **Scanner:** Purely scripted fact detection (tasks, requests, failures).
@@ -117,7 +117,7 @@ python3 setup_config.py --max-concurrent-workers 5
 
 ### Worker Configuration
 
-The single worker agent is configured at:
+The shared runtime worker agent is configured at:
 - **Agent Config**: `~/.openclaw/openclaw.json` (agent registration)
 - **Workspace**: `~/.openclaw/workspace-worker/` (agent context files)
 - **Templates**: `worker-template/` in this repo (copied to workspace on provision)
@@ -163,7 +163,7 @@ or skip specific tools:
 }
 ```
 
-See [SETTINGS.md](SETTINGS.md) for complete documentation.
+See [docs/SETTINGS.md](docs/SETTINGS.md) for complete documentation.
 
 ## Monitoring & Dashboard API
 

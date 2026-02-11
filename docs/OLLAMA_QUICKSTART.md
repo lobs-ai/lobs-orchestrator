@@ -111,4 +111,4 @@ Models: ['llama3.1', ...]
 ## See Also
 
 - [OLLAMA_INTEGRATION.md](OLLAMA_INTEGRATION.md) - Full documentation
-- [SINGLE_WORKER_ARCHITECTURE.md](SINGLE_WORKER_ARCHITECTURE.md) - Worker architecture
+- [Worker Runtime](agents/WORKER_RUNTIME.md) - Worker lifecycle and queueing details

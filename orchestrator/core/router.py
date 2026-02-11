@@ -8,7 +8,7 @@ This module inspects a task's title/notes to infer an agent "type" (e.g.
 programmer, researcher). If the task explicitly specifies an agent, routing is
 skipped.
 
-Routing rules are sourced from ARCHITECTURE-V2.md.
+Routing rules are sourced from docs/ARCHITECTURE.md.
 """
 
 from __future__ import annotations

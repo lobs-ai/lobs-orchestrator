@@ -117,15 +117,13 @@ ollama run llama3.1 ""
 ## Files Created
 
 ```
-orchestrator/
-├── core/
-│   └── ollama_client.py          # Ollama API client
-├── requirements.txt               # Added 'requests'
-├── SETTINGS.md                    # Settings documentation
-├── OLLAMA_INTEGRATION.md          # Full Ollama docs
-├── OLLAMA_QUICKSTART.md          # Quick start guide
-├── OLLAMA_MODEL_LOADING.md       # Model loading explained
-└── README_OLLAMA.md              # This file
+orchestrator/core/ollama_client.py   # Ollama API client
+requirements.txt                     # Added 'requests'
+docs/SETTINGS.md                     # Settings documentation
+docs/OLLAMA_INTEGRATION.md           # Full Ollama docs
+docs/OLLAMA_QUICKSTART.md            # Quick start guide
+docs/OLLAMA_MODEL_LOADING.md         # Model loading explained
+docs/README_OLLAMA.md                # This file
 ```
 
 ## Example Usage
@@ -204,7 +202,7 @@ curl http://localhost:11434/api/generate -d '{
 
 ✅ **Automatic fallback:** Uses OpenClaw if Ollama unavailable
 
-✅ **Single worker enforced:** Only one runtime (Ollama or OpenClaw) at a time
+✅ **Multi-worker aware:** Ollama/OpenClaw tasks run under normal worker capacity and project-lock rules
 
 ## Next Steps
 

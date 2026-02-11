@@ -145,7 +145,7 @@ python3 -m pytest tests/test_v2_integration.py -v
 
 ## Configuration
 
-See `docs/V2_CONFIGURATION.md` for complete configuration guide.
+See `docs/archive/V2_CONFIGURATION.md` for complete configuration guide.
 
 **Quick Start:**
 ```json
@@ -187,7 +187,7 @@ print('✅ All V2 components operational')
 
 ## Architecture Compliance
 
-This implementation follows **ARCHITECTURE-V2.md** specifications:
+This implementation follows **docs/archive/ARCHITECTURE-V2.md** specifications:
 
 ### ✅ Core Principles
 1. **Proactive Over Reactive** - Monitor detects patterns, Observer finds opportunities
@@ -243,9 +243,9 @@ cat state/collaboration-state.json | jq '.initiatives'
 
 ## Documentation
 
-- `ARCHITECTURE-V2.md` - Architecture specification
-- `docs/V2_CONFIGURATION.md` - Configuration guide
-- `docs/V2_INTEGRATION_COMPLETE.md` - This document
+- `docs/archive/ARCHITECTURE-V2.md` - Architecture specification
+- `docs/archive/V2_CONFIGURATION.md` - Configuration guide
+- `docs/archive/V2_INTEGRATION_COMPLETE.md` - This document
 - `tests/test_v2_integration.py` - Integration tests
 
 ## Conclusion
