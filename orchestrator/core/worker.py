@@ -116,17 +116,21 @@ class WorkerManager:
         failure_rotation: FailureRotation | None = None,
         collaboration_manager: CollaborationManager | None = None,
         awareness_monitor: Any | None = None,
+        agent_tracker: Any | None = None,
+        agent_memory: Any | None = None,
         max_workers: int = 5,
     ):
         """
         Initialize WorkerManager.
-        
+
         Args:
             state_dir: Directory for state files (kept for compatibility, but we use STATE_FILE)
             provider: Task provider for state updates
             failure_rotation: Failure rotation manager
             collaboration_manager: Collaboration manager for agent handoffs
             awareness_monitor: Awareness monitor for tracking system state
+            agent_tracker: Per-agent status tracker
+            agent_memory: Per-agent memory manager
             max_workers: Maximum number of concurrent workers (default: 5)
         """
         self.state_dir = state_dir
@@ -139,9 +143,13 @@ class WorkerManager:
         # Collaboration manager for agent-to-agent handoffs.
         # Engine wires this in so collaboration state is centralized.
         self.collaboration = collaboration_manager
-        
+
         # Awareness monitor for tracking work lifecycle.
         self.awareness = awareness_monitor
+
+        # Per-agent status tracking and memory.
+        self.agent_tracker = agent_tracker
+        self.agent_memory = agent_memory
 
         # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label, last_heartbeat)
@@ -408,6 +416,27 @@ class WorkerManager:
         
         return "openclaw"
 
+    def _write_memory_to_workspace(self, workspace_dir: Path, agent_type: str) -> None:
+        """Write per-agent memory context and personal files into the worker workspace."""
+        if not self.agent_memory:
+            return
+        try:
+            ctx = self.agent_memory.get_agent_context(agent_type)
+            if ctx:
+                (workspace_dir / "MEMORY.md").write_text(ctx, encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"[WORKER] Failed to write memory to workspace: {e}")
+
+        # Overlay personal files (SOUL.md, IDENTITY.md) if the agent has evolved versions.
+        for filename in self.agent_memory.PERSONAL_FILES:
+            try:
+                personal = self.agent_memory.load_personal_file(agent_type, filename)
+                if personal is not None:
+                    (workspace_dir / filename).write_text(personal, encoding="utf-8")
+                    logger.debug("[WORKER] Overlaid personal %s for %s", filename, agent_type)
+            except Exception as e:
+                logger.warning("[WORKER] Failed to overlay personal %s: %s", filename, e)
+
     def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
         """Sync the shared worker workspace to match the selected agent template.
 
@@ -438,10 +467,12 @@ class WorkerManager:
 
         # Primary: agents/<type>/
         if _try_sync(requested):
+            self._write_memory_to_workspace(workspace_dir, requested)
             return requested
 
         # Fallback: programmer
         if requested != "programmer" and _try_sync("programmer"):
+            self._write_memory_to_workspace(workspace_dir, "programmer")
             return "programmer"
 
         # Last resort: legacy worker-template/ sync (includes AGENTS/SOUL/etc).
@@ -449,6 +480,7 @@ class WorkerManager:
         if not self.agent_manager.sync_worker_templates("worker"):
             logger.warning("[WORKER] Legacy template sync failed")
 
+        self._write_memory_to_workspace(workspace_dir, "programmer")
         return "programmer"
 
     # =========================================================================
@@ -691,6 +723,14 @@ class WorkerManager:
                 except Exception as e:
                     logger.warning(f"Failed to get awareness context: {e}")
 
+            # Get per-agent memory context
+            memory_context = None
+            if self.agent_memory:
+                try:
+                    memory_context = self.agent_memory.get_agent_context(template_type)
+                except Exception as e:
+                    logger.warning(f"Failed to get agent memory context: {e}")
+
             # Build prompt
             from orchestrator.services.prompter import Prompter
             prompt = Prompter.build_task_prompt(
@@ -700,6 +740,7 @@ class WorkerManager:
                 workspace_path=workspace,
                 agent_type=agent_type,
                 awareness_context=awareness_context,
+                memory_context=memory_context,
             )
 
             # Launch OpenClaw
@@ -767,7 +808,11 @@ class WorkerManager:
                     agent_type=template_type,
                     kind=kind,
                 )
-            
+
+            # Track per-agent status
+            if self.agent_tracker:
+                self.agent_tracker.mark_working(template_type, task_id, project_id, task_title)
+
             # Update provider status with new schema
             self._update_provider_status()
 
@@ -824,6 +869,14 @@ class WorkerManager:
                 finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label))
                 continue
             
+            # Update agent thinking from log tail
+            if self.agent_tracker:
+                from orchestrator.core.agent_tracker import AgentTracker as _AT
+                log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+                snippet = _AT.extract_thinking_from_log(log_path)
+                if snippet:
+                    self.agent_tracker.update_thinking(agent_template, snippet)
+
             # Check for stuck workers
             elapsed = current_time - start_time
             heartbeat_age = current_time - last_heartbeat
@@ -2627,6 +2680,25 @@ class WorkerManager:
             duration = time.time() - start_time if start_time else None
             self.awareness.track_work_completed(task_id, duration)
 
+        # Track per-agent status and memory
+        duration = time.time() - start_time if start_time else 0
+        if self.agent_tracker:
+            self.agent_tracker.mark_completed(agent_template, task_id, duration)
+            self.agent_tracker.mark_idle(agent_template)
+        if self.agent_memory:
+            self.agent_memory.append_task_outcome(
+                agent_template, project_id, task_title, True, duration,
+            )
+            # Recover any personal files the agent may have evolved during the run
+            workspace_dir = self.agent_manager.openclaw_dir / "workspace-worker"
+            self.agent_memory.recover_personal_files_from_workspace(
+                agent_template, workspace_dir,
+            )
+            # Trigger trait evolution if enough tasks completed (async, non-blocking)
+            if self.agent_tracker:
+                count = self.agent_tracker.get_completion_count(agent_template)
+                self.agent_memory.maybe_evolve_traits(agent_template, count)
+
         self._cleanup_worker_session(agent_id, session_label)
 
     def handle_worker_failure(
@@ -2781,7 +2853,18 @@ class WorkerManager:
         if self.awareness:
             duration = time.time() - start_time if start_time else None
             self.awareness.track_work_failed(task_id, duration)
-        
+
+        # Track per-agent status and memory
+        duration = time.time() - start_time if start_time else 0
+        agent_type_normalized = _normalize_agent_template_type(agent_id)
+        if self.agent_tracker:
+            self.agent_tracker.mark_failed(agent_type_normalized, task_id)
+            self.agent_tracker.mark_idle(agent_type_normalized)
+        if self.agent_memory:
+            self.agent_memory.append_task_outcome(
+                agent_type_normalized, project_id, task_title, False, duration,
+            )
+
         self._cleanup_worker_session(agent_id, session_label)
 
     def _update_provider_status(self):

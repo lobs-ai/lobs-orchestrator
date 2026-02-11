@@ -258,6 +258,7 @@ class Prompter:
         workspace_path: Path | None = None,
         agent_type: str | None = None,
         awareness_context: str | None = None,
+        memory_context: str | None = None,
     ) -> str:
         """Build a complete prompt for an agent.
 
@@ -269,6 +270,7 @@ class Prompter:
             agent_type: Agent template type (programmer|researcher|reviewer|writer|architect|...).
                 If not provided, falls back to item['agentType'].
             awareness_context: Optional situational awareness context (what's happening in the system).
+            memory_context: Optional per-agent memory and evolved traits context.
         """
 
         from orchestrator.config import PROJECT_CONTEXT_FILES
@@ -365,6 +367,10 @@ class Prompter:
         # Add awareness context (system state)
         if awareness_context:
             prompt += f"{awareness_context}\n---\n\n"
+
+        # Add per-agent memory and evolved traits
+        if memory_context:
+            prompt += f"{memory_context}\n---\n\n"
 
         # Add product context
         if product_context:

@@ -34,6 +34,8 @@ from orchestrator.providers.base import TaskProvider
 from orchestrator.core.monitor import Monitor
 from orchestrator.core.observer import Observer, Opportunity, OpportunityPriority
 from orchestrator.core.awareness import AwarenessMonitor
+from orchestrator.core.agent_tracker import AgentTracker
+from orchestrator.core.agent_memory import AgentMemoryManager
 from orchestrator.services.messages import MessageProcessor
 from orchestrator.utils.settings import get_setting
 
@@ -58,16 +60,22 @@ class Orchestrator:
         
         # Awareness monitor for agent situational awareness
         self.awareness = AwarenessMonitor(provider)
-        
+
+        # Per-agent status tracking and memory
+        self.agent_tracker = AgentTracker(CONTROL_REPO_PATH)
+        self.agent_memory = AgentMemoryManager(CONTROL_REPO_PATH)
+
         # Workflow engine for initiative tracking
         self.workflow = WorkflowEngine(state_path=STATE_DIR / "workflow-state.json")
-        
+
         self.worker_manager = WorkerManager(
             STATE_DIR,
             provider,
             failure_rotation=self.failure_rotation,
             collaboration_manager=self.collaboration,
             awareness_monitor=self.awareness,
+            agent_tracker=self.agent_tracker,
+            agent_memory=self.agent_memory,
             max_workers=MAX_WORKERS,
         )
         self.router = Router()
@@ -447,6 +455,9 @@ class Orchestrator:
         self.process_workers()
         if len(self.worker_manager.active_workers) != initial_active:
             activity = True
+
+        # 2b. Sync agent status files to disk (rate-limited)
+        self.agent_tracker.sync_to_disk()
 
         # 3. Heartbeat manager tick (morning briefs, etc.)
         self.heartbeat.tick()
