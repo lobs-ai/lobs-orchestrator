@@ -30,11 +30,118 @@ class ControlManager:
     def ops_dir(self) -> Path:
         return CONTROL_OPS_DIR
 
+    def _check_git_rebase_state(self, repo_path: Path, *, timeout_sec: float = 8.0) -> bool:
+        """Check if repo is in rebase state (returns True if in rebase)."""
+        try:
+            result = subprocess.run(
+                ["git", "status"],
+                cwd=repo_path,
+                capture_output=True,
+                timeout=timeout_sec,
+                text=True,
+            )
+            output = result.stdout + result.stderr
+            # Check for common rebase indicators
+            return any([
+                "rebase in progress" in output.lower(),
+                "you are currently rebasing" in output.lower(),
+                (repo_path / ".git" / "rebase-merge").exists(),
+                (repo_path / ".git" / "rebase-apply").exists(),
+            ])
+        except Exception as e:
+            logger.warning(f"Failed to check git rebase state for {repo_path}: {e}")
+            return False
+    
+    def _abort_git_rebase(self, repo_path: Path, *, timeout_sec: float = 30.0) -> bool:
+        """Abort stuck git rebase. Returns True if successful."""
+        try:
+            logger.warning(f"Aborting stuck git rebase in {repo_path}")
+            subprocess.run(
+                ["git", "rebase", "--abort"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            logger.info(f"Successfully aborted git rebase in {repo_path}")
+            return True
+        except subprocess.CalledProcessError as e:
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Failed to abort git rebase in {repo_path}: {stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout aborting git rebase in {repo_path}")
+            return False
+        except Exception as e:
+            logger.error(f"Error aborting git rebase in {repo_path}: {e}")
+            return False
+    
+    def _git_hard_reset_to_origin(self, repo_path: Path, *, timeout_sec: float = 60.0) -> bool:
+        """Hard reset to origin (fallback recovery). Returns True if successful."""
+        try:
+            logger.warning(f"Performing hard reset to origin in {repo_path}")
+            
+            # Get current branch
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+                text=True,
+            )
+            branch = branch_result.stdout.strip()
+            
+            # Fetch latest
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            
+            # Hard reset to origin
+            subprocess.run(
+                ["git", "reset", "--hard", f"origin/{branch}"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            
+            logger.info(f"Successfully reset {repo_path} to origin/{branch}")
+            return True
+        except subprocess.CalledProcessError as e:
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Failed to hard reset {repo_path}: {stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout during hard reset in {repo_path}")
+            return False
+        except Exception as e:
+            logger.error(f"Error during hard reset in {repo_path}: {e}")
+            return False
+
     def pull(self) -> None:
+        """Pull latest changes from control repo with robust error handling.
+        
+        Checks for stuck rebase state and recovers if needed.
+        Falls back to hard reset if rebase fails.
+        """
         # Skip if control repo doesn't exist or isn't a git repo
         if not CONTROL_REPO_PATH.exists() or not (CONTROL_REPO_PATH / ".git").exists():
             logger.debug(f"Control repo not found or not a git repo, skipping pull")
             return
+        
+        # Check if repo is in stuck rebase state
+        if self._check_git_rebase_state(CONTROL_REPO_PATH):
+            logger.warning(f"Control repo is in rebase state, attempting to abort")
+            if not self._abort_git_rebase(CONTROL_REPO_PATH):
+                logger.error(f"Failed to abort rebase in control repo, attempting hard reset")
+                if not self._git_hard_reset_to_origin(CONTROL_REPO_PATH):
+                    logger.error(f"Unable to recover from stuck git state in control repo")
+                    return
         
         try:
             subprocess.run(
@@ -42,11 +149,27 @@ class ControlManager:
                 cwd=CONTROL_REPO_PATH,
                 check=True,
                 capture_output=True,
+                timeout=60.0,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Git pull failed: {e.stderr.decode()}")
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Git pull failed in control repo: {stderr}")
+            
+            # Check if this is a "cannot rebase onto multiple branches" error
+            if "cannot rebase" in stderr.lower() or "multiple branches" in stderr.lower():
+                logger.warning(f"Rebase conflict detected in control repo, attempting recovery")
+                # Abort the failed rebase
+                self._abort_git_rebase(CONTROL_REPO_PATH)
+                # Try hard reset as fallback
+                if self._git_hard_reset_to_origin(CONTROL_REPO_PATH):
+                    logger.info(f"Successfully recovered control repo from rebase failure via hard reset")
+                else:
+                    logger.error(f"Failed to recover control repo from git pull failure")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git pull timed out in control repo after 60s")
 
     def push(self, message: str) -> None:
+        """Push changes to control repo with timeouts and error handling."""
         # Skip if control repo doesn't exist or isn't a git repo
         if not CONTROL_REPO_PATH.exists() or not (CONTROL_REPO_PATH / ".git").exists():
             logger.debug(f"Control repo not found or not a git repo, skipping push")
@@ -59,6 +182,7 @@ class ControlManager:
                 cwd=CONTROL_REPO_PATH,
                 check=True,
                 capture_output=True,
+                timeout=10.0,
             ).stdout.decode().strip()
             
             if not status:
@@ -69,6 +193,7 @@ class ControlManager:
                 cwd=CONTROL_REPO_PATH,
                 check=True,
                 capture_output=True,
+                timeout=30.0,
             )
 
             subprocess.run(
@@ -76,12 +201,21 @@ class ControlManager:
                 cwd=CONTROL_REPO_PATH,
                 check=True,
                 capture_output=True,
+                timeout=30.0,
             )
+            
             subprocess.run(
-                ["git", "push"], cwd=CONTROL_REPO_PATH, check=True, capture_output=True
+                ["git", "push"],
+                cwd=CONTROL_REPO_PATH,
+                check=True,
+                capture_output=True,
+                timeout=60.0,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Git push failed: {e.stderr.decode()}")
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Git push failed in control repo: {stderr}")
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Git operation timed out in control repo: {e}")
 
     def process_ops(self) -> list[dict[str, Any]]:
         self.ops_dir.mkdir(parents=True, exist_ok=True)

@@ -1243,6 +1243,99 @@ class WorkerManager:
             timeout=timeout_sec,
         )
         return (result.stdout or b"").decode()
+    
+    def _check_git_rebase_state(self, repo_path: Path, *, timeout_sec: float = 8.0) -> bool:
+        """Check if repo is in rebase state (returns True if in rebase)."""
+        try:
+            result = subprocess.run(
+                ["git", "status"],
+                cwd=repo_path,
+                capture_output=True,
+                timeout=timeout_sec,
+                text=True,
+            )
+            output = result.stdout + result.stderr
+            # Check for common rebase indicators
+            return any([
+                "rebase in progress" in output.lower(),
+                "you are currently rebasing" in output.lower(),
+                (repo_path / ".git" / "rebase-merge").exists(),
+                (repo_path / ".git" / "rebase-apply").exists(),
+            ])
+        except Exception as e:
+            logger.warning(f"Failed to check git rebase state for {repo_path}: {e}")
+            return False
+    
+    def _abort_git_rebase(self, repo_path: Path, *, timeout_sec: float = 30.0) -> bool:
+        """Abort stuck git rebase. Returns True if successful."""
+        try:
+            logger.warning(f"Aborting stuck git rebase in {repo_path}")
+            subprocess.run(
+                ["git", "rebase", "--abort"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            logger.info(f"Successfully aborted git rebase in {repo_path}")
+            return True
+        except subprocess.CalledProcessError as e:
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Failed to abort git rebase in {repo_path}: {stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout aborting git rebase in {repo_path}")
+            return False
+        except Exception as e:
+            logger.error(f"Error aborting git rebase in {repo_path}: {e}")
+            return False
+    
+    def _git_hard_reset_to_origin(self, repo_path: Path, *, timeout_sec: float = 60.0) -> bool:
+        """Hard reset to origin (fallback recovery). Returns True if successful."""
+        try:
+            logger.warning(f"Performing hard reset to origin in {repo_path}")
+            
+            # Get current branch
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+                text=True,
+            )
+            branch = branch_result.stdout.strip()
+            
+            # Fetch latest
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            
+            # Hard reset to origin
+            subprocess.run(
+                ["git", "reset", "--hard", f"origin/{branch}"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+            
+            logger.info(f"Successfully reset {repo_path} to origin/{branch}")
+            return True
+        except subprocess.CalledProcessError as e:
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Failed to hard reset {repo_path}: {stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout during hard reset in {repo_path}")
+            return False
+        except Exception as e:
+            logger.error(f"Error during hard reset in {repo_path}: {e}")
+            return False
 
     def _git_pull_rebase_with_autostash(self, repo_path: Path, *, task_id: str, timeout_sec: float = 60.0):
         """Run `git pull --rebase` while tolerating pre-existing uncommitted changes.
@@ -1251,10 +1344,22 @@ class WorkerManager:
         `git pull --rebase` to fail. We auto-stash before pulling, then pop afterward.
 
         Notes:
+        - Checks for stuck rebase state and aborts if needed
         - Uses `git stash push -u` to include untracked files.
         - If `stash pop` fails (e.g. conflicts), we log a warning and leave the stash
           in place for manual inspection, rather than discarding work.
+        - Falls back to hard reset if rebase fails
         """
+        # Check if repo is in stuck rebase state
+        if self._check_git_rebase_state(repo_path):
+            logger.warning(f"Repo {repo_path} is in rebase state, attempting to abort")
+            if not self._abort_git_rebase(repo_path):
+                logger.error(f"Failed to abort rebase in {repo_path}, attempting hard reset")
+                if self._git_hard_reset_to_origin(repo_path):
+                    return  # Successfully recovered
+                else:
+                    raise RuntimeError(f"Unable to recover from stuck git state in {repo_path}")
+        
         status = ""
         try:
             status = self._git_status_porcelain(repo_path)
@@ -1267,23 +1372,48 @@ class WorkerManager:
             logger.warning(
                 f"Repo {repo_path} has uncommitted changes before pull; stashing them (task {task_id[:8]})"
             )
+            try:
+                subprocess.run(
+                    ["git", "stash", "push", "-u", "-m", stash_msg],
+                    cwd=repo_path,
+                    check=True,
+                    capture_output=True,
+                    timeout=timeout_sec,
+                )
+                did_stash = True
+            except subprocess.CalledProcessError as e:
+                stderr = (e.stderr or b"").decode()
+                logger.error(f"Failed to stash changes in {repo_path}: {stderr}")
+                raise
+
+        # Pull (rebase) with error handling
+        try:
             subprocess.run(
-                ["git", "stash", "push", "-u", "-m", stash_msg],
+                ["git", "pull", "--rebase"],
                 cwd=repo_path,
                 check=True,
                 capture_output=True,
                 timeout=timeout_sec,
             )
-            did_stash = True
-
-        # Pull (rebase)
-        subprocess.run(
-            ["git", "pull", "--rebase"],
-            cwd=repo_path,
-            check=True,
-            capture_output=True,
-            timeout=timeout_sec,
-        )
+        except subprocess.CalledProcessError as e:
+            stderr = (e.stderr or b"").decode()
+            logger.error(f"Git pull --rebase failed in {repo_path}: {stderr}")
+            
+            # Check if this is a "cannot rebase onto multiple branches" error
+            if "cannot rebase" in stderr.lower() or "multiple branches" in stderr.lower():
+                logger.warning(f"Rebase conflict detected, attempting recovery")
+                # Abort the failed rebase
+                self._abort_git_rebase(repo_path)
+                # Try hard reset as fallback
+                if self._git_hard_reset_to_origin(repo_path):
+                    logger.info(f"Successfully recovered from rebase failure via hard reset")
+                else:
+                    raise RuntimeError(f"Failed to recover from git pull failure in {repo_path}") from e
+            else:
+                raise
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git pull --rebase timed out in {repo_path}")
+            raise
 
         if did_stash:
             pop = subprocess.run(
@@ -1594,16 +1724,16 @@ class WorkerManager:
                     
                     if has_uncommitted:
                         # Commit changes
-                        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
+                        subprocess.run(["git", "add", "."], cwd=repo_path, check=True, timeout=30.0)
                         commit_msg = f"Auto-finalize: changes from task {task_id[:8]}"
-                        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_path, check=True)
+                        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_path, check=True, timeout=30.0)
                         logger.info(f"Auto-committed changes in {Path(repo_path).name}")
                         finalized_repos.append(repo_path)
                         has_unpushed = True  # Now we have commits to push
                     
                     if has_unpushed:
                         # Push commits
-                        subprocess.run(["git", "push"], cwd=repo_path, check=True)
+                        subprocess.run(["git", "push"], cwd=repo_path, check=True, timeout=60.0)
                         logger.info(f"Auto-pushed changes in {Path(repo_path).name}")
                         if repo_path not in finalized_repos:
                             finalized_repos.append(repo_path)
@@ -1658,19 +1788,27 @@ class WorkerManager:
         body = f"Task: {task_id}\nProject: {project_id}\nReason: {failure_reason}"
 
         try:
-            subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-            subprocess.run(["git", "commit", "-m", subject, "-m", body], cwd=project_path, check=True)
+            subprocess.run(["git", "add", "."], cwd=project_path, check=True, timeout=30.0)
+            subprocess.run(["git", "commit", "-m", subject, "-m", body], cwd=project_path, check=True, timeout=30.0)
             logger.info(f"WIP-committed changes for failed task {task_id[:8]} in {project_id}")
         except subprocess.CalledProcessError as e:
             # If commit fails (e.g. conflicts), don't crash failure handling.
-            logger.warning(f"WIP commit failed for {project_id} (task {task_id[:8]}): {e}")
+            stderr = (e.stderr or b"").decode() if hasattr(e.stderr, 'decode') else str(e.stderr or "")
+            logger.warning(f"WIP commit failed for {project_id} (task {task_id[:8]}): {stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.warning(f"WIP commit timed out for {project_id} (task {task_id[:8]})")
             return False
 
         try:
-            subprocess.run(["git", "push"], cwd=project_path, check=True)
+            subprocess.run(["git", "push"], cwd=project_path, check=True, timeout=60.0)
             logger.info(f"WIP-pushed changes for failed task {task_id[:8]} to {project_id}")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"WIP push failed for {project_id} (task {task_id[:8]}): {e}")
+            stderr = (e.stderr or b"").decode() if hasattr(e.stderr, 'decode') else str(e.stderr or "")
+            logger.warning(f"WIP push failed for {project_id} (task {task_id[:8]}): {stderr}")
+            # Still consider it a partial success: repo is clean now.
+        except subprocess.TimeoutExpired:
+            logger.warning(f"WIP push timed out for {project_id} (task {task_id[:8]})")
             # Still consider it a partial success: repo is clean now.
 
         # Also attempt to finalize any straggler changes elsewhere.
@@ -1711,13 +1849,14 @@ class WorkerManager:
                 cwd=project_path,
                 check=True,
                 capture_output=True,
+                timeout=10.0,
             ).stdout.decode()
 
             if status:
                 # Stage and commit
-                subprocess.run(["git", "add", "."], cwd=project_path, check=True)
+                subprocess.run(["git", "add", "."], cwd=project_path, check=True, timeout=30.0)
                 commit_msg = self._generate_commit_message(task_id, project_id, project_path, work_summary, task_title)
-                subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True)
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=project_path, check=True, timeout=30.0)
                 logger.info(f"Committed changes for task {task_id}")
 
                 # Push with retry and conflict recovery
@@ -1851,67 +1990,92 @@ class WorkerManager:
         """Attempt to recover from git conflicts by rebasing.
         
         Returns True if recovery successful, False otherwise.
+        Uses hard reset as fallback if rebase fails.
         """
         try:
+            # Check if we're already in a rebase state
+            if self._check_git_rebase_state(repo_path):
+                logger.warning(f"Repo {repo_path} already in rebase state, aborting first")
+                self._abort_git_rebase(repo_path)
+            
             # Fetch latest changes
-            subprocess.run(
-                ["git", "fetch", "origin"],
-                cwd=repo_path,
-                check=True,
-                capture_output=True,
-                timeout=30
-            )
+            try:
+                subprocess.run(
+                    ["git", "fetch", "origin"],
+                    cwd=repo_path,
+                    check=True,
+                    capture_output=True,
+                    timeout=30
+                )
+            except subprocess.CalledProcessError as e:
+                stderr = (e.stderr or b"").decode()
+                logger.error(f"Git fetch failed for {project_id}: {stderr}")
+                return False
+            except subprocess.TimeoutExpired:
+                logger.error(f"Git fetch timed out for {project_id}")
+                return False
             
             # Get current branch
-            branch_result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=repo_path,
-                check=True,
-                capture_output=True,
-                timeout=10
-            )
-            branch = branch_result.stdout.decode().strip()
+            try:
+                branch_result = subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=repo_path,
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    text=True,
+                )
+                branch = branch_result.stdout.strip()
+            except subprocess.CalledProcessError as e:
+                stderr = (e.stderr or "").strip()
+                logger.error(f"Failed to get current branch for {project_id}: {stderr}")
+                return False
             
             # Attempt rebase
-            rebase_result = subprocess.run(
-                ["git", "rebase", f"origin/{branch}"],
-                cwd=repo_path,
-                capture_output=True,
-                timeout=60
-            )
-            
-            if rebase_result.returncode == 0:
-                logger.info(f"Successfully rebased {project_id} for task {task_id}")
-                return True
-            else:
-                # Rebase had conflicts
-                stderr = rebase_result.stderr.decode() if rebase_result.stderr else ""
-                if "conflict" in stderr.lower():
-                    logger.warning(f"Rebase conflicts in {project_id}, aborting rebase")
-                    # Abort the rebase to restore clean state
-                    subprocess.run(
-                        ["git", "rebase", "--abort"],
-                        cwd=repo_path,
-                        check=False,
-                        timeout=10
-                    )
+            try:
+                rebase_result = subprocess.run(
+                    ["git", "rebase", f"origin/{branch}"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    timeout=60,
+                    text=True,
+                )
+                
+                if rebase_result.returncode == 0:
+                    logger.info(f"Successfully rebased {project_id} for task {task_id}")
+                    return True
+                else:
+                    # Rebase had conflicts
+                    stderr = rebase_result.stderr or ""
+                    stdout = rebase_result.stdout or ""
+                    output = stderr + stdout
+                    
+                    if "conflict" in output.lower() or "cannot rebase" in output.lower():
+                        logger.warning(f"Rebase conflicts in {project_id}: {output[:200]}")
+                        # Abort the rebase to restore clean state
+                        self._abort_git_rebase(repo_path)
+                        
+                        # Try hard reset as fallback
+                        logger.info(f"Attempting hard reset fallback for {project_id}")
+                        if self._git_hard_reset_to_origin(repo_path):
+                            logger.info(f"Successfully recovered {project_id} via hard reset")
+                            return True
+                    return False
+            except subprocess.TimeoutExpired:
+                logger.error(f"Git rebase timed out for {project_id}")
+                self._abort_git_rebase(repo_path)
                 return False
                 
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Git conflict recovery failed for {project_id}: {e}")
+            stderr = (e.stderr or b"").decode() if hasattr(e.stderr, 'decode') else str(e.stderr or "")
+            logger.warning(f"Git conflict recovery failed for {project_id}: {stderr}")
             # Try to abort rebase if it's in progress
-            try:
-                subprocess.run(
-                    ["git", "rebase", "--abort"],
-                    cwd=repo_path,
-                    check=False,
-                    timeout=10
-                )
-            except Exception:
-                pass
+            self._abort_git_rebase(repo_path)
             return False
         except Exception as e:
             logger.error(f"Unexpected error during conflict recovery for {project_id}: {e}")
+            # Try to abort rebase if it's in progress
+            self._abort_git_rebase(repo_path)
             return False
 
     # =========================================================================
