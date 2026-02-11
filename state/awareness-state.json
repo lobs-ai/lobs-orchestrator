@@ -1,6 +1,6 @@
 {
   "total_completed": 0,
-  "total_failed": 4,
+  "total_failed": 5,
   "start_time": 1770850534.1043148,
   "completed": [],
   "failed": [
@@ -39,7 +39,16 @@
       "kind": "task",
       "started_at": "2026-02-11T22:57:58.108697+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "775CE1B3-8D71-4665-8BD7-CA2A685B63DA",
+      "project_id": "lobs-dashboard",
+      "title": "Fix paste text notification - make it dismissible",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:58:00.182661+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:00:41.719183+00:00"
+  "last_updated": "2026-02-11T23:00:49.332071+00:00"
 }
