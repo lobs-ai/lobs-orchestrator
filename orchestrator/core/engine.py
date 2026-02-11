@@ -77,9 +77,11 @@ class Orchestrator:
         self.observer = Observer()
 
         # Cron-like recurring tasks
+        from orchestrator.config import RECURRING_STATE_FILE
+
         self.recurring = RecurringScheduler(
             tasks_dir=TASKS_DIR,
-            state_path=STATE_DIR / "recurring-state.json",
+            state_path=RECURRING_STATE_FILE,
         )
 
         self.last_reconcile = 0

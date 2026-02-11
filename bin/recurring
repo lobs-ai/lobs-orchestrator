@@ -18,7 +18,7 @@ from pathlib import Path
 # Add orchestrator to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from orchestrator.config import STATE_DIR, TASKS_DIR
+from orchestrator.config import TASKS_DIR, RECURRING_STATE_FILE
 from orchestrator.core.recurring_scheduler import RecurringScheduler
 
 
@@ -31,7 +31,7 @@ def _fmt_dt(dt: datetime | None) -> str:
 
 
 def main() -> None:
-    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=STATE_DIR / "recurring-state.json")
+    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=RECURRING_STATE_FILE)
 
     if len(sys.argv) < 2:
         print(__doc__)

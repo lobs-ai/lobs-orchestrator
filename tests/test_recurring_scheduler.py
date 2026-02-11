@@ -34,10 +34,10 @@ def test_recurring_due_creates_task_and_persists_state(temp_control_repo, tmp_pa
         ],
     )
 
-    from orchestrator.config import TASKS_DIR, STATE_DIR
+    from orchestrator.config import TASKS_DIR, RECURRING_STATE_FILE
     from orchestrator.core.recurring_scheduler import RecurringScheduler
 
-    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=STATE_DIR / "recurring-state.json")
+    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=RECURRING_STATE_FILE)
 
     now = datetime(2026, 1, 1, 0, 0, 30, tzinfo=timezone.utc)
 
@@ -55,7 +55,7 @@ def test_recurring_due_creates_task_and_persists_state(temp_control_repo, tmp_pa
     assert t["recurringMeta"]["id"] == "every-minute"
     assert t["recurringMeta"]["date"] == "2026-01-01"
 
-    state_path = STATE_DIR / "recurring-state.json"
+    state_path = RECURRING_STATE_FILE
     assert state_path.exists()
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["last_run"]["every-minute"].startswith("2026-01-01T00:00")
@@ -81,10 +81,10 @@ def test_recurring_prevents_duplicate_same_day(temp_control_repo):
         ],
     )
 
-    from orchestrator.config import TASKS_DIR, STATE_DIR
+    from orchestrator.config import TASKS_DIR, RECURRING_STATE_FILE
     from orchestrator.core.recurring_scheduler import RecurringScheduler
 
-    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=STATE_DIR / "recurring-state.json")
+    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=RECURRING_STATE_FILE)
 
     now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     created1 = scheduler.tick_with_persistence(now_utc=now)
@@ -114,7 +114,7 @@ def test_recurring_skips_if_task_already_exists_today(temp_control_repo):
         ],
     )
 
-    from orchestrator.config import TASKS_DIR, STATE_DIR
+    from orchestrator.config import TASKS_DIR, RECURRING_STATE_FILE
     from orchestrator.core.recurring_scheduler import RecurringScheduler
 
     # Pre-create a task for the same recurring id+date
@@ -133,7 +133,7 @@ def test_recurring_skips_if_task_already_exists_today(temp_control_repo):
     }
     (TASKS_DIR / "PRE.json").write_text(json.dumps(pre) + "\n", encoding="utf-8")
 
-    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=STATE_DIR / "recurring-state.json")
+    scheduler = RecurringScheduler(tasks_dir=TASKS_DIR, state_path=RECURRING_STATE_FILE)
 
     now = datetime(2026, 1, 1, 0, 0, 30, tzinfo=timezone.utc)
     created = scheduler.tick_with_persistence(now_utc=now)
@@ -142,5 +142,5 @@ def test_recurring_skips_if_task_already_exists_today(temp_control_repo):
     assert len(_read_tasks(TASKS_DIR)) == 1
 
     # last_run should still be advanced so we don't keep trying.
-    state = json.loads((STATE_DIR / "recurring-state.json").read_text(encoding="utf-8"))
+    state = json.loads(RECURRING_STATE_FILE.read_text(encoding="utf-8"))
     assert "existing" in state.get("last_run", {})

@@ -33,7 +33,10 @@ WORKER_WARNING_TIMEOUT = get_setting("worker_warning_timeout_sec", 1800)  # 30 m
 WORKER_KILL_TIMEOUT = get_setting("worker_kill_timeout_sec", 3600)  # 1 hour
 WORKER_HEARTBEAT_TIMEOUT = get_setting("worker_heartbeat_timeout_sec", 300)  # 5 minutes
 
-# State directory (for compatibility; worker state is in ~/.openclaw/worker-state.json)
+# State directory (for compatibility; runtime state is in orchestrator repo)
 STATE_DIR = (ORCHESTRATOR_REPO_PATH / "state").resolve()
+
+# Recurring scheduler state lives in control repo so it is restart-safe and shared across machines.
+RECURRING_STATE_FILE = (CONTROL_REPO_PATH / "state" / "recurring-state.json").resolve()
 
 PROJECT_CONTEXT_FILES = ["PRODUCT.md", "UX_PRINCIPLES.md", "ARCHITECTURE.md"]
