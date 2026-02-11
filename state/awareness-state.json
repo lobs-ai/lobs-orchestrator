@@ -1,6 +1,6 @@
 {
   "total_completed": 3,
-  "total_failed": 13,
+  "total_failed": 15,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -148,7 +148,25 @@
       "kind": "task",
       "started_at": "2026-02-11T23:01:53.406724+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "D6E457C9-E362-4D0B-9195-C4803935D1B2",
+      "project_id": "lobs-dashboard",
+      "title": "Hide artifacts from inbox view",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:03:44.092273+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "41D2E1DB-34A3-48FD-A6C7-585979D3E8AC",
+      "project_id": "lobs-dashboard",
+      "title": "Detailed status panel opens way below other UI - fix positioning",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:03:44.176287+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:03:40.800376+00:00"
+  "last_updated": "2026-02-11T23:04:21.955194+00:00"
 }
