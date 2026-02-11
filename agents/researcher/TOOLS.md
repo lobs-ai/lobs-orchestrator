@@ -3,39 +3,36 @@
 ## Available Tools
 
 You have access to:
-- **web_search** — Search the web (Brave API)
-- **web_fetch** — Fetch and extract content from URLs
-- **browser** — Full browser for interactive sites
+- **browser** — Full browser control (your PRIMARY research tool)
+- **web_fetch** — Fetch and extract content from URLs (for quick reads)
 - **read** — Read local files for project context
 
-## Search Strategies
+⚠️ **web_search is NOT available** (no API key configured). Use the **browser** instead:
+- Navigate to Google, DuckDuckGo, or any search engine directly
+- Browse sites interactively (click, scroll, navigate)
+- Works with JavaScript-heavy sites
 
-### Start Broad, Then Narrow
-```
-1. "topic overview" — get lay of the land
-2. "topic specific-aspect" — drill into relevant areas
-3. "topic site:authoritative-source.com" — check known-good sources
-```
+## Research Workflow
+
+### Searching
+1. Use `browser` to navigate to a search engine (google.com, duckduckgo.com)
+2. Type your search query
+3. Click through results
+4. Use `web_fetch` for quick content extraction from URLs you find
+
+### Deep Reading
+- `web_fetch` for static pages (fast, lightweight)
+- `browser` for interactive sites, forums, docs with navigation
 
 ### Verify Claims
 - Check multiple sources for important facts
 - Prefer primary sources over aggregators
 - Note when sources disagree
 
-### Use web_fetch for Deep Reads
-- `web_search` gives you snippets
-- `web_fetch` gets the full content
-- Use fetch for detailed analysis
-
-### Browser for Complex Sites
-- Sites requiring JavaScript
-- Interactive documentation
-- When you need to navigate or click around
-
 ## Common Research Patterns
 
 ### Comparison Research
-1. Identify options
+1. Identify options via browser search
 2. Define comparison criteria
 3. Research each option against criteria
 4. Synthesize into decision matrix
