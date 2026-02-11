@@ -24,7 +24,6 @@ from orchestrator.config import (
 from orchestrator.providers.base import TaskProvider
 from orchestrator.core.escalation import EscalationManager
 from orchestrator.core.agents import AgentManager
-from orchestrator.core.ollama_client import OllamaClient
 from orchestrator.core.registry import AgentRegistry, AgentConfig
 from orchestrator.core.collaboration import CollaborationManager
 
@@ -120,6 +119,7 @@ class WorkerManager:
         agent_memory: Any | None = None,
         agent_meta: Any | None = None,
         max_workers: int = 5,
+        llm_backend: Any | None = None,
     ):
         """
         Initialize WorkerManager.
@@ -132,8 +132,9 @@ class WorkerManager:
             awareness_monitor: Awareness monitor for tracking system state
             agent_tracker: Per-agent status tracker
             agent_memory: Per-agent memory manager
-            agent_meta: Ollama-powered meta-brain for agent self-awareness
+            agent_meta: Meta-brain for agent self-awareness
             max_workers: Maximum number of concurrent workers (default: 5)
+            llm_backend: LLM backend for diagnostic tasks (optional)
         """
         self.state_dir = state_dir
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -181,16 +182,8 @@ class WorkerManager:
         # Cache for project repo paths
         self._repo_path_cache = {}
 
-        # Ollama client for diagnostic tasks
-        from orchestrator.utils.settings import get_setting
-        ollama_url = get_setting("ollama_url", "http://localhost:11434")
-        ollama_model = get_setting("ollama_model", "llama3.1")
-        ollama_keep_alive = get_setting("ollama_keep_alive", "5m")
-        self.ollama = OllamaClient(
-            base_url=ollama_url,
-            model=ollama_model,
-            keep_alive=ollama_keep_alive
-        )
+        # LLM backend for diagnostic tasks
+        self._llm_backend = llm_backend
 
         # Clean up any orphaned workers from previous run
         self._cleanup_orphaned_workers()
@@ -415,10 +408,10 @@ class WorkerManager:
 
         agent_type = task.get("agentType", "")
         if agent_type == "diagnostic":
-            if self.ollama.is_available():
+            if self._llm_backend and self._llm_backend.is_available():
                 return "ollama"
-            logger.warning("Ollama not available, falling back to OpenClaw")
-        
+            logger.warning("LLM backend not available, falling back to OpenClaw")
+
         return "openclaw"
 
     def _write_memory_to_workspace(self, workspace_dir: Path, agent_type: str) -> None:
@@ -590,25 +583,24 @@ class WorkerManager:
                 awareness_context=awareness_context,
             )
 
-            # Run Ollama
-            logger.info(f"Running Ollama for {task_id[:8]} with model {self.ollama.model}")
+            # Run LLM backend
+            backend_name = self._llm_backend.name if self._llm_backend else "unknown"
+            logger.info(f"Running LLM ({backend_name}) for {task_id[:8]}")
             WORKER_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
             log_file_path = WORKER_RESULTS_DIR / f"{task_id}.log"
 
             with open(log_file_path, "w") as log_file:
-                log_file.write(f"=== Ollama Task Execution ===\n")
-                log_file.write(f"Task ID: {task_id}\nModel: {self.ollama.model}\n")
+                log_file.write(f"=== LLM Task Execution ===\n")
+                log_file.write(f"Task ID: {task_id}\nBackend: {backend_name}\n")
                 log_file.write(f"Project: {project_id}\nAgent Type: {agent_type}\n\n")
                 log_file.write(f"=== Prompt ===\n{prompt}\n\n=== Response ===\n")
                 log_file.flush()
 
                 try:
-                    for chunk in self.ollama.generate(prompt, stream=True, temperature=0.3):
-                        if "response" in chunk:
-                            log_file.write(chunk["response"])
-                            log_file.flush()
-                        if chunk.get("done", False):
-                            break
+                    response = self._llm_backend.generate(prompt, temperature=0.3)
+                    if response:
+                        log_file.write(response)
+                        log_file.flush()
 
                     log_file.write(f"\n\n=== Completed ===\n")
                     self._save_state(
@@ -644,7 +636,7 @@ class WorkerManager:
                         )
 
                 except Exception as e:
-                    error_msg = f"Ollama execution failed: {e}"
+                    error_msg = f"LLM execution failed: {e}"
                     logger.error(error_msg)
                     log_file.write(f"\n\n=== ERROR ===\n{error_msg}\n")
                     self.handle_worker_failure(
@@ -654,12 +646,12 @@ class WorkerManager:
                         agent_id,
                         start_time=start_time,
                         task_title=task_title,
-                        failure_reason="ollama_failed",
-                        session_label="",  # Ollama doesn't use OpenClaw sessions
+                        failure_reason="llm_failed",
+                        session_label="",
                     )
 
         except Exception as e:
-            logger.error(f"Failed to spawn Ollama worker for {task_id}: {e}")
+            logger.error(f"Failed to spawn LLM worker for {task_id}: {e}")
             self.handle_worker_failure(
                 task_id,
                 project_id,
@@ -667,14 +659,14 @@ class WorkerManager:
                 agent_id,
                 start_time=start_time,
                 task_title=task_title,
-                failure_reason="ollama_spawn_failed",
-                session_label="",  # Ollama doesn't use OpenClaw sessions
+                failure_reason="llm_spawn_failed",
+                session_label="",
             )
         finally:
             # Release project lock
             if project_id in self.project_locks and self.project_locks[project_id] == task_id:
                 del self.project_locks[project_id]
-                logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (Ollama task {task_id[:8]})")
+                logger.info(f"[PROJECT-LOCK] Released lock for project {project_id} (LLM task {task_id[:8]})")
             
             self._clear_state()
             self.pending_workers.discard(task_id)

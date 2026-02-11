@@ -73,7 +73,7 @@ class _StubProvider(TaskProvider):
 
 # Stub WorkerManager that doesn't need real subprocess infrastructure.
 class _WM:
-    def __init__(self, state_dir, provider, **kwargs):
+    def __init__(self, state_dir, provider, llm_backend=None, **kwargs):
         self.active_workers = {}
         self.pending_workers = set()
 

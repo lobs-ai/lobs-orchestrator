@@ -75,7 +75,7 @@ def test_orchestrator_wires_collaboration_manager_into_worker(monkeypatch, tmp_p
     captured: dict[str, Any] = {}
 
     class _WM:
-        def __init__(self, state_dir, provider, failure_rotation=None, collaboration_manager=None, **kwargs):
+        def __init__(self, state_dir, provider, failure_rotation=None, collaboration_manager=None, llm_backend=None, **kwargs):
             captured["collaboration_manager"] = collaboration_manager
             self.active_workers = {}
             self.pending_workers = set()

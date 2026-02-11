@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -31,7 +30,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from orchestrator.core.agent_memory import AgentMemoryManager
     from orchestrator.core.agent_tracker import AgentTracker
-    from orchestrator.core.ollama_client import OllamaClient
+    from orchestrator.core.llm_backend import LLMBackend
 
 logger = logging.getLogger(__name__)
 
@@ -41,51 +40,6 @@ DEFAULT_ACTIVITY_INTERVAL = 60  # seconds between activity descriptions per agen
 AVAILABILITY_CACHE_TTL = 60  # seconds to cache Ollama availability check
 HAIKU_AUDIT_EVERY = 20  # audit Ollama memory output every N completions
 
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-
-
-def _call_haiku(prompt: str, max_tokens: int = 1024, temperature: float = 0.3) -> str | None:
-    """Call Claude Haiku via the Anthropic Messages API using requests.
-
-    Returns the text response or None on failure.
-    Requires ANTHROPIC_API_KEY in the environment.
-    """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-
-    import requests  # already a project dependency
-
-    try:
-        resp = requests.post(
-            ANTHROPIC_API_URL,
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": HAIKU_MODEL,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        blocks = data.get("content", [])
-        text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
-        return text.strip() if text.strip() else None
-    except Exception as e:
-        logger.debug("[AGENT_META] Haiku call failed: %s", e)
-        return None
-
-
-def _haiku_available() -> bool:
-    """Check if we have an Anthropic API key for Haiku calls."""
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
 # Seed guidance per agent type — tells the AI what to look for beyond deterministic scanning.
@@ -117,23 +71,25 @@ DEFAULT_ADVISOR_INTERVAL = 900  # 15 minutes between AI advisor calls per agent 
 
 
 class AgentMetaBrain:
-    """Two-tier meta-cognitive service: Ollama (primary) + Haiku (fallback/guardrail)."""
+    """Multi-backend meta-cognitive service with ordered fallback."""
 
     def __init__(
         self,
-        ollama: OllamaClient,
+        backends: list[LLMBackend],
         agent_tracker: AgentTracker,
         agent_memory: AgentMemoryManager,
         thinking_interval: int = DEFAULT_THINKING_INTERVAL,
         activity_interval: int = DEFAULT_ACTIVITY_INTERVAL,
         advisor_interval: int = DEFAULT_ADVISOR_INTERVAL,
+        audit_backend: LLMBackend | None = None,
     ) -> None:
-        self._ollama = ollama
+        self._backends = backends
         self._tracker = agent_tracker
         self._memory = agent_memory
         self._thinking_interval = thinking_interval
         self._activity_interval = activity_interval
         self._advisor_interval = advisor_interval
+        self._audit_backend = audit_backend
 
         # Thread pool — at most 2 concurrent model calls to avoid flooding
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="meta-brain")
@@ -145,68 +101,42 @@ class AgentMetaBrain:
         # AI advisor rate limiting per agent type
         self._last_advisor_scan: dict[str, float] = {}
 
-        # Cached Ollama availability
-        self._ollama_available: bool | None = None
-        self._ollama_checked_at: float = 0.0
-
         # Track completions for Haiku audit trigger
         self._completion_counts: dict[str, int] = {}
 
         logger.info(
-            "[AGENT_META] Initialized (ollama_model=%s, haiku=%s, thinking=%ds, activity=%ds, advisor=%ds)",
-            ollama.model,
-            "available" if _haiku_available() else "no API key",
+            "[AGENT_META] Initialized (backends=%s, audit=%s, thinking=%ds, activity=%ds, advisor=%ds)",
+            [b.name for b in backends],
+            audit_backend.name if audit_backend else "none",
             thinking_interval,
             activity_interval,
             advisor_interval,
         )
 
     # ------------------------------------------------------------------
-    # Model availability
+    # Backend availability
     # ------------------------------------------------------------------
 
-    def _check_ollama(self) -> bool:
-        """Check if Ollama is reachable, with caching."""
-        now = time.time()
-        if self._ollama_available is not None and (now - self._ollama_checked_at) < AVAILABILITY_CACHE_TTL:
-            return self._ollama_available
-        try:
-            self._ollama_available = self._ollama.is_available()
-        except Exception:
-            self._ollama_available = False
-        self._ollama_checked_at = now
-        return self._ollama_available
-
-    def _any_model_available(self) -> bool:
-        """Check if at least one model backend is available."""
-        return self._check_ollama() or _haiku_available()
+    def _any_backend_available(self) -> bool:
+        """Check if at least one backend is available."""
+        return any(b.is_available() for b in self._backends)
 
     # ------------------------------------------------------------------
     # Unified generate helper
     # ------------------------------------------------------------------
 
     def _generate(self, prompt: str, temperature: float = 0.3) -> str | None:
-        """Generate text using Ollama (primary) or Haiku (fallback).
-
-        Tries Ollama first. If unavailable or fails, falls back to Haiku.
-        """
-        # Try Ollama first
-        if self._check_ollama():
+        """Generate text by trying each backend in order until one succeeds."""
+        for backend in self._backends:
+            if not backend.is_available():
+                continue
             try:
-                result = self._ollama.generate(
-                    prompt=prompt,
-                    stream=False,
-                    temperature=temperature,
-                    context_window=4096,
-                )
-                text = result.get("response", "").strip() if isinstance(result, dict) else ""
-                if text:
-                    return text
+                result = backend.generate(prompt, temperature=temperature)
+                if result:
+                    return result
             except Exception as e:
-                logger.debug("[AGENT_META] Ollama generate failed, trying Haiku: %s", e)
-
-        # Fallback to Haiku
-        return _call_haiku(prompt, temperature=temperature)
+                logger.debug("[AGENT_META] %s failed: %s", backend.name, e)
+        return None
 
     def _read_log_tail(self, log_path: Path, lines: int = 40) -> str:
         """Read the last N lines of a log file."""
@@ -235,7 +165,7 @@ class AgentMetaBrain:
             return
         self._last_thinking[agent_type] = now
 
-        if not self._any_model_available():
+        if not self._any_backend_available():
             # Fallback: use existing dumb extraction
             from orchestrator.core.agent_tracker import AgentTracker as _AT
             snippet = _AT.extract_thinking_from_log(log_path)
@@ -286,7 +216,7 @@ class AgentMetaBrain:
             return
         self._last_activity[agent_type] = now
 
-        if not self._any_model_available():
+        if not self._any_backend_available():
             return  # activity is already set from mark_working()
 
         self._executor.submit(
@@ -330,7 +260,7 @@ class AgentMetaBrain:
         log_path: Path,
     ) -> None:
         """Generate a reflection after task completion. Non-blocking."""
-        if not self._any_model_available():
+        if not self._any_backend_available():
             return
 
         self._executor.submit(
@@ -377,7 +307,7 @@ class AgentMetaBrain:
 
     def synthesize_memory(self, agent_type: str) -> None:
         """Update Patterns Learned and Preferences from task outcomes. Non-blocking."""
-        if not self._any_model_available():
+        if not self._any_backend_available():
             return
 
         self._executor.submit(self._do_synthesize_memory, agent_type)
@@ -431,13 +361,13 @@ class AgentMetaBrain:
         if completion_count == 0 or completion_count % 10 != 0:
             return
 
-        if not self._any_model_available():
+        if not self._any_backend_available():
             return
 
         self._executor.submit(self._do_evolve_traits, agent_type, completion_count)
 
-        # Haiku guardrail: audit quality every HAIKU_AUDIT_EVERY completions
-        if completion_count % HAIKU_AUDIT_EVERY == 0 and _haiku_available():
+        # Guardrail audit every HAIKU_AUDIT_EVERY completions
+        if completion_count % HAIKU_AUDIT_EVERY == 0 and self._audit_backend and self._audit_backend.is_available():
             self._executor.submit(self._do_audit_memory, agent_type)
 
     def _do_evolve_traits(self, agent_type: str, completion_count: int) -> None:
@@ -519,7 +449,7 @@ class AgentMetaBrain:
             "Be concise."
         )
 
-        result = _call_haiku(prompt, max_tokens=1500, temperature=0.2)
+        result = self._audit_backend.generate(prompt, temperature=0.2, max_tokens=1500) if self._audit_backend else None
         if not result:
             return
 
@@ -585,7 +515,7 @@ class AgentMetaBrain:
             return []
         self._last_advisor_scan[agent_type] = now
 
-        if not self._any_model_available():
+        if not self._any_backend_available():
             return []
 
         # Build the prompt from 4 context blocks (each capped)

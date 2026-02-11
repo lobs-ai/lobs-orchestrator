@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,6 +20,18 @@ from orchestrator.services.agent_meta import (
 # ---------------------------------------------------------------------------
 
 
+def _make_backend(*, available: bool = False, response: str | None = None, name: str = "mock") -> MagicMock:
+    """Create a mock LLMBackend."""
+    backend = MagicMock()
+    backend.name = name
+    backend.is_available.return_value = available
+    if response is not None:
+        backend.generate.return_value = response
+    else:
+        backend.generate.return_value = None
+    return backend
+
+
 def _make_brain(
     *,
     ollama_available: bool = False,
@@ -29,13 +41,21 @@ def _make_brain(
     advisor_interval: int = 0,
 ) -> AgentMetaBrain:
     """Create an AgentMetaBrain with mocked backends."""
-    ollama = MagicMock()
-    ollama.model = "test-model"
-    ollama.is_available.return_value = ollama_available
-    if ollama_response is not None:
-        ollama.generate.return_value = {"response": ollama_response}
-    else:
-        ollama.generate.side_effect = RuntimeError("no model")
+    backends = []
+
+    ollama_backend = _make_backend(
+        available=ollama_available,
+        response=ollama_response,
+        name="ollama(test-model)",
+    )
+    backends.append(ollama_backend)
+
+    haiku_backend = _make_backend(
+        available=haiku_available,
+        response=haiku_response,
+        name="haiku",
+    )
+    backends.append(haiku_backend)
 
     tracker = MagicMock()
     memory = MagicMock()
@@ -44,17 +64,11 @@ def _make_brain(
     memory.load_evolved_traits.return_value = ""
 
     brain = AgentMetaBrain(
-        ollama=ollama,
+        backends=backends,
         agent_tracker=tracker,
         agent_memory=memory,
         advisor_interval=advisor_interval,
     )
-
-    # Patch Haiku availability
-    if not haiku_available:
-        brain._haiku_response = None
-    else:
-        brain._haiku_response = haiku_response
 
     return brain
 
@@ -433,9 +447,8 @@ class TestSuggestProactiveWork:
         assert result == []
 
     def test_graceful_on_none_response(self):
-        """When Ollama returns None (model failure), _generate returns None."""
-        brain = _make_brain(ollama_available=True)
-        brain._ollama.generate.return_value = {"response": ""}
+        """When backend returns None (model failure), _generate returns None."""
+        brain = _make_brain(ollama_available=True, ollama_response=None)
 
         result = brain.suggest_proactive_work(
             agent_type="programmer",
@@ -448,23 +461,19 @@ class TestSuggestProactiveWork:
 
         assert result == []
 
-    @patch("orchestrator.services.agent_meta._call_haiku")
-    def test_falls_back_to_haiku(self, mock_haiku):
+    def test_falls_back_to_haiku(self):
         """When Ollama is unavailable, falls back to Haiku."""
         haiku_response = "KIND: ai_review | PRIORITY: NORMAL | PROJECT: flock | TITLE: Review code | DESCRIPTION: Review recent"
-        mock_haiku.return_value = haiku_response
+        brain = _make_brain(ollama_available=False, haiku_available=True, haiku_response=haiku_response)
 
-        brain = _make_brain(ollama_available=False)
-
-        with patch("orchestrator.services.agent_meta._haiku_available", return_value=True):
-            result = brain.suggest_proactive_work(
-                agent_type="reviewer",
-                awareness_context="idle",
-                agent_capabilities=[],
-                agent_proactive=[],
-                project_summaries=_sample_project_summaries(),
-                existing_kinds=set(),
-            )
+        result = brain.suggest_proactive_work(
+            agent_type="reviewer",
+            awareness_context="idle",
+            agent_capabilities=[],
+            agent_proactive=[],
+            project_summaries=_sample_project_summaries(),
+            existing_kinds=set(),
+        )
 
         assert len(result) == 1
         assert result[0]["kind"] == "ai_review"

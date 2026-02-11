@@ -36,7 +36,8 @@ from orchestrator.core.observer import Observer, Opportunity, OpportunityPriorit
 from orchestrator.core.awareness import AwarenessMonitor
 from orchestrator.core.agent_tracker import AgentTracker
 from orchestrator.core.agent_memory import AgentMemoryManager
-from orchestrator.core.ollama_client import OllamaClient
+from orchestrator.core.llm_factory import create_backends
+from orchestrator.core.llm_backend import HaikuBackend
 from orchestrator.services.agent_meta import AgentMetaBrain
 from orchestrator.services.messages import MessageProcessor
 from orchestrator.utils.settings import get_setting
@@ -68,23 +69,24 @@ class Orchestrator:
         self.agent_tracker = AgentTracker(CONTROL_REPO_PATH)
         self.agent_memory = AgentMemoryManager(CONTROL_REPO_PATH)
 
-        # Ollama-powered meta-brain for agent self-awareness
-        meta_ollama = OllamaClient(
-            base_url=get_setting("ollama_url", "http://localhost:11434"),
-            model=get_setting("ollama_meta_model", "llama3.2:1b"),
-            keep_alive=get_setting("ollama_keep_alive", "5m"),
-        )
+        # LLM backends for agent meta-brain
+        backends = create_backends()
+        # Use a HaikuBackend for the guardrail audit tier (if available)
+        audit_backend = next((b for b in backends if isinstance(b, HaikuBackend)), None)
         self.agent_meta = AgentMetaBrain(
-            ollama=meta_ollama,
+            backends=backends,
             agent_tracker=self.agent_tracker,
             agent_memory=self.agent_memory,
             thinking_interval=int(get_setting("ollama_meta_thinking_interval", 30)),
             activity_interval=int(get_setting("ollama_meta_activity_interval", 60)),
+            audit_backend=audit_backend,
         )
 
         # Workflow engine for initiative tracking
         self.workflow = WorkflowEngine(state_path=STATE_DIR / "workflow-state.json")
 
+        # Pick the first available backend for worker diagnostic tasks
+        worker_backend = backends[0] if backends else None
         self.worker_manager = WorkerManager(
             STATE_DIR,
             provider,
@@ -95,6 +97,7 @@ class Orchestrator:
             agent_memory=self.agent_memory,
             agent_meta=self.agent_meta,
             max_workers=MAX_WORKERS,
+            llm_backend=worker_backend,
         )
         self.router = Router()
         self.reconciler = Reconciler(provider)
