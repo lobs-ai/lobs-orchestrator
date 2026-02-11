@@ -187,7 +187,7 @@ class Prompter:
                 "Focus on answering the research question with sources and clear synthesis.\n\n"
                 f"**Research Question:**\n{q}\n\n"
                 + scope_block
-                + f"Write findings to `state/research/{project_id}/docs/`.\n\n---\n\n"
+                + "Write findings to the provided `outputPath` (see Inputs/Outputs below).\n\n---\n\n"
             )
 
         if t == "reviewer":
@@ -305,6 +305,31 @@ class Prompter:
         kind = item.get("kind", "task")
         item_id = item.get("id", "unknown")
 
+        # Centralized input/output paths (in lobs-control)
+        try:
+            from orchestrator.config import CONTROL_REPO_PATH
+            from orchestrator.utils.output_paths import resolve_paths
+
+            default_tpl = None
+            if kind == "research_request" or normalized_agent_type == "researcher":
+                default_tpl = "state/research/{pipeline}/{date}.md"
+            elif normalized_agent_type == "writer":
+                # Writers often produce reports.
+                default_tpl = "state/reports/pending/{pipeline}-{date}.md"
+            elif normalized_agent_type == "architect":
+                default_tpl = "state/designs/pending/{pipeline}-{date}.md"
+
+            paths = resolve_paths(
+                control_repo_path=CONTROL_REPO_PATH,
+                item=item,
+                project_id=project_id,
+                agent=normalized_agent_type,
+                task_id=str(item_id),
+                default_output_template=default_tpl,
+            )
+        except Exception:
+            paths = None
+
         # Agent-specific framing (before task details)
         agent_guidance = Prompter._build_agent_specific_guidance(
             normalized_agent_type,
@@ -345,6 +370,19 @@ class Prompter:
         if product_context:
             prompt += f"## Product Context\n\n{product_context}---\n\n"
 
+        # Central inputs/outputs
+        if paths and (paths.output_path or paths.input_path):
+            prompt += "## Inputs / Outputs\n\n"
+            if paths.input_path:
+                prompt += f"**Input (from previous stage):** `{paths.input_path}`\n\n"
+            if paths.output_path:
+                prompt += (
+                    f"**Output (write here):** `{paths.output_path}`\n\n"
+                    "- If you create multiple files, put them alongside this path (same directory).\n"
+                    "- If you write markdown, include a short header with date + task id.\n\n"
+                )
+            prompt += "---\n\n"
+
         prompt += "## Your Task\n\n"
 
         # Task details (kind-specific)
@@ -364,7 +402,7 @@ class Prompter:
             prompt += (
                 "**Research Request**\n\n"
                 f"{item.get('prompt')}\n\n"
-                f"Write findings to `state/research/{project_id}/docs/`. Be comprehensive but concise.\n\n"
+                "Write findings to the provided `outputPath` (see Inputs/Outputs below). Be comprehensive but concise.\n\n"
             )
         elif kind == "inbox_response":
             # Format full conversation chain

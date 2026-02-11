@@ -50,3 +50,5 @@ def test_build_task_prompt_research_request(temp_control_repo):
     assert "**Research Request**" in prompt
     assert "Investigate X" in prompt
     assert str(temp_control_repo) in prompt
+    assert "## Inputs / Outputs" in prompt
+    assert "state/research" in prompt

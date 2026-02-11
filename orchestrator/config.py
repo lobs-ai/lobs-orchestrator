@@ -16,6 +16,11 @@ CONTROL_OPS_DIR = (CONTROL_REPO_PATH / "state" / "control-ops").resolve()
 WORKER_RESULTS_DIR = (CONTROL_REPO_PATH / "state" / "worker-results").resolve()
 PROJECTS_FILE = (CONTROL_REPO_PATH / "state" / "projects.json").resolve()
 
+# Central output directories (within control repo)
+RESEARCH_DIR = (CONTROL_REPO_PATH / "state" / "research").resolve()
+REPORTS_DIR = (CONTROL_REPO_PATH / "state" / "reports").resolve()
+DESIGNS_DIR = (CONTROL_REPO_PATH / "state" / "designs").resolve()
+
 # Polling interval in seconds
 POLL_INTERVAL = get_setting("poll_interval", 10)
 

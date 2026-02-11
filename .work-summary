@@ -1,1 +1,0 @@
-Implemented cron-like recurring task scheduler (RecurringScheduler) with persisted last-run state and duplicate-per-day protection. Integrated scheduler tick into engine loop and added bin/recurring CLI + settings/docs updates.

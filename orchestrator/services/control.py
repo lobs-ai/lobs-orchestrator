@@ -14,7 +14,10 @@ from orchestrator.config import (
     PROJECTS_FILE,
     TASKS_DIR,
     TASKS_FILE,
-    WORKER_STATUS_JSON
+    WORKER_STATUS_JSON,
+    RESEARCH_DIR,
+    REPORTS_DIR,
+    DESIGNS_DIR,
 )
 
 logger = logging.getLogger(__name__)
@@ -217,8 +220,30 @@ class ControlManager:
         except subprocess.TimeoutExpired as e:
             logger.error(f"Git operation timed out in control repo: {e}")
 
+    def _ensure_central_output_dirs(self) -> None:
+        """Ensure central output directories exist in lobs-control.
+
+        This is safe to call repeatedly and is intentionally *not* a control-op.
+        These directories are structural and can be created on demand.
+        """
+
+        # state/ is expected, but create defensively.
+        (CONTROL_REPO_PATH / "state").mkdir(parents=True, exist_ok=True)
+
+        RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
+
+        # reports/{pending,approved,rejected}
+        (REPORTS_DIR / "pending").mkdir(parents=True, exist_ok=True)
+        (REPORTS_DIR / "approved").mkdir(parents=True, exist_ok=True)
+        (REPORTS_DIR / "rejected").mkdir(parents=True, exist_ok=True)
+
+        # designs/{pending,approved}
+        (DESIGNS_DIR / "pending").mkdir(parents=True, exist_ok=True)
+        (DESIGNS_DIR / "approved").mkdir(parents=True, exist_ok=True)
+
     def process_ops(self) -> list[dict[str, Any]]:
         self.ops_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_central_output_dirs()
         ops_files = sorted(self.ops_dir.glob("*.json"))
         if not ops_files:
             return []

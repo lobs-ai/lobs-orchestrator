@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Report triage CLI.
+
+Operates on the lobs-control repository's central report directories:
+
+  state/reports/
+    pending/
+    approved/
+    rejected/
+
+Usage:
+  bin/reports list
+  bin/reports show <path-or-name>
+  bin/reports approve <path-or-name>
+  bin/reports reject <path-or-name> [--reason "..."]
+
+Notes:
+- <path-or-name> may be a filename in pending/ or a relative path under state/reports.
+- This tool performs filesystem moves; committing/pushing is up to your normal control-repo flow.
+"""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+from pathlib import Path
+import sys
+
+# Add orchestrator to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from orchestrator.config import CONTROL_REPO_PATH, REPORTS_DIR
+
+
+def _pending_dir() -> Path:
+    return REPORTS_DIR / "pending"
+
+
+def _approved_dir() -> Path:
+    return REPORTS_DIR / "approved"
+
+
+def _rejected_dir() -> Path:
+    return REPORTS_DIR / "rejected"
+
+
+def _ensure_dirs() -> None:
+    _pending_dir().mkdir(parents=True, exist_ok=True)
+    _approved_dir().mkdir(parents=True, exist_ok=True)
+    _rejected_dir().mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_report_path(s: str) -> Path:
+    """Resolve a user-provided identifier to a report path.
+
+    Resolution order:
+    1) Exact path under control repo
+    2) Under state/reports/pending/<s>
+    3) Search pending/ for filename match
+    """
+
+    p = Path(s)
+
+    # If absolute, accept as-is.
+    if p.is_absolute():
+        return p
+
+    # Interpret as relative to control repo.
+    candidate = (CONTROL_REPO_PATH / p).resolve()
+    if candidate.exists():
+        return candidate
+
+    candidate = (_pending_dir() / s).resolve()
+    if candidate.exists():
+        return candidate
+
+    matches = list(_pending_dir().rglob(p.name))
+    if len(matches) == 1:
+        return matches[0].resolve()
+
+    raise FileNotFoundError(f"Report not found: {s}")
+
+
+def cmd_list(_: argparse.Namespace) -> int:
+    _ensure_dirs()
+    files = sorted([p for p in _pending_dir().rglob("*.md") if p.is_file()])
+    if not files:
+        print("No pending reports.")
+        return 0
+
+    for p in files:
+        print(p.relative_to(CONTROL_REPO_PATH))
+    return 0
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    _ensure_dirs()
+    p = _resolve_report_path(args.target)
+    print(p.read_text(encoding="utf-8"))
+    return 0
+
+
+def _move_report(src: Path, dest_dir: Path) -> Path:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / src.name
+
+    # Avoid overwriting.
+    if dest.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        dest = dest_dir / f"{src.stem}-{stamp}{src.suffix}"
+
+    src.rename(dest)
+    return dest
+
+
+def cmd_approve(args: argparse.Namespace) -> int:
+    _ensure_dirs()
+    src = _resolve_report_path(args.target)
+    dest = _move_report(src, _approved_dir())
+    print(f"Approved: {dest.relative_to(CONTROL_REPO_PATH)}")
+    return 0
+
+
+def cmd_reject(args: argparse.Namespace) -> int:
+    _ensure_dirs()
+    src = _resolve_report_path(args.target)
+    dest = _move_report(src, _rejected_dir())
+
+    if args.reason:
+        reason_path = dest.with_suffix("")
+        reason_path = reason_path.parent / f"{reason_path.name}.rejection.md"
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        reason_path.write_text(
+            f"# Rejection Feedback\n\n- **When:** {ts}\n- **Report:** {dest.name}\n\n## Feedback\n\n{args.reason.strip()}\n",
+            encoding="utf-8",
+        )
+
+    print(f"Rejected: {dest.relative_to(CONTROL_REPO_PATH)}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="bin/reports", description="Manage pending reports in lobs-control")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sp = sub.add_parser("list", help="List pending reports")
+    sp.set_defaults(fn=cmd_list)
+
+    sp = sub.add_parser("show", help="Show a pending report")
+    sp.add_argument("target")
+    sp.set_defaults(fn=cmd_show)
+
+    sp = sub.add_parser("approve", help="Approve a pending report")
+    sp.add_argument("target")
+    sp.set_defaults(fn=cmd_approve)
+
+    sp = sub.add_parser("reject", help="Reject a pending report")
+    sp.add_argument("target")
+    sp.add_argument("--reason", default="", help="Optional feedback to write alongside the rejected report")
+    sp.set_defaults(fn=cmd_reject)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return int(args.fn(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
