@@ -31,6 +31,9 @@ class Task:
     failureReason: Optional[str] = None
     failedAt: Optional[str] = None
     failureCount: Optional[int] = None
+    retryCount: Optional[int] = None
+    lastRetryReason: Optional[str] = None
+    retryHistory: Optional[list] = None
 
 
 @dataclass

@@ -673,11 +673,29 @@ locks/
 
 1. Log error with tail of output
 2. Mark task as `failed`
-3. Create diagnostic task (escalation)
-4. Clean up session
-5. Release lock
+3. Check for auto-retry eligibility (Level 0)
+4. If not retry-eligible: Create diagnostic task (escalation)
+5. Clean up session
+6. Release lock
 
-**Escalation:**
+**Auto-Retry (Level 0):**
+
+Before creating alerts, the system checks if the failure matches known transient patterns:
+- Network timeouts
+- Rate limits  
+- Transient API errors (502, 503, 504)
+- Lock conflicts
+- Missing dependencies/context
+
+If eligible:
+- Reset task to `not_started`
+- Append retry guidance to task notes
+- Track retry count and history
+- Prevent infinite loops (max 3 retries, same-root-cause detection)
+
+See [docs/RETRY_SYSTEM.md](docs/RETRY_SYSTEM.md) for details.
+
+**Escalation (Level 1+):**
 ```python
 {
   "kind": "diagnostic",

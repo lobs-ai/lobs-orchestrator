@@ -2,6 +2,7 @@
 Escalation manager for handling worker failures.
 
 Levels:
+0. Auto-retry (transient failures)
 1. Auto-fix (common pattern matching)
 2. Diagnostic (LLM analysis)
 3. Human intervention (inbox message + notification)
@@ -13,6 +14,7 @@ import subprocess
 from typing import Any
 from orchestrator.providers.base import TaskProvider
 from orchestrator.services.chat import get_chat_service
+from orchestrator.core.retry import get_retry_manager
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +35,42 @@ class EscalationManager:
 
     def process_failure(self, task_id: str, project_id: str, error_log: str):
         """Initial entry point for a worker failure."""
+        
+        # Level 0: Check if this failure is eligible for automatic retry
+        retry_manager = get_retry_manager()
+        
+        # Get current task state
+        task = self.provider.get_task(task_id)
+        if not task:
+            logger.warning(f"Cannot retry task {task_id}: task not found")
+            # Fall through to alert creation
+        else:
+            should_retry, pattern_name, guidance = retry_manager.should_retry(task, error_log)
+            
+            if should_retry:
+                logger.info(
+                    f"Auto-retry triggered for task {task_id}: "
+                    f"pattern={pattern_name}, guidance={guidance}"
+                )
+                
+                # Prepare retry updates
+                updates = retry_manager.prepare_retry(task, pattern_name, guidance, error_log)
+                
+                # Apply retry updates to task
+                self.provider.update_task(task_id, updates)
+                
+                logger.info(
+                    f"Task {task_id} reset for retry "
+                    f"(attempt {updates.get('retryCount', 1)})"
+                )
+                
+                # Don't create an alert - retry instead
+                return
+        
+        # If retry not eligible, proceed with alert escalation
         alert_id = f"alert_{task_id}_{int(time.time())}"
         
-        # Level 0: Create the alert record
+        # Create the alert record
         alert = {
             "id": alert_id,
             "taskId": task_id,
