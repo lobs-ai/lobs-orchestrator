@@ -139,6 +139,13 @@
       "projectId": "lobs-control",
       "createdAt": "2026-02-11T01:21:54Z",
       "dismissed": false
+    },
+    {
+      "hash": "bdaabe9209be7414",
+      "title": "Create BOOTSTRAP.md with clear MVP scope and timeline",
+      "projectId": "prairielearn",
+      "createdAt": "2026-02-11T03:26:13Z",
+      "dismissed": false
     }
   ]
 }
