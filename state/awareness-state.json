@@ -1,6 +1,6 @@
 {
-  "total_completed": 12,
-  "total_failed": 15,
+  "total_completed": 11,
+  "total_failed": 1,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -101,153 +101,18 @@
       "kind": "task",
       "started_at": "2026-02-11T23:15:50.227298+00:00",
       "status": "completed"
-    },
-    {
-      "task_id": "A2C3591D-BC03-41AA-ACC3-79576F99B744",
-      "project_id": "lobs-dashboard",
-      "title": "Dashboard is laggy when scrolling quickly - optimize performance",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:19:19.326600+00:00",
-      "status": "completed"
     }
   ],
   "failed": [
     {
-      "task_id": "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC",
-      "project_id": "lobs-dashboard",
-      "title": "Add mark all as read button for inbox",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:57:53.810397+00:00",
-      "status": "failed"
-    },
-    {
       "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
       "project_id": "lobs-dashboard",
       "title": "Add task count badge to project sidebar items",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-11T22:57:55.174493+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
-      "project_id": "lobs-dashboard",
-      "title": "Move push notification UI to top left near updates area",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:57:56.210095+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "A2C3591D-BC03-41AA-ACC3-79576F99B744",
-      "project_id": "lobs-dashboard",
-      "title": "Dashboard is laggy when scrolling quickly - optimize performance",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:57:58.108697+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "775CE1B3-8D71-4665-8BD7-CA2A685B63DA",
-      "project_id": "lobs-dashboard",
-      "title": "Fix paste text notification - make it dismissible",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:00.182661+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "BE127EAA-5308-4223-B065-F71484093B44",
-      "project_id": "lobs-dashboard",
-      "title": "Remove hearts from project icons on home page",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:04.509204+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "41D2E1DB-34A3-48FD-A6C7-585979D3E8AC",
-      "project_id": "lobs-dashboard",
-      "title": "Detailed status panel opens way below other UI - fix positioning",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:08.143121+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "1D2BCC97-C020-46D0-8CCB-85200E0E0A50",
-      "project_id": "lobs-dashboard",
-      "title": "Onboarding showed up when already 100% complete - fix condition",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:14.832011+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "D6E457C9-E362-4D0B-9195-C4803935D1B2",
-      "project_id": "lobs-dashboard",
-      "title": "Hide artifacts from inbox view",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:20.059895+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "C0F2A07F-909E-4EC1-9C9D-77D02F476110",
-      "project_id": "default",
-      "title": "Research: New ways people are using OpenClaw",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:01:25.037505+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
-      "project_id": "lobs-dashboard",
-      "title": "Add task count badge to project sidebar items",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:01:51.389415+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
-      "project_id": "lobs-dashboard",
-      "title": "Move push notification UI to top left near updates area",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:01:52.383904+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "A2C3591D-BC03-41AA-ACC3-79576F99B744",
-      "project_id": "lobs-dashboard",
-      "title": "Dashboard is laggy when scrolling quickly - optimize performance",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:01:53.406724+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "D6E457C9-E362-4D0B-9195-C4803935D1B2",
-      "project_id": "lobs-dashboard",
-      "title": "Hide artifacts from inbox view",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:03:44.092273+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "41D2E1DB-34A3-48FD-A6C7-585979D3E8AC",
-      "project_id": "lobs-dashboard",
-      "title": "Detailed status panel opens way below other UI - fix positioning",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:03:44.176287+00:00",
+      "started_at": "2026-02-11T23:23:45.616790+00:00",
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:23:54.368906+00:00"
+  "last_updated": "2026-02-11T23:28:56.582815+00:00"
 }

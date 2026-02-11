@@ -241,9 +241,8 @@ class Orchestrator:
         if not enabled:
             return False
 
-        # Only scan when idle (no explicit work pending)
-        if explicit_work:
-            return False
+        # Scan even when work is pending — proactive tasks queue alongside explicit ones
+        # The agent lock system ensures we don't over-commit resources
 
         # Check daily limit
         max_daily = self._get_proactive_max_daily()
