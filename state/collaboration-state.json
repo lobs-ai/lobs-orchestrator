@@ -1,0 +1,29 @@
+{
+  "initiatives": {
+    "openclaw-community-research": {
+      "chainId": "chain_e07f7af8d64e34c2",
+      "createdAt": "2026-02-11T04:56:29Z",
+      "handoffs": [
+        {
+          "createdAt": "2026-02-11T04:56:29Z",
+          "from": "writer",
+          "parentTaskId": "E9F4BF45-043D-4CDE-A6DF-6FF811CB6EBC",
+          "projectId": "default",
+          "taskId": "FF83D3D3-51B5-46D1-B4DF-CFAFB7C22A66",
+          "to": "writer"
+        }
+      ],
+      "tasks": [
+        {
+          "agent": "writer",
+          "createdAt": "2026-02-11T04:56:29Z",
+          "id": "FF83D3D3-51B5-46D1-B4DF-CFAFB7C22A66",
+          "parentTaskId": "E9F4BF45-043D-4CDE-A6DF-6FF811CB6EBC",
+          "projectId": "default",
+          "title": "Polish OpenClaw usage research into a concise, readable summary"
+        }
+      ]
+    }
+  },
+  "version": 1
+}
