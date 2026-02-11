@@ -85,67 +85,19 @@ class AgentMemoryManager:
         success: bool,
         duration_seconds: float,
     ) -> None:
-        """Record a brief task outcome. Only successes are logged to keep memory clean.
+        """No-op. The agent manages its own MEMORY.md during task execution.
         
-        The agent's own MEMORY.md updates (written during task execution) are the
-        primary source of curated knowledge. This method only adds a lightweight
-        record of completed work for context.
+        We recover the agent's MEMORY.md from the workspace after each run
+        via recover_personal_files_from_workspace(). The orchestrator does not
+        write to MEMORY.md.
         """
-        if not success:
-            # Don't pollute memory with failure logs — the agent learns from
-            # its own reflections, not from a list of failures
-            logger.info(
-                "[AGENT_MEMORY] Skipping failed task outcome for %s: %s",
-                agent_type,
-                task_title[:60],
-            )
-            return
-
-        path = self._memory_path(agent_type)
-        content = self.load_memory(agent_type)
-
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        duration_min = int(duration_seconds / 60)
-        entry = f"- [{project_id}] {task_title} ({duration_min} min)"
-
-        date_header = f"### {today}"
-
-        if date_header in content:
-            idx = content.index(date_header) + len(date_header)
-            rest = content[idx:]
-            next_header = re.search(r"\n##", rest)
-            if next_header:
-                insert_at = idx + next_header.start()
-                content = content[:insert_at] + "\n" + entry + content[insert_at:]
-            else:
-                content = content.rstrip() + "\n" + entry + "\n"
-        elif "## Recent Work" in content:
-            idx = content.index("## Recent Work") + len("## Recent Work")
-            content = (
-                content[:idx] + "\n\n" + date_header + "\n" + entry + content[idx:]
-            )
-        else:
-            content = (
-                content.rstrip()
-                + "\n\n## Recent Work\n\n"
-                + date_header
-                + "\n"
-                + entry
-                + "\n"
-            )
-
-        content = self._prune_old_outcomes(content)
-
-        try:
-            path.write_text(content, encoding="utf-8")
-            self._git_commit_memory(agent_type, f"memory: {agent_type} completed {task_title[:40]}")
-            logger.info(
-                "[AGENT_MEMORY] Recorded completion for %s: %s",
-                agent_type,
-                task_title[:60],
-            )
-        except Exception as e:
-            logger.error("[AGENT_MEMORY] Failed to write memory for %s: %s", agent_type, e)
+        result = "completed" if success else "failed"
+        logger.info(
+            "[AGENT_MEMORY] Task %s for %s: %s (agent manages own memory)",
+            result,
+            agent_type,
+            task_title[:60],
+        )
 
     def update_evolved_traits(self, agent_type: str, content: str) -> None:
         """Overwrite EVOLVED_TRAITS.md with new content."""
@@ -164,7 +116,7 @@ class AgentMemoryManager:
     # ------------------------------------------------------------------
 
     # Files that agents may evolve and that should be preserved across runs.
-    PERSONAL_FILES = ("SOUL.md", "IDENTITY.md")
+    PERSONAL_FILES = ("SOUL.md", "IDENTITY.md", "MEMORY.md")
 
     def load_personal_file(self, agent_type: str, filename: str) -> str | None:
         """Load a personal file from memory/<type>/<filename>.

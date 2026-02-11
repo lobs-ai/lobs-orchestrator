@@ -421,17 +421,15 @@ class WorkerManager:
         return "openclaw"
 
     def _write_memory_to_workspace(self, workspace_dir: Path, agent_type: str) -> None:
-        """Write per-agent memory context and personal files into the worker workspace."""
+        """Write per-agent personal files (MEMORY.md, SOUL.md, IDENTITY.md) into the worker workspace.
+        
+        The agent owns these files. We copy the full versions from lobs-control
+        into the workspace before each run, and recover them after.
+        """
         if not self.agent_memory:
             return
-        try:
-            ctx = self.agent_memory.get_agent_context(agent_type)
-            if ctx:
-                (workspace_dir / "MEMORY.md").write_text(ctx, encoding="utf-8")
-        except Exception as e:
-            logger.warning(f"[WORKER] Failed to write memory to workspace: {e}")
 
-        # Overlay personal files (SOUL.md, IDENTITY.md) if the agent has evolved versions.
+        # Overlay all personal files the agent has evolved versions of.
         for filename in self.agent_memory.PERSONAL_FILES:
             try:
                 personal = self.agent_memory.load_personal_file(agent_type, filename)
@@ -722,13 +720,8 @@ class WorkerManager:
                 except Exception as e:
                     logger.warning(f"Failed to get awareness context: {e}")
 
-            # Get per-agent memory context
-            memory_context = None
-            if self.agent_memory:
-                try:
-                    memory_context = self.agent_memory.get_agent_context(template_type)
-                except Exception as e:
-                    logger.warning(f"Failed to get agent memory context: {e}")
+            # Agent memory is written directly to workspace as MEMORY.md
+            # (handled by _write_memory_to_workspace), not injected into prompt
 
             # Build prompt
             from orchestrator.services.prompter import Prompter
@@ -739,7 +732,7 @@ class WorkerManager:
                 workspace_path=workspace,
                 agent_type=agent_type,
                 awareness_context=awareness_context,
-                memory_context=memory_context,
+                memory_context=None,
             )
 
             # Launch OpenClaw
