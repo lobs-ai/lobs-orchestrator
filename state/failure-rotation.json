@@ -7,10 +7,10 @@
       "streak": 4
     },
     "2441FB90-CFD4-437D-8F55-A12969448C6C": {
-      "last_failure_ts": 1770775120.958646,
-      "retry_count": 5,
-      "skip_until_ts": 1770783220.958646,
-      "streak": 5
+      "last_failure_ts": 1770777010.0646102,
+      "retry_count": 6,
+      "skip_until_ts": 1770798610.0646102,
+      "streak": 6
     },
     "3BF63B5E-8907-49CD-9BE0-3FB01649FF67": {
       "last_failure_ts": 1770764630.4234111,
@@ -19,10 +19,10 @@
       "streak": 3
     },
     "43473F01-3B30-4C98-8391-7005FDD2D063": {
-      "last_failure_ts": 1770775121.0089786,
-      "retry_count": 5,
-      "skip_until_ts": 1770783221.0089786,
-      "streak": 5
+      "last_failure_ts": 1770777022.7462823,
+      "retry_count": 6,
+      "skip_until_ts": 1770798622.7462823,
+      "streak": 6
     },
     "55EA0255-65A6-4414-B0DE-999C0CF09AD7": {
       "last_failure_ts": 1770764584.8897452,
@@ -37,28 +37,22 @@
       "streak": 4
     },
     "8211CF97-7C9B-467D-B7A6-B6F777CFF12D": {
-      "last_failure_ts": 1770775120.9195373,
-      "retry_count": 5,
-      "skip_until_ts": 1770783220.9195373,
-      "streak": 5
+      "last_failure_ts": 1770777070.377652,
+      "retry_count": 7,
+      "skip_until_ts": 1770798670.377652,
+      "streak": 7
     },
     "8F7DE0D2-2455-4629-81B3-5104E530B405": {
-      "last_failure_ts": 1770775121.1492288,
-      "retry_count": 5,
-      "skip_until_ts": 1770783221.1492288,
-      "streak": 5
+      "last_failure_ts": 1770777034.3442626,
+      "retry_count": 6,
+      "skip_until_ts": 1770798634.3442626,
+      "streak": 6
     },
     "B0E97D72-925F-4358-ACEF-01A5D287AEF9": {
       "last_failure_ts": 1770762321.3466303,
       "retry_count": 1,
       "skip_until_ts": 1770762381.3466303,
       "streak": 1
-    },
-    "BA5AAEE1-B87B-448D-9FE9-2FED4D8FF447": {
-      "last_failure_ts": 1770775077.3424082,
-      "retry_count": 5,
-      "skip_until_ts": 1770783177.3424082,
-      "streak": 5
     },
     "CF039286-4A8D-464B-AD05-F71686A389B8": {
       "last_failure_ts": 1770775076.9820523,
@@ -67,16 +61,16 @@
       "streak": 5
     },
     "D61D908E-52E4-415A-A531-4F9DD5963908": {
-      "last_failure_ts": 1770775078.1456947,
-      "retry_count": 5,
-      "skip_until_ts": 1770783178.1456947,
-      "streak": 5
+      "last_failure_ts": 1770776974.5259955,
+      "retry_count": 6,
+      "skip_until_ts": 1770798574.5259955,
+      "streak": 6
     },
     "EF697622-7408-4A57-B07E-E238D642AF87": {
-      "last_failure_ts": 1770775120.8899827,
-      "retry_count": 5,
-      "skip_until_ts": 1770783220.8899827,
-      "streak": 5
+      "last_failure_ts": 1770777058.5845423,
+      "retry_count": 7,
+      "skip_until_ts": 1770798658.5845423,
+      "streak": 7
     }
   },
   "version": 1
