@@ -1,16 +1,18 @@
 {
-  "base_dir": "/home/rafe",
-  "control_repo_path": "/home/rafe/lobs-control",
-  "orchestrator_repo_path": "/home/rafe/lobs-orchestrator",
+  "base_dir": "/Users/lobs",
+  "control_repo_path": "/Users/lobs/lobs-control",
+  "orchestrator_repo_path": "/Users/lobs/lobs-orchestrator",
   "poll_interval": 10,
   "openclaw_executable": "openclaw",
   "ollama_model": "llama3.1",
   "ollama_keep_alive": "5m",
   "max_concurrent_workers": 5,
   "model_per_template": {
-    "programmer": "codex-5.2",
-    "researcher": "codex-5.2",
-    "architect": "opus"
+    "programmer": "sonnet",
+    "researcher": "sonnet",
+    "architect": "opus",
+    "reviewer": "sonnet",
+    "writer": "sonnet"
   },
-  "openclaw_model_override": "codex-5.2"
+  "openclaw_model_override": ""
 }

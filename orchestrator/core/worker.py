@@ -436,12 +436,12 @@ class WorkerManager:
                 logger.warning("[WORKER] Failed to overlay personal %s: %s", filename, e)
 
     def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
-        """Sync the shared worker workspace to match the selected agent template.
+        """Sync the per-agent workspace to match the selected agent template.
 
         Returns the effective template type used (may fall back to 'programmer').
         """
 
-        workspace_dir = self.agent_manager.openclaw_dir / "workspace-worker"
+        workspace_dir = self.agent_manager.openclaw_dir / f"workspace-{agent_template_type}"
 
         # Always ensure WORKER_RULES.md exists (legacy behavior).
         worker_rules_src = self.agent_manager.template_dir / "WORKER_RULES.md"
@@ -2698,7 +2698,7 @@ class WorkerManager:
                 agent_template, project_id, task_title, True, duration,
             )
             # Recover any personal files the agent may have evolved during the run
-            workspace_dir = self.agent_manager.openclaw_dir / "workspace-worker"
+            workspace_dir = self.agent_manager.openclaw_dir / f"workspace-{agent_template}"
             self.agent_memory.recover_personal_files_from_workspace(
                 agent_template, workspace_dir,
             )
