@@ -222,7 +222,11 @@ class AgentMemoryManager:
         if not memory and not traits:
             return ""
 
-        parts: list[str] = ["## Agent Memory\n"]
+        parts: list[str] = [
+            "## Agent Memory\n\n"
+            "**Review this before starting work.** This is your memory from previous tasks. "
+            "Apply patterns you've learned, avoid past mistakes, and build on what worked.\n"
+        ]
 
         if memory:
             # Truncate memory to fit budget, keeping most recent content

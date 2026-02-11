@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""
+LLM Bridge — forwards file-based requests to a local Ollama instance.
+
+Watches a shared directory for JSON request files written by the orchestrator
+(running in a VM), sends them to a local Ollama API, and writes JSON response
+files back.
+
+Usage:
+    bin/llm-bridge /path/to/bridge-dir                   # Use default Ollama URL
+    bin/llm-bridge /path/to/bridge-dir --ollama-url http://localhost:11434
+    bin/llm-bridge /path/to/bridge-dir --poll 0.25       # Faster polling
+    bin/llm-bridge /path/to/bridge-dir --verbose         # Debug logging
+
+Directory layout (managed automatically):
+    {bridge-dir}/
+        requests/    <- orchestrator writes request JSON here
+        responses/   <- this script writes response JSON here
+
+Request format:
+    {
+        "id": "uuid",
+        "prompt": "...",
+        "temperature": 0.5,
+        "max_tokens": 1024,
+        "model": "llama3.2:1b",
+        "timestamp": "ISO-8601"
+    }
+
+Response format:
+    {
+        "id": "uuid",
+        "response": "generated text...",
+        "error": null,
+        "timestamp": "ISO-8601"
+    }
+"""
+
+import argparse
+import json
+import logging
+import signal
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
+
+logger = logging.getLogger("llm-bridge")
+
+# Graceful shutdown flag
+_shutdown = False
+
+
+def _handle_signal(signum, frame):
+    global _shutdown
+    logger.info("Received signal %d, shutting down...", signum)
+    _shutdown = True
+
+
+def process_request(request_path: Path, responses_dir: Path, ollama_url: str) -> None:
+    """Process a single request file: call Ollama and write the response."""
+    req_id = request_path.stem
+    try:
+        data = json.loads(request_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error("Failed to read request %s: %s", req_id, e)
+        _write_error_response(responses_dir, req_id, f"Bad request file: {e}")
+        _safe_unlink(request_path)
+        return
+
+    prompt = data.get("prompt", "")
+    model = data.get("model", "llama3.2:1b")
+    temperature = data.get("temperature", 0.7)
+    max_tokens = data.get("max_tokens", 1024)
+    req_id_from_payload = data.get("id", req_id)
+
+    logger.info("Processing %s (model=%s, temp=%.2f, max_tokens=%d, prompt_len=%d)",
+                req_id_from_payload[:12], model, temperature, max_tokens, len(prompt))
+
+    # Call Ollama
+    url = f"{ollama_url.rstrip('/')}/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "keep_alive": "5m",
+        "options": {
+            "temperature": temperature,
+            "num_ctx": 4096,
+        },
+    }
+
+    try:
+        resp = requests.post(url, json=payload, timeout=300)
+        resp.raise_for_status()
+        result = resp.json()
+        text = result.get("response", "").strip()
+
+        _write_response(responses_dir, req_id_from_payload, req_id, text, error=None)
+        logger.info("Completed %s (response_len=%d)", req_id_from_payload[:12], len(text))
+
+    except requests.exceptions.ConnectionError:
+        msg = f"Cannot connect to Ollama at {ollama_url}"
+        logger.error(msg)
+        _write_error_response(responses_dir, req_id, msg)
+    except requests.exceptions.Timeout:
+        msg = "Ollama request timed out (300s)"
+        logger.error(msg)
+        _write_error_response(responses_dir, req_id, msg)
+    except requests.exceptions.HTTPError as e:
+        msg = f"Ollama returned HTTP {e.response.status_code}: {e.response.text[:200]}"
+        logger.error(msg)
+        _write_error_response(responses_dir, req_id, msg)
+    except Exception as e:
+        msg = f"Unexpected error: {e}"
+        logger.error(msg, exc_info=True)
+        _write_error_response(responses_dir, req_id, msg)
+    finally:
+        # Remove the request file after processing
+        _safe_unlink(request_path)
+
+
+def _write_response(responses_dir: Path, payload_id: str, file_id: str,
+                    text: str | None, error: str | None) -> None:
+    """Write a response JSON file."""
+    response = {
+        "id": payload_id,
+        "response": text,
+        "error": error,
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    response_path = responses_dir / f"{file_id}.json"
+    # Write to a temp file first, then rename for atomicity
+    tmp_path = response_path.with_suffix(".tmp")
+    try:
+        tmp_path.write_text(json.dumps(response), encoding="utf-8")
+        tmp_path.rename(response_path)
+    except OSError as e:
+        logger.error("Failed to write response %s: %s", file_id, e)
+
+
+def _write_error_response(responses_dir: Path, file_id: str, error: str) -> None:
+    """Write an error response."""
+    _write_response(responses_dir, file_id, file_id, None, error)
+
+
+def _safe_unlink(path: Path) -> None:
+    """Remove a file, ignoring errors."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def check_ollama(ollama_url: str) -> bool:
+    """Check if Ollama is reachable."""
+    try:
+        resp = requests.get(f"{ollama_url.rstrip('/')}/api/tags", timeout=5)
+        return resp.status_code == 200
+    except requests.exceptions.RequestException:
+        return False
+
+
+def run_bridge(bridge_dir: Path, ollama_url: str, poll_interval: float) -> None:
+    """Main loop: watch for requests and process them."""
+    requests_dir = bridge_dir / "requests"
+    responses_dir = bridge_dir / "responses"
+
+    # Ensure directories exist
+    bridge_dir.mkdir(parents=True, exist_ok=True)
+    requests_dir.mkdir(exist_ok=True)
+    responses_dir.mkdir(exist_ok=True)
+
+    logger.info("LLM Bridge started")
+    logger.info("  Bridge dir:    %s", bridge_dir)
+    logger.info("  Ollama URL:    %s", ollama_url)
+    logger.info("  Poll interval: %.2fs", poll_interval)
+    logger.info("  Requests dir:  %s", requests_dir)
+    logger.info("  Responses dir: %s", responses_dir)
+
+    # Check Ollama connectivity at startup
+    if check_ollama(ollama_url):
+        logger.info("Ollama is reachable")
+    else:
+        logger.warning("Ollama is NOT reachable at %s — will retry on each request", ollama_url)
+
+    while not _shutdown:
+        try:
+            # Scan for request files
+            request_files = sorted(requests_dir.glob("*.json"))
+            for request_path in request_files:
+                if _shutdown:
+                    break
+                process_request(request_path, responses_dir, ollama_url)
+        except Exception as e:
+            logger.error("Error scanning for requests: %s", e, exc_info=True)
+
+        if not _shutdown:
+            time.sleep(poll_interval)
+
+    logger.info("LLM Bridge stopped")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="LLM Bridge: forward file-based requests to Ollama",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "bridge_dir",
+        type=Path,
+        help="Path to the shared bridge directory",
+    )
+    parser.add_argument(
+        "--ollama-url",
+        default="http://localhost:11434",
+        help="Ollama API base URL (default: http://localhost:11434)",
+    )
+    parser.add_argument(
+        "--poll",
+        type=float,
+        default=0.5,
+        help="Seconds between directory scans (default: 0.5)",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable debug logging",
+    )
+    args = parser.parse_args()
+
+    # Configure logging
+    level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+
+    run_bridge(args.bridge_dir, args.ollama_url, args.poll)
+
+
+if __name__ == "__main__":
+    main()
