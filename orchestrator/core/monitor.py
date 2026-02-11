@@ -51,6 +51,7 @@ class Monitor:
         logger.info("Running periodic system monitoring and inbox processing...")
         self.check_stuck_tasks()
         self.check_failure_patterns()
+        self.auto_unblock_blocked_tasks()
         
         if now - self.last_proactive_check >= self.proactive_interval:
             self.generate_proactive_suggestions()
@@ -112,6 +113,202 @@ class Monitor:
             }
             self.provider.update_task(new_task["id"], new_task)
             self.provider.update_inbox_item(item["id"], {"status": "resolved", "taskId": new_task["id"]})
+
+    def auto_unblock_blocked_tasks(self) -> None:
+        """Attempt to unblock tasks in workState='blocked'.
+
+        Strategy order (best-effort):
+        1) If explicit dependencies are now completed -> unblock
+        2) If last error matches retry patterns -> retry with guidance
+        3) If likely missing context -> spawn researcher task
+        4) Otherwise escalate to human via inbox
+
+        Tracks:
+        - task.unblockAttempts
+        - task.lastUnblockReason
+        
+        Max attempts before escalation: 3
+        """
+
+        max_attempts = int(get_setting("max_unblock_attempts", 3))
+
+        tasks_dir = CONTROL_REPO_PATH / "state" / "tasks"
+        if not tasks_dir.exists():
+            return
+
+        from orchestrator.core.retry import get_retry_manager
+
+        retry_manager = get_retry_manager()
+
+        for task_file in tasks_dir.glob("*.json"):
+            try:
+                task = json.loads(task_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+
+            if task.get("workState") != "blocked":
+                continue
+
+            task_id = task.get("id") or task_file.stem
+            project_id = task.get("projectId") or "default"
+
+            attempts = int(task.get("unblockAttempts") or 0)
+            if attempts >= max_attempts:
+                self._escalate_blocked_task(task, reason="max_unblock_attempts")
+                continue
+
+            # 1) Dependency-based unblock
+            deps = self._extract_depends_on(task)
+            if deps:
+                if self._deps_completed(deps):
+                    self.provider.update_task(
+                        task_id,
+                        {
+                            "workState": "not_started",
+                            "status": "active",
+                            "unblockAttempts": attempts + 1,
+                            "lastUnblockReason": "deps_completed",
+                            "notes": (task.get("notes") or "")
+                            + "\n\n---\n[auto-unblock] Dependencies completed; re-queued.",
+                        },
+                    )
+                    logger.info(f"[UNBLOCK] Unblocked {task_id[:8]} (deps completed)")
+                    continue
+
+            # 2) Retry patterns based on last worker output
+            error_log = self._read_worker_error_tail(task_id)
+            should_retry, pattern_name, guidance = retry_manager.should_retry(task, error_log)
+            if should_retry and pattern_name and guidance:
+                updates = retry_manager.prepare_retry(task, pattern_name, guidance, error_log)
+                updates["unblockAttempts"] = attempts + 1
+                updates["lastUnblockReason"] = f"retry:{pattern_name}"
+                self.provider.update_task(task_id, updates)
+                logger.info(f"[UNBLOCK] Reset {task_id[:8]} for retry (pattern={pattern_name})")
+                continue
+
+            # 3) Missing context -> spawn researcher
+            if self._looks_like_missing_context(task, error_log):
+                research_task_id = f"unblock_research_{task_id}_{int(time.time())}"
+                research_notes = (
+                    f"This task is blocked and appears to need missing context/info.\n\n"
+                    f"Blocked task ID: {task_id}\nProject: {project_id}\n\n"
+                    f"Blocked task title: {task.get('title','')}\n\n"
+                    f"Please gather the missing context (docs, repo structure, setup steps) and "
+                    f"write actionable guidance to unblock it.\n\n"
+                    f"Last worker error/output (tail):\n`````\n{(error_log or '')[:2000]}\n`````\n"
+                )
+
+                self.provider.update_task(
+                    research_task_id,
+                    {
+                        "id": research_task_id,
+                        "projectId": project_id,
+                        "title": f"Unblock research for {task_id}",
+                        "notes": research_notes,
+                        "status": "active",
+                        "workState": "not_started",
+                        "agent": "researcher",
+                        "agentType": "researcher",
+                        "priority": 0,
+                        "blockedMeta": {"blockedTaskId": task_id},
+                    },
+                )
+
+                self.provider.update_task(
+                    task_id,
+                    {
+                        "unblockAttempts": attempts + 1,
+                        "lastUnblockReason": "spawn_researcher",
+                        "unblockMeta": {
+                            "researchTaskId": research_task_id,
+                            "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        },
+                        "notes": (task.get("notes") or "")
+                        + f"\n\n---\n[auto-unblock] Spawned researcher task {research_task_id} to gather missing context.",
+                    },
+                )
+                logger.info(f"[UNBLOCK] Spawned researcher task {research_task_id} for blocked {task_id[:8]}")
+                continue
+
+            # 4) Escalate
+            self._escalate_blocked_task(task, reason="no_auto_strategy")
+
+    def _extract_depends_on(self, task: dict[str, Any]) -> list[str]:
+        from orchestrator.core.workflow import _parse_dep_list
+
+        deps: list[str] = []
+        deps.extend(_parse_dep_list(task.get("dependsOn")))
+        deps.extend(_parse_dep_list((task.get("workflow") or {}).get("dependsOn")))
+        return [d for d in deps if isinstance(d, str) and d.strip()]
+
+    def _deps_completed(self, deps: list[str]) -> bool:
+        for dep_id in deps:
+            t = self.provider.get_task(dep_id)
+            if not t:
+                return False
+            if t.get("workState") != "completed" and t.get("status") != "completed":
+                return False
+        return True
+
+    def _read_worker_error_tail(self, task_id: str) -> str:
+        from orchestrator.config import WORKER_RESULTS_DIR
+
+        p = WORKER_RESULTS_DIR / f"{task_id}.log"
+        if not p.exists():
+            return ""
+        try:
+            lines = p.read_text(encoding="utf-8", errors="ignore").splitlines(True)
+            return "".join(lines[-80:])
+        except Exception:
+            return ""
+
+    def _looks_like_missing_context(self, task: dict[str, Any], error_log: str) -> bool:
+        blob = ((task.get("notes") or "") + "\n" + (error_log or "")).lower()
+        hints = [
+            "no such file",
+            "file not found",
+            "module not found",
+            "cannot find module",
+            "missing",
+            "not configured",
+            "env var",
+            "environment variable",
+        ]
+        return any(h in blob for h in hints)
+
+    def _escalate_blocked_task(self, task: dict[str, Any], *, reason: str) -> None:
+        task_id = task.get("id", "unknown")
+        project_id = task.get("projectId", "unknown")
+        title = task.get("title", task_id)
+
+        inbox_id = f"blocked_{task_id}_{reason}"
+        self.provider.add_inbox_item(
+            {
+                "id": inbox_id,
+                "title": f"🚧 Blocked task needs attention ({project_id})",
+                "body": (
+                    f"Task `{task_id}` is blocked and auto-unblock could not resolve it.\n\n"
+                    f"Reason: {reason}\n"
+                    f"Title: {title}\n\n"
+                    f"Notes (excerpt):\n`````\n{(task.get('notes') or '')[:1000]}\n`````\n"
+                ),
+                "type": "alert",
+                "severity": "high" if reason == "max_unblock_attempts" else "medium",
+                "taskId": task_id,
+                "projectId": project_id,
+                "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+        )
+
+        # Also annotate the task so we don't keep reprocessing silently.
+        attempts = int(task.get("unblockAttempts") or 0)
+        self.provider.update_task(
+            task_id,
+            {
+                "unblockAttempts": attempts + 1,
+                "lastUnblockReason": f"escalate:{reason}",
+            },
+        )
 
     def check_failure_patterns(self) -> None:
         """Detect patterns of failures and trigger diagnostic tasks.

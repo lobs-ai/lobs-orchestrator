@@ -34,6 +34,9 @@ class Task:
     retryCount: Optional[int] = None
     lastRetryReason: Optional[str] = None
     retryHistory: Optional[list] = None
+    unblockAttempts: Optional[int] = None
+    lastUnblockReason: Optional[str] = None
+    unblockMeta: Optional[dict] = None
 
 
 @dataclass

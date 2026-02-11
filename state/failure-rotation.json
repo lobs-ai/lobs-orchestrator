@@ -1,0 +1,71 @@
+{
+  "tasks": {
+    "00A3286A-C147-44B7-BFB4-D73843738C55": {
+      "last_failure_ts": 1770780953.4038835,
+      "retry_count": 3,
+      "skip_until_ts": 1770781853.4038835,
+      "streak": 3
+    },
+    "06C26221-A98A-486D-91F6-35FF0DF6FE55": {
+      "last_failure_ts": 1770771189.3886864,
+      "retry_count": 4,
+      "skip_until_ts": 1770773889.3886864,
+      "streak": 4
+    },
+    "2441FB90-CFD4-437D-8F55-A12969448C6C": {
+      "last_failure_ts": 1770777128.4267907,
+      "retry_count": 8,
+      "skip_until_ts": 1770798728.4267907,
+      "streak": 8
+    },
+    "3BF63B5E-8907-49CD-9BE0-3FB01649FF67": {
+      "last_failure_ts": 1770764630.4234111,
+      "retry_count": 3,
+      "skip_until_ts": 1770765530.4234111,
+      "streak": 3
+    },
+    "43473F01-3B30-4C98-8391-7005FDD2D063": {
+      "last_failure_ts": 1770777139.2236693,
+      "retry_count": 8,
+      "skip_until_ts": 1770798739.2236693,
+      "streak": 8
+    },
+    "55EA0255-65A6-4414-B0DE-999C0CF09AD7": {
+      "last_failure_ts": 1770764584.8897452,
+      "retry_count": 3,
+      "skip_until_ts": 1770765484.8897452,
+      "streak": 3
+    },
+    "609F57F0-96D4-4D1B-A958-35199A4178E1": {
+      "last_failure_ts": 1770771201.2186556,
+      "retry_count": 4,
+      "skip_until_ts": 1770773901.2186556,
+      "streak": 4
+    },
+    "8211CF97-7C9B-467D-B7A6-B6F777CFF12D": {
+      "last_failure_ts": 1770777070.377652,
+      "retry_count": 7,
+      "skip_until_ts": 1770798670.377652,
+      "streak": 7
+    },
+    "8F7DE0D2-2455-4629-81B3-5104E530B405": {
+      "last_failure_ts": 1770777105.5471418,
+      "retry_count": 7,
+      "skip_until_ts": 1770798705.5471418,
+      "streak": 7
+    },
+    "B0E97D72-925F-4358-ACEF-01A5D287AEF9": {
+      "last_failure_ts": 1770762321.3466303,
+      "retry_count": 1,
+      "skip_until_ts": 1770762381.3466303,
+      "streak": 1
+    },
+    "EF697622-7408-4A57-B07E-E238D642AF87": {
+      "last_failure_ts": 1770777116.4460487,
+      "retry_count": 8,
+      "skip_until_ts": 1770798716.4460487,
+      "streak": 8
+    }
+  },
+  "version": 1
+}
