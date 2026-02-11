@@ -1,6 +1,6 @@
 {
   "total_completed": 0,
-  "total_failed": 3,
+  "total_failed": 4,
   "start_time": 1770850534.1043148,
   "completed": [],
   "failed": [
@@ -30,7 +30,16 @@
       "kind": "task",
       "started_at": "2026-02-11T22:57:56.210095+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "A2C3591D-BC03-41AA-ACC3-79576F99B744",
+      "project_id": "lobs-dashboard",
+      "title": "Dashboard is laggy when scrolling quickly - optimize performance",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T22:57:58.108697+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-11T23:00:33.064749+00:00"
+  "last_updated": "2026-02-11T23:00:41.719183+00:00"
 }
