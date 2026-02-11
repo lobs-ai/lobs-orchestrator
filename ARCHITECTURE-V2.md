@@ -415,15 +415,75 @@ Handles agent-to-agent coordination:
 - Tracks work chains
 - Reports on initiative progress
 
+### Agent Meta-Brain (IMPLEMENTED)
+
+**Two-tier model strategy for agent self-awareness.**
+
+Task execution uses expensive models (Sonnet/Opus via OpenClaw). Everything about the agent's inner life — thinking, reflection, memory, evolution — runs on cheap models.
+
+```
+┌─────────────────────────────────────────┐
+│           Agent Meta-Brain               │
+│                                          │
+│   Ollama (primary)  →  Haiku (fallback) │
+│   local, free           cloud, cheap     │
+│                                          │
+│   + Haiku guardrail audit every 20 runs │
+└─────────────────────────────────────────┘
+```
+
+**What it powers:**
+- **Thinking**: Summarizes log output into coherent thoughts (~30s intervals)
+- **Activity**: Generates natural descriptions of what agents are doing (~60s intervals)
+- **Reflection**: Post-task analysis of what went well/poorly
+- **Memory Synthesis**: Updates Patterns Learned + Preferences from outcomes
+- **Trait Evolution**: Rewrites EVOLVED_TRAITS.md every 10 completions
+- **Quality Audit**: Haiku reviews Ollama's outputs every 20 completions
+
+**Design principles:**
+- All calls non-blocking (ThreadPoolExecutor, max 2 workers)
+- Rate-limited per agent (avoids flooding Ollama)
+- Three-tier graceful degradation: Ollama → Haiku → dumb fallback
+- No errors or degraded experience when models are unavailable
+
+See `orchestrator/services/agent_meta.py` for implementation.
+
+### Agent Memory (IMPLEMENTED)
+
+**Per-agent persistent memory stored in `lobs-control/memory/<type>/`.**
+
+Each agent accumulates:
+- **MEMORY.md**: Task outcomes (with dates), reflections (from meta-brain), patterns learned, preferences
+- **EVOLVED_TRAITS.md**: Confidence areas, growth areas, behavioral adjustments (AI-evolved)
+- **SOUL.md / IDENTITY.md**: Personal files that agents can modify during runs (backed up automatically)
+
+Memory is injected into agent prompts at execution time so agents have context from previous work (capped at 3000 chars).
+
+### Agent Status Tracker (IMPLEMENTED)
+
+**Per-agent-type status tracked in `lobs-control/state/agents/<type>.json`.**
+
+Status fields: status (idle/working), activity, thinking, current task/project, last active, stats (completed/failed/avg duration).
+
+Dashboard reads these files directly from the filesystem — no HTTP API between components. All communication flows through git-backed files in lobs-control.
+
 ---
 
 ## Implementation Phases
 
-### Phase 1: Multi-Agent Foundation
+### Phase 1: Multi-Agent Foundation (DONE)
 - Agent Registry (load definitions)
 - Router (rule-based agent selection)
 - WorkerManager uses Registry
 - Engine routes to correct agent
+
+### Phase 1b: Agent Self-Awareness (DONE)
+- Per-agent status tracking (AgentTracker)
+- Per-agent persistent memory (AgentMemoryManager)
+- Meta-brain: Ollama + Haiku two-tier cognition (AgentMetaBrain)
+- Dashboard UI: AgentGridView + AgentDetailSheet
+- Personal file preservation (SOUL.md, IDENTITY.md)
+- Thinking, reflection, memory synthesis, trait evolution
 
 ### Phase 2: Agent Collaboration
 - Handoff mechanism (agent → orchestrator → agent)
@@ -518,25 +578,35 @@ Handles agent-to-agent coordination:
 ```
 lobs-orchestrator/
 ├── agents/
-│   ├── programmer/
+│   ├── programmer/          # Base templates (AGENTS.md, SOUL.md, etc.)
 │   ├── researcher/
 │   ├── reviewer/
 │   ├── writer/
 │   └── architect/
 ├── orchestrator/
 │   ├── core/
-│   │   ├── engine.py
-│   │   ├── registry.py      # Agent definitions
-│   │   ├── router.py        # Task routing
-│   │   ├── workflow.py      # Work chains
-│   │   ├── observer.py      # Proactive scanning
-│   │   ├── collaboration.py # Agent handoffs
-│   │   └── worker.py        # Agent spawning
+│   │   ├── engine.py          # Main loop, instantiates all subsystems
+│   │   ├── worker.py          # Agent spawning + lifecycle hooks
+│   │   ├── agent_tracker.py   # Per-agent status tracking + disk sync
+│   │   ├── agent_memory.py    # Per-agent memory, traits, personal files
+│   │   ├── ollama_client.py   # Ollama HTTP client
+│   │   ├── registry.py        # Agent definitions
+│   │   ├── router.py          # Task routing
+│   │   ├── workflow.py        # Work chains
+│   │   ├── observer.py        # Proactive scanning
+│   │   └── collaboration.py   # Agent handoffs
 │   ├── services/
-│   │   ├── control.py
-│   │   ├── scanner.py
-│   │   └── opportunities.py # Opportunity detection
+│   │   ├── agent_meta.py      # Meta-brain: Ollama + Haiku cognition
+│   │   ├── control.py         # State writer (single writer)
+│   │   ├── scanner.py         # Task scanning
+│   │   ├── prompter.py        # Prompt builder (injects memory context)
+│   │   └── opportunities.py   # Opportunity detection
 │   └── ...
+└── ...
+
+lobs-control/
+├── state/agents/              # Per-agent status JSON files (5 files)
+├── memory/<type>/             # Per-agent memory + evolved traits + personal files
 └── ...
 ```
 

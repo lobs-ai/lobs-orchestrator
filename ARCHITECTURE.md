@@ -319,6 +319,75 @@ ControlManager processes these serially:
 
 ---
 
+### AgentTracker (`orchestrator/core/agent_tracker.py`)
+
+**Per-agent status tracking and disk sync.**
+
+**Responsibilities:**
+- Maintain in-memory cache of each agent type's status (idle/working/thinking/finalizing)
+- Write dirty state to `lobs-control/state/agents/<type>.json`
+- Batch git commits at most once per 60 seconds
+- Provide thinking extraction fallback from log files
+- Track completion counts (used to trigger trait evolution)
+
+**Methods:**
+- `mark_working(agent_type, task_id, project_id, activity)` — agent starts a task
+- `update_thinking(agent_type, snippet)` — update live thinking text (writes to disk)
+- `mark_completed(agent_type, task_id, duration)` — task finished successfully
+- `mark_failed(agent_type, task_id)` — task failed
+- `mark_idle(agent_type)` — agent returns to idle
+- `sync_to_disk(force=False)` — write dirty statuses, batch git commit
+- `get_completion_count(agent_type)` — completions since orchestrator start
+
+---
+
+### AgentMemoryManager (`orchestrator/core/agent_memory.py`)
+
+**Per-agent persistent memory and evolved traits.**
+
+**Responsibilities:**
+- Load/save markdown memory files in `lobs-control/memory/<type>/`
+- Append task outcomes (organized by date)
+- Append reflections (from meta-brain)
+- Replace Patterns Learned / Preferences sections (from meta-brain synthesis)
+- Manage personal files (SOUL.md, IDENTITY.md) — load, save, recover from workspace
+- Build agent context for prompt injection (capped at 3000 chars)
+- Prune task outcomes older than 30 days
+
+**Personal File Flow:**
+- Base templates live in `lobs-orchestrator/agents/<type>/`
+- Evolved versions stored in `lobs-control/memory/<type>/`
+- At spawn: overlay evolved personal files into OpenClaw workspace
+- After task: recover modified personal files from workspace back to lobs-control
+
+---
+
+### AgentMetaBrain (`orchestrator/services/agent_meta.py`)
+
+**Two-tier meta-cognitive service: Ollama (primary) + Claude Haiku (fallback/guardrail).**
+
+Uses a small/fast local model (Ollama, default `llama3.2:1b`) for frequent meta-work. Falls back to Claude Haiku via Anthropic API when Ollama is unavailable. Haiku also serves as a periodic guardrail, auditing Ollama's outputs every 20 completions.
+
+**Responsibilities:**
+- Summarize thinking from log output (every ~30s per agent)
+- Generate natural activity descriptions (every ~60s per agent)
+- Post-task reflections (what went well, what was tricky)
+- Memory synthesis (update Patterns Learned + Preferences)
+- Trait evolution (every 10 completions)
+- Quality audit (Haiku reviews Ollama's outputs every 20 completions)
+
+**Threading:**
+- `ThreadPoolExecutor(max_workers=2)` — at most 2 concurrent model calls
+- All public methods submit to executor and return immediately (non-blocking)
+- Rate limiting per agent via timestamp dicts
+
+**Graceful degradation chain:**
+1. Ollama (local, free) → if unavailable...
+2. Claude Haiku (cloud, cheap) → if unavailable...
+3. Dumb fallback (last meaningful log line, mechanical outcomes only)
+
+---
+
 ### Prompter (`orchestrator/services/prompter.py`)
 
 **Builds prompts for worker agents.**
@@ -496,10 +565,21 @@ lobs-control/
 │   ├── tasks/                  # Individual task files
 │   ├── projects.json           # Project registry
 │   ├── worker-status.json      # Current worker status
+│   ├── agents/                 # Per-agent status (5 files)
+│   │   ├── architect.json
+│   │   ├── programmer.json
+│   │   ├── researcher.json
+│   │   ├── reviewer.json
+│   │   └── writer.json
 │   ├── control-ops/            # Pending state changes
 │   ├── worker-results/         # Task execution logs
 │   ├── inbox/                  # Inbox items
 │   └── alerts/                 # System alerts
+├── memory/                     # Per-agent persistent memory
+│   ├── <type>/MEMORY.md        # Task outcomes, reflections, patterns
+│   ├── <type>/EVOLVED_TRAITS.md # AI-evolved behavioral traits
+│   ├── <type>/SOUL.md          # Evolved personality (if modified)
+│   └── <type>/IDENTITY.md      # Evolved identity (if modified)
 ├── bin/
 │   └── open-work               # Script to identify eligible work
 └── ENGINEERING_RULES.md        # Global rules
@@ -743,6 +823,9 @@ lobs-orchestrator/
 │   │   ├── engine.py           # Main orchestration loop
 │   │   ├── worker.py           # Worker lifecycle management
 │   │   ├── agents.py           # Agent provisioning
+│   │   ├── agent_tracker.py    # Per-agent status tracking + disk sync
+│   │   ├── agent_memory.py     # Per-agent memory, traits, personal files
+│   │   ├── ollama_client.py    # Ollama HTTP client
 │   │   ├── reconciler.py       # Self-healing
 │   │   ├── monitor.py          # Health monitoring
 │   │   ├── heartbeat.py        # Heartbeat/notifications
@@ -751,6 +834,7 @@ lobs-orchestrator/
 │   │   ├── scanner.py          # Task scanning
 │   │   ├── control.py          # State writer (single writer)
 │   │   ├── prompter.py         # Prompt builder
+│   │   ├── agent_meta.py       # Meta-brain: Ollama + Haiku agent cognition
 │   │   ├── messages.py         # Message processor
 │   │   └── chat.py             # Chat interface
 │   ├── providers/
@@ -764,6 +848,12 @@ lobs-orchestrator/
 │   │   ├── settings.py         # Settings management
 │   │   └── results.py          # Result handling
 │   └── config.py               # Configuration constants
+├── agents/                     # Per-agent-type base templates
+│   ├── programmer/             # AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md
+│   ├── architect/
+│   ├── researcher/
+│   ├── reviewer/
+│   └── writer/
 ├── worker-template/
 │   ├── AGENTS.md               # Worker agent rules
 │   ├── SOUL.md                 # Worker personality
@@ -1040,22 +1130,18 @@ For Lobs' use case (personal productivity system), simplicity and predictability
    - User-requested work prioritized
    - Diagnostic tasks run first
 
-4. **Telemetry & Metrics**
-   - Task completion rates
-   - Worker utilization
-   - Error rates by project
-   - Dashboard visualization
-
-5. **Smart Scheduling**
+4. **Smart Scheduling**
    - Time-based task execution
    - Dependency-aware scheduling
    - Resource-aware allocation
 
-6. **Agent Specialization**
-   - Research agents
-   - Code review agents
-   - Documentation agents
-   - Testing agents
+### Implemented (formerly future)
+
+5. **Agent Specialization** — 5 agent types (programmer, architect, researcher, reviewer, writer) with per-agent templates, memory, and traits
+
+6. **Telemetry & Metrics** — per-agent task completion stats, average durations, success/failure counts tracked in `state/agents/<type>.json`
+
+7. **Agent Self-Awareness** — meta-brain (Ollama + Haiku) generates thinking summaries, activity descriptions, post-task reflections, memory synthesis, and trait evolution
 
 ---
 

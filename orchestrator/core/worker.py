@@ -118,6 +118,7 @@ class WorkerManager:
         awareness_monitor: Any | None = None,
         agent_tracker: Any | None = None,
         agent_memory: Any | None = None,
+        agent_meta: Any | None = None,
         max_workers: int = 5,
     ):
         """
@@ -131,6 +132,7 @@ class WorkerManager:
             awareness_monitor: Awareness monitor for tracking system state
             agent_tracker: Per-agent status tracker
             agent_memory: Per-agent memory manager
+            agent_meta: Ollama-powered meta-brain for agent self-awareness
             max_workers: Maximum number of concurrent workers (default: 5)
         """
         self.state_dir = state_dir
@@ -150,6 +152,9 @@ class WorkerManager:
         # Per-agent status tracking and memory.
         self.agent_tracker = agent_tracker
         self.agent_memory = agent_memory
+
+        # Ollama-powered meta-brain for agent self-awareness.
+        self.agent_meta = agent_meta
 
         # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label, last_heartbeat)
@@ -813,6 +818,12 @@ class WorkerManager:
             if self.agent_tracker:
                 self.agent_tracker.mark_working(template_type, task_id, project_id, task_title)
 
+            # Generate initial activity description via Ollama meta-brain
+            if self.agent_meta:
+                self.agent_meta.describe_activity(
+                    template_type, task_title, project_id, task.get("notes", ""),
+                )
+
             # Update provider status with new schema
             self._update_provider_status()
 
@@ -869,8 +880,13 @@ class WorkerManager:
                 finished.append((task_id, project_id, agent_id, agent_template, retcode, start_time, task_title, session_label))
                 continue
             
-            # Update agent thinking from log tail
-            if self.agent_tracker:
+            # Update agent thinking and activity via Ollama meta-brain
+            if self.agent_meta:
+                log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+                self.agent_meta.summarize_thinking(agent_template, log_path)
+                self.agent_meta.describe_activity(agent_template, task_title, project_id)
+            elif self.agent_tracker:
+                # Fallback: dumb log-tail extraction when meta-brain not available
                 from orchestrator.core.agent_tracker import AgentTracker as _AT
                 log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
                 snippet = _AT.extract_thinking_from_log(log_path)
@@ -2694,10 +2710,17 @@ class WorkerManager:
             self.agent_memory.recover_personal_files_from_workspace(
                 agent_template, workspace_dir,
             )
-            # Trigger trait evolution if enough tasks completed (async, non-blocking)
+
+        # Ollama meta-brain: reflection, memory synthesis, trait evolution
+        if self.agent_meta:
+            log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+            self.agent_meta.reflect_on_task(
+                agent_template, task_title, project_id, True, duration, log_path,
+            )
+            self.agent_meta.synthesize_memory(agent_template)
             if self.agent_tracker:
                 count = self.agent_tracker.get_completion_count(agent_template)
-                self.agent_memory.maybe_evolve_traits(agent_template, count)
+                self.agent_meta.evolve_traits(agent_template, count)
 
         self._cleanup_worker_session(agent_id, session_label)
 
@@ -2863,6 +2886,13 @@ class WorkerManager:
         if self.agent_memory:
             self.agent_memory.append_task_outcome(
                 agent_type_normalized, project_id, task_title, False, duration,
+            )
+
+        # Ollama meta-brain: reflect on failure
+        if self.agent_meta:
+            log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+            self.agent_meta.reflect_on_task(
+                agent_type_normalized, task_title, project_id, False, duration, log_path,
             )
 
         self._cleanup_worker_session(agent_id, session_label)

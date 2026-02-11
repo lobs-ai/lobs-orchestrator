@@ -242,84 +242,95 @@ class AgentMemoryManager:
         return combined
 
     # ------------------------------------------------------------------
-    # Trait evolution
+    # Reflections (written by AgentMetaBrain after task completion)
     # ------------------------------------------------------------------
 
-    def maybe_evolve_traits(self, agent_type: str, completion_count: int) -> None:
-        """Trigger trait evolution if enough tasks have been completed.
+    def append_reflection(self, agent_type: str, text: str) -> None:
+        """Append a reflection entry to MEMORY.md under ## Reflections."""
+        path = self._memory_path(agent_type)
+        content = self.load_memory(agent_type)
 
-        Runs every 10 completions. Uses Ollama (local, cheap) if available,
-        otherwise skips silently.
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_header = f"### {today}"
+        entry = f"- {text.strip()}"
+
+        if "## Reflections" in content:
+            idx = content.index("## Reflections") + len("## Reflections")
+            rest = content[idx:]
+
+            if date_header in rest:
+                # Append under existing date header within Reflections
+                dh_idx = idx + rest.index(date_header) + len(date_header)
+                after_date = content[dh_idx:]
+                next_header = re.search(r"\n##", after_date)
+                if next_header:
+                    insert_at = dh_idx + next_header.start()
+                    content = content[:insert_at] + "\n" + entry + content[insert_at:]
+                else:
+                    content = content.rstrip() + "\n" + entry + "\n"
+            else:
+                # New date header after ## Reflections
+                content = content[:idx] + "\n\n" + date_header + "\n" + entry + content[idx:]
+        else:
+            # No Reflections section — add one at the end
+            content = (
+                content.rstrip()
+                + "\n\n## Reflections\n\n"
+                + date_header
+                + "\n"
+                + entry
+                + "\n"
+            )
+
+        try:
+            path.write_text(content, encoding="utf-8")
+            self._git_commit_memory(agent_type, f"memory: {agent_type} reflection")
+            logger.info("[AGENT_MEMORY] Appended reflection for %s", agent_type)
+        except Exception as e:
+            logger.error("[AGENT_MEMORY] Failed to write reflection for %s: %s", agent_type, e)
+
+    # ------------------------------------------------------------------
+    # Memory section replacement (written by AgentMetaBrain)
+    # ------------------------------------------------------------------
+
+    def replace_memory_sections(
+        self, agent_type: str, patterns: str, preferences: str
+    ) -> None:
+        """Replace ## Patterns Learned and ## Preferences sections in MEMORY.md.
+
+        Other sections (Task Outcomes, Reflections) are left untouched.
         """
-        if completion_count == 0 or completion_count % 10 != 0:
+        path = self._memory_path(agent_type)
+        content = self.load_memory(agent_type)
+        if not content.strip():
             return
 
-        import threading
+        def _replace_section(text: str, header: str, new_body: str) -> str:
+            marker = f"## {header}"
+            if marker not in text:
+                # Append the section
+                return text.rstrip() + f"\n\n{marker}\n{new_body}\n"
+            idx = text.index(marker)
+            after = text[idx + len(marker):]
+            # Find end of section (next ## header or end)
+            next_h = re.search(r"\n## ", after)
+            if next_h:
+                end = idx + len(marker) + next_h.start()
+                return text[:idx] + f"{marker}\n{new_body}" + text[end:]
+            else:
+                return text[:idx] + f"{marker}\n{new_body}\n"
 
-        def _evolve() -> None:
-            try:
-                memory = self.load_memory(agent_type)
-                current_traits = self.load_evolved_traits(agent_type)
+        if patterns:
+            content = _replace_section(content, "Patterns Learned", patterns)
+        if preferences:
+            content = _replace_section(content, "Preferences", preferences)
 
-                # Extract recent task outcomes (last 10)
-                outcomes: list[str] = []
-                in_outcomes = False
-                for line in memory.split("\n"):
-                    if line.startswith("## Task Outcomes"):
-                        in_outcomes = True
-                        continue
-                    if in_outcomes and line.startswith("## ") and not line.startswith("### "):
-                        break
-                    if in_outcomes and line.startswith("- "):
-                        outcomes.append(line)
-                recent = outcomes[-10:] if len(outcomes) > 10 else outcomes
-
-                if not recent:
-                    return
-
-                prompt = (
-                    f"You are analyzing the work history of a '{agent_type}' AI agent. "
-                    "Based on recent task outcomes, update the agent's evolved traits document.\n\n"
-                    "## Recent Task Outcomes\n"
-                    + "\n".join(recent)
-                    + "\n\n## Current Evolved Traits\n"
-                    + (current_traits or "(none yet)")
-                    + "\n\n## Instructions\n"
-                    "Write an updated EVOLVED_TRAITS.md with sections:\n"
-                    "- Confidence Areas (skills/domains with consistent success)\n"
-                    "- Growth Areas (recurring failures or struggles)\n"
-                    "- Behavioral Adjustments (lessons learned)\n\n"
-                    "Be concise. Output only the markdown content."
-                )
-
-                # Try Ollama first
-                import subprocess as sp
-
-                result = sp.run(
-                    ["ollama", "run", "llama3.2:1b"],
-                    input=prompt,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    self.update_evolved_traits(agent_type, result.stdout.strip() + "\n")
-                    logger.info(
-                        "[AGENT_MEMORY] Evolved traits for %s after %d completions",
-                        agent_type,
-                        completion_count,
-                    )
-                else:
-                    logger.debug(
-                        "[AGENT_MEMORY] Ollama not available for trait evolution, skipping"
-                    )
-            except FileNotFoundError:
-                logger.debug("[AGENT_MEMORY] Ollama not installed, skipping trait evolution")
-            except Exception as e:
-                logger.debug("[AGENT_MEMORY] Trait evolution failed (non-critical): %s", e)
-
-        # Run async to avoid blocking the main loop
-        threading.Thread(target=_evolve, daemon=True).start()
+        try:
+            path.write_text(content, encoding="utf-8")
+            self._git_commit_memory(agent_type, f"memory: {agent_type} synthesized")
+            logger.info("[AGENT_MEMORY] Replaced memory sections for %s", agent_type)
+        except Exception as e:
+            logger.error("[AGENT_MEMORY] Failed to replace sections for %s: %s", agent_type, e)
 
     # ------------------------------------------------------------------
     # Pruning

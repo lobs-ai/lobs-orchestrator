@@ -36,8 +36,11 @@ from orchestrator.core.observer import Observer, Opportunity, OpportunityPriorit
 from orchestrator.core.awareness import AwarenessMonitor
 from orchestrator.core.agent_tracker import AgentTracker
 from orchestrator.core.agent_memory import AgentMemoryManager
+from orchestrator.core.ollama_client import OllamaClient
+from orchestrator.services.agent_meta import AgentMetaBrain
 from orchestrator.services.messages import MessageProcessor
 from orchestrator.utils.settings import get_setting
+from orchestrator.core.registry import AgentRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,20 @@ class Orchestrator:
         self.agent_tracker = AgentTracker(CONTROL_REPO_PATH)
         self.agent_memory = AgentMemoryManager(CONTROL_REPO_PATH)
 
+        # Ollama-powered meta-brain for agent self-awareness
+        meta_ollama = OllamaClient(
+            base_url=get_setting("ollama_url", "http://localhost:11434"),
+            model=get_setting("ollama_meta_model", "llama3.2:1b"),
+            keep_alive=get_setting("ollama_keep_alive", "5m"),
+        )
+        self.agent_meta = AgentMetaBrain(
+            ollama=meta_ollama,
+            agent_tracker=self.agent_tracker,
+            agent_memory=self.agent_memory,
+            thinking_interval=int(get_setting("ollama_meta_thinking_interval", 30)),
+            activity_interval=int(get_setting("ollama_meta_activity_interval", 60)),
+        )
+
         # Workflow engine for initiative tracking
         self.workflow = WorkflowEngine(state_path=STATE_DIR / "workflow-state.json")
 
@@ -76,6 +93,7 @@ class Orchestrator:
             awareness_monitor=self.awareness,
             agent_tracker=self.agent_tracker,
             agent_memory=self.agent_memory,
+            agent_meta=self.agent_meta,
             max_workers=MAX_WORKERS,
         )
         self.router = Router()
@@ -104,9 +122,17 @@ class Orchestrator:
         # Round-robin offset used when multiple projects have overlapping active work windows.
         self._work_window_rr_offset = 0
         
+        # Agent registry for AI advisor
+        self.registry = AgentRegistry()
+
         # Proactive work tracking
         self._proactive_stats = self._load_proactive_stats()
         self._last_proactive_scan = 0
+
+        # AI advisor round-robin state
+        self._advisor_rr_index = 0
+        self._ai_advisor_daily_count = 0
+        self._ai_advisor_daily_date: str = ""
         
         # Workflow tracking
         self._last_workflow_update = 0
@@ -341,9 +367,13 @@ class Orchestrator:
             return
 
         try:
-            # Scan for opportunities
+            # Phase 1: Deterministic Observer (fast, free)
             opportunities = self.observer.scan_for_opportunities(projects)
-            
+
+            # Phase 2: AI-powered suggestions
+            ai_opportunities = self._get_ai_suggestions(projects, opportunities)
+            opportunities.extend(ai_opportunities)
+
             if not opportunities:
                 logger.debug("[PROACTIVE] No opportunities found")
                 return
@@ -351,7 +381,7 @@ class Orchestrator:
             # Filter by minimum priority
             min_priority = self._get_proactive_min_priority()
             filtered = [opp for opp in opportunities if opp.priority <= min_priority]
-            
+
             if not filtered:
                 logger.debug(f"[PROACTIVE] No opportunities above min priority {min_priority.name}")
                 return
@@ -360,7 +390,7 @@ class Orchestrator:
             max_daily = self._get_proactive_max_daily()
             today_count = self._get_proactive_count_today()
             remaining = max_daily - today_count
-            
+
             if remaining <= 0:
                 logger.debug(f"[PROACTIVE] Daily limit reached ({today_count}/{max_daily})")
                 return
@@ -378,12 +408,135 @@ class Orchestrator:
                     f"[PROACTIVE] Created {created_count} proactive task(s). "
                     f"Today: {self._get_proactive_count_today()}/{max_daily}"
                 )
-                
+
                 # Prune old stats periodically
                 self._prune_old_daily_counts()
 
         except Exception as e:
             logger.error(f"Failed to process proactive work: {e}", exc_info=True)
+
+    # ------------------------------------------------------------------
+    # AI Advisor (Phase 2 of proactive work)
+    # ------------------------------------------------------------------
+
+    _ADVISOR_AGENT_TYPES = ["programmer", "researcher", "reviewer", "writer", "architect"]
+
+    def _get_ai_suggestions(
+        self,
+        projects: list[dict[str, Any]],
+        existing_opportunities: list[Opportunity],
+    ) -> list[Opportunity]:
+        """Query the AI advisor for proactive work suggestions.
+
+        Returns a list of Opportunity objects with ai_-prefixed kinds.
+        Gracefully returns [] if AI advisor is disabled or no model is available.
+        """
+        # Check if AI advisor is enabled
+        proactive_config = get_setting("proactive", {})
+        if isinstance(proactive_config, dict):
+            if not proactive_config.get("ai_advisor_enabled", True):
+                return []
+        else:
+            return []  # No config dict → skip AI
+
+        # Check daily limit for AI suggestions
+        max_daily_ai = int(
+            proactive_config.get("ai_advisor_max_daily", 10)
+            if isinstance(proactive_config, dict) else 10
+        )
+        today = datetime.now(timezone.utc).date().isoformat()
+        if self._ai_advisor_daily_date != today:
+            self._ai_advisor_daily_count = 0
+            self._ai_advisor_daily_date = today
+        if self._ai_advisor_daily_count >= max_daily_ai:
+            logger.debug("[PROACTIVE-AI] Daily AI suggestion limit reached (%d/%d)", self._ai_advisor_daily_count, max_daily_ai)
+            return []
+
+        # Pick one agent type via round-robin
+        agent_type = self._pick_advisor_agent_type()
+
+        # Get awareness context
+        awareness_context = self.awareness.format_context_for_agent(agent_type)
+
+        # Get agent config for capabilities/proactive lists
+        try:
+            agent_config = self.registry.get_agent(agent_type)
+            capabilities = agent_config.capabilities
+            proactive_list = agent_config.proactive
+        except Exception:
+            capabilities = []
+            proactive_list = []
+
+        # Build project summaries
+        project_summaries = self._build_project_summaries(projects)
+
+        # Collect existing opportunity kinds for dedup
+        existing_kinds = {opp.kind for opp in existing_opportunities}
+
+        # Call the AI advisor
+        max_per_scan = int(
+            proactive_config.get("ai_advisor_max_per_scan", 3)
+            if isinstance(proactive_config, dict) else 3
+        )
+
+        suggestions = self.agent_meta.suggest_proactive_work(
+            agent_type=agent_type,
+            awareness_context=awareness_context,
+            agent_capabilities=capabilities,
+            agent_proactive=proactive_list,
+            project_summaries=project_summaries,
+            existing_kinds=existing_kinds,
+        )
+
+        # Convert dicts to Opportunity objects
+        priority_map = {1: OpportunityPriority.URGENT, 2: OpportunityPriority.HIGH,
+                        3: OpportunityPriority.NORMAL, 4: OpportunityPriority.LOW}
+        result: list[Opportunity] = []
+        for s in suggestions[:max_per_scan]:
+            prio = priority_map.get(s.get("priority", 3), OpportunityPriority.NORMAL)
+            opp = Opportunity(
+                project_id=s["project_id"],
+                agent_type=s["agent_type"],
+                kind=s["kind"],
+                title=s["title"],
+                description=s["description"],
+                priority=prio,
+            )
+            result.append(opp)
+
+        if result:
+            self._ai_advisor_daily_count += len(result)
+
+        return result
+
+    def _pick_advisor_agent_type(self) -> str:
+        """Round-robin through agent types for AI advisor queries."""
+        agent_type = self._ADVISOR_AGENT_TYPES[self._advisor_rr_index % len(self._ADVISOR_AGENT_TYPES)]
+        self._advisor_rr_index = (self._advisor_rr_index + 1) % len(self._ADVISOR_AGENT_TYPES)
+        return agent_type
+
+    def _build_project_summaries(self, projects: list[dict[str, Any]]) -> list[dict]:
+        """Build lightweight project summaries for the AI advisor prompt."""
+        summaries: list[dict] = []
+        for p in projects:
+            if p.get("archived"):
+                continue
+            project_id = str(p.get("id") or "").strip()
+            if not project_id:
+                continue
+
+            from orchestrator.config import BASE_DIR
+            repo_path = Path(p.get("repoPath") or (BASE_DIR / project_id)).resolve()
+            repo_exists = repo_path.exists() and repo_path.is_dir()
+
+            summaries.append({
+                "id": project_id,
+                "has_python": repo_exists and (repo_path / "requirements.txt").exists(),
+                "has_node": repo_exists and (repo_path / "package.json").exists(),
+                "has_swift": repo_exists and (repo_path / "Package.swift").exists(),
+                "repo_exists": repo_exists,
+            })
+        return summaries
 
     def _update_workflow_state(self) -> None:
         """Update workflow state and save snapshot periodically."""
@@ -737,6 +890,11 @@ class Orchestrator:
                 "max_daily": max_daily,
                 "total_created": self._proactive_stats.get("total_created", 0),
                 "in_quiet_hours": self._in_quiet_hours(),
+                "ai_advisor": {
+                    "enabled": get_setting("proactive", {}).get("ai_advisor_enabled", True) if isinstance(get_setting("proactive", {}), dict) else False,
+                    "daily_count": self._ai_advisor_daily_count,
+                    "next_agent": self._ADVISOR_AGENT_TYPES[self._advisor_rr_index % len(self._ADVISOR_AGENT_TYPES)],
+                },
             },
             "awareness": self.awareness.get_status() if self.awareness else {},
             "workflow": workflow_summary,
