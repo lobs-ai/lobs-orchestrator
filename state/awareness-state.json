@@ -1,6 +1,6 @@
 {
-  "total_completed": 72,
-  "total_failed": 12,
+  "total_completed": 56,
+  "total_failed": 13,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -463,192 +463,48 @@
       "status": "completed"
     },
     {
-      "task_id": "5AD91004-118C-4052-94FD-847FCBBBDC16",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect standing work",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:16.769399+00:00",
-      "status": "completed"
-    },
-    {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
       "title": "0E62E1BB",
       "agent_type": "researcher",
       "kind": "research_request",
-      "started_at": "2026-02-12T00:08:15.989776+00:00",
+      "started_at": "2026-02-12T00:10:05.790921+00:00",
       "status": "completed"
     },
     {
-      "task_id": "58EBB60B-D367-44D7-A134-2EC18FDC7442",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:17.650015+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "3BDE0F2C-BE7E-4752-A385-7CD510F0E210",
+      "task_id": "6AF13C3D-5B12-4AA7-813D-C3A9F4E35FA1",
       "project_id": "self-improvement",
       "title": "Autonomous: researcher standing work",
       "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T00:08:16.058453+00:00",
+      "started_at": "2026-02-12T00:45:53.735164+00:00",
       "status": "completed"
     },
     {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:16:10.522936+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "6272FF61-622D-4B48-8A6A-DBB4DD19FC62",
-      "project_id": "lobs-dashboard",
-      "title": "Fix paste text notification - make it dismissible",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:17:03.090795+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "CFCF7235-D855-48A0-A4AA-CAA117146EF0",
-      "project_id": "flock",
-      "title": "Resolve TODO in database_constants.py:1",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:28:50.209810+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "3F9C9570-D200-4935-968A-9F8FCC8153AE",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "writer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:38:20.458305+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "3DCE1966-1786-4316-BAF2-A76AD10468DD",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:38:20.283481+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "A3304ED8-F6CF-4520-8658-02CA9E08DB66",
+      "task_id": "EABE7797-0FAF-4AA6-81B5-4B8AE554AF6E",
       "project_id": "self-improvement",
       "title": "Autonomous: researcher standing work",
       "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T00:38:18.847553+00:00",
+      "started_at": "2026-02-12T01:16:03.324283+00:00",
       "status": "completed"
     },
     {
-      "task_id": "3D5038B9-C250-44DA-91FB-87BD17E9FE32",
-      "project_id": "flock",
-      "title": "Resolve TODO in availability.py:52",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:40:29.701763+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
-      "project_id": "lobs-dashboard",
-      "title": "Add task count badge to project sidebar items",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:47:32.888112+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "C9E7327A-0B9C-4A08-8FA0-028E8E4BC2FD",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect standing work",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T01:08:32.721834+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "F4D185A7-9275-4C4F-8F3B-0A2F8869C150",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "writer",
-      "kind": "task",
-      "started_at": "2026-02-12T01:08:32.754823+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "333B97A0-224C-4452-9980-A57933176BAC",
+      "task_id": "1124D616-CA9D-4F05-8730-6B91E8F9C60E",
       "project_id": "self-improvement",
       "title": "Autonomous: researcher standing work",
       "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T01:08:31.133294+00:00",
+      "started_at": "2026-02-12T01:46:12.958345+00:00",
       "status": "completed"
     },
     {
-      "task_id": "E01C2641-5347-4F1F-91D7-15526C08551A",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T01:11:18.945274+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "A4C54C9E-0B71-4CA3-9D7F-04200FC4045A",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "writer",
-      "kind": "task",
-      "started_at": "2026-02-12T01:39:16.092275+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "CDAE3269-3BBE-42A1-9462-921B188CE99A",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect standing work",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T01:39:16.089488+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "5F515769-5AD5-48E6-957E-8149865747EA",
+      "task_id": "B793FA5D-E902-4846-BB95-D76416CF90D4",
       "project_id": "self-improvement",
       "title": "Autonomous: researcher standing work",
       "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T01:39:14.445584+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "780532C4-E363-4B85-B004-FB5B2DF9C07C",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T02:09:56.456464+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "512D5225-F1BB-4335-AD5D-962CE86B6F6F",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect standing work",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T02:09:58.041644+00:00",
+      "started_at": "2026-02-12T02:16:57.758270+00:00",
       "status": "completed"
     }
   ],
@@ -717,50 +573,59 @@
       "status": "failed"
     },
     {
-      "task_id": "9399631A-35B9-4FFB-AEB3-84BE0664AC11",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "writer",
+      "task_id": "13AED9AA-FA31-4184-87F8-77598F68D270",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
+      "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T00:08:17.652505+00:00",
+      "started_at": "2026-02-12T00:15:24.460586+00:00",
       "status": "failed"
     },
     {
-      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
-      "project_id": "lobs-dashboard",
-      "title": "Move push notification UI to top left near updates area",
+      "task_id": "3D5038B9-C250-44DA-91FB-87BD17E9FE32",
+      "project_id": "flock",
+      "title": "Resolve TODO in availability.py:52",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T00:12:25.091068+00:00",
+      "started_at": "2026-02-12T00:29:19.606728+00:00",
       "status": "failed"
     },
     {
-      "task_id": "D4E817D7-7718-4527-A578-412398BC47C6",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
+      "task_id": "3D5038B9-C250-44DA-91FB-87BD17E9FE32",
+      "project_id": "flock",
+      "title": "Resolve TODO in availability.py:52",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:11:18.915500+00:00",
+      "started_at": "2026-02-12T00:35:01.912611+00:00",
       "status": "failed"
     },
     {
-      "task_id": "D4E817D7-7718-4527-A578-412398BC47C6",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
+      "task_id": "5F6BAF40-209D-4334-A8CA-2537F6E8267F",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:13:05.480948+00:00",
+      "started_at": "2026-02-12T01:10:44.818326+00:00",
       "status": "failed"
     },
     {
-      "task_id": "D4E817D7-7718-4527-A578-412398BC47C6",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
+      "task_id": "5F6BAF40-209D-4334-A8CA-2537F6E8267F",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:14:20.147825+00:00",
+      "started_at": "2026-02-12T01:13:15.946843+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "5F6BAF40-209D-4334-A8CA-2537F6E8267F",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T01:14:03.548546+00:00",
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T02:11:04.741028+00:00"
+  "last_updated": "2026-02-12T02:18:00.705644+00:00"
 }
