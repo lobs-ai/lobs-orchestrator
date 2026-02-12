@@ -245,8 +245,15 @@ class Orchestrator:
         if not enabled:
             return False
 
-        # Scan even when work is pending — proactive tasks queue alongside explicit ones
-        # The agent lock system ensures we don't over-commit resources
+        # Rate limit: scan at most once per hour (configurable via scan_interval_seconds)
+        scan_interval = int(
+            proactive_config.get("scan_interval_seconds", 3600)
+            if isinstance(proactive_config, dict)
+            else get_setting("proactive_scan_interval_seconds", 3600)
+        )
+        now = time.time()
+        if now - self._last_proactive_scan < scan_interval:
+            return False
 
         # Check daily limit
         max_daily = self._get_proactive_max_daily()
@@ -422,6 +429,8 @@ class Orchestrator:
         """
         if not self._should_scan_proactive(explicit_work):
             return
+
+        self._last_proactive_scan = time.time()
 
         try:
             # Phase 1: Deterministic Observer (code quality — auto-create tasks)
