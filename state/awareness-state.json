@@ -1,44 +1,8 @@
 {
-  "total_completed": 116,
+  "total_completed": 120,
   "total_failed": 23,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:48:46.776210+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:49:08.512592+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:49:29.828230+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:50:04.517687+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +866,42 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:27:40.078525+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:27:17.821160+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "386AF1B5-A24C-41D5-812D-18A6A0791F9B",
+      "project_id": "prairielearn",
+      "title": "386AF1B5",
+      "agent_type": "writer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:28:01.538000+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:28:30.760248+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:28:53.012977+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1113,5 +1113,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:27:59.843044+00:00"
+  "last_updated": "2026-02-12T04:29:12.009148+00:00"
 }
