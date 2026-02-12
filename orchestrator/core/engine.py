@@ -11,6 +11,7 @@ Runs the polling loop that:
 """
 
 import json
+import subprocess
 import time
 import uuid
 import logging
@@ -797,11 +798,17 @@ class Orchestrator:
                 doc_id = item.get("docId", "unknown")
                 last_msg = item.get("lastMessage", "")[:80]
                 try:
-                    self.heartbeat.chat.send_message(
-                        f"📬 Processing your inbox response on **{doc_id}**\n> {last_msg}",
-                        channel="discord",
-                        target="644578016298795010",
-                    )
+                    notify_cmd = [
+                        self.heartbeat.chat.executable, "message", "send",
+                        "--channel", "discord",
+                        "--target", "644578016298795010",
+                        "--message", f"📬 Processing your inbox response on **{doc_id}**\n> {last_msg}",
+                    ]
+                    result = subprocess.run(notify_cmd, capture_output=True, text=True, timeout=15, check=False)
+                    if result.returncode != 0:
+                        logger.warning(f"Inbox notification failed: {result.stderr[:200]}")
+                    else:
+                        logger.info(f"Sent inbox processing notification for {doc_id}")
                 except Exception as e:
                     logger.warning(f"Failed to send inbox response notification: {e}")
 
