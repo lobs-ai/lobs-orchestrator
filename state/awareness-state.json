@@ -1,17 +1,8 @@
 {
-  "total_completed": 156,
+  "total_completed": 157,
   "total_failed": 41,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "6272FF61-622D-4B48-8A6A-DBB4DD19FC62",
-      "project_id": "lobs-dashboard",
-      "title": "Fix paste text notification - make it dismissible",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:17:03.090795+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "CFCF7235-D855-48A0-A4AA-CAA117146EF0",
       "project_id": "flock",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T13:50:52.656053+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "AD80B1ED-4695-41D6-8263-BEF472913D55",
+      "project_id": "lobs-dashboard",
+      "title": "Documents View - Agent Work Feed",
+      "agent_type": "researcher",
+      "kind": "task",
+      "started_at": "2026-02-12T13:50:51.700702+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1275,5 +1275,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T13:56:25.063925+00:00"
+  "last_updated": "2026-02-12T13:56:57.667362+00:00"
 }
