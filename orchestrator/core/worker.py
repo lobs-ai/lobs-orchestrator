@@ -2767,6 +2767,17 @@ class WorkerManager:
         except Exception:
             logger.warning("[USAGE] Unexpected error capturing failure usage", exc_info=True)
 
+        # Autonomous tasks don't retry — just mark completed and move on
+        current_task = self.provider.get_task(task_id)
+        if current_task and current_task.get("autonomous"):
+            logger.info(f"[AUTONOMOUS] Task {task_id[:8]} failed — marking completed (no retry for autonomous)")
+            self.provider.update_task(task_id, {
+                "workState": "completed",
+                "status": "completed",
+                "failureReason": failure_reason,
+            })
+            return
+
         # Record failure and apply exponential backoff before retry.
         retry_count = 0
         try:

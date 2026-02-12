@@ -149,6 +149,16 @@ class Monitor:
             if task.get("workState") != "blocked":
                 continue
 
+            # Autonomous tasks that fail should just be marked completed, not retried
+            if task.get("autonomous"):
+                task_id = task.get("id") or task_file.stem
+                self.provider.update_task(task_id, {
+                    "workState": "completed",
+                    "status": "completed",
+                })
+                logger.info(f"[UNBLOCK] Auto-completed blocked autonomous task {task_id[:8]}")
+                continue
+
             task_id = task.get("id") or task_file.stem
             project_id = task.get("projectId") or "default"
 
