@@ -1,17 +1,8 @@
 {
-  "total_completed": 107,
+  "total_completed": 108,
   "total_failed": 22,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC",
-      "project_id": "lobs-dashboard",
-      "title": "Add mark all as read button for inbox",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:06:00.646469+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "5EA7229E-58EC-4801-BA84-FF51FD587CDC",
       "project_id": "lobs-dashboard",
@@ -902,6 +893,15 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:24:12.568775+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:24:40.702198+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1104,5 +1104,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:24:31.563127+00:00"
+  "last_updated": "2026-02-12T04:24:53.715171+00:00"
 }
