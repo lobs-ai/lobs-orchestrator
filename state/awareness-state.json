@@ -1,26 +1,8 @@
 {
-  "total_completed": 105,
+  "total_completed": 107,
   "total_failed": 22,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "1D2BCC97-C020-46D0-8CCB-85200E0E0A50",
-      "project_id": "lobs-dashboard",
-      "title": "Onboarding showed up when already 100% complete - fix condition",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:03:44.091003+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "5A5D1985-1426-491B-BD51-CC928460A80D",
-      "project_id": "lobs-dashboard",
-      "title": "Design improved task management UX for lobs-dashboard",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:01:48.231722+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "976FE5C9-1BC3-418F-AF85-5CBEB1E2FCDC",
       "project_id": "lobs-dashboard",
@@ -902,6 +884,24 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:23:33.659931+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "386AF1B5-A24C-41D5-812D-18A6A0791F9B",
+      "project_id": "prairielearn",
+      "title": "386AF1B5",
+      "agent_type": "writer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:23:51.093864+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:24:12.568775+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1104,5 +1104,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:24:08.400061+00:00"
+  "last_updated": "2026-02-12T04:24:31.563127+00:00"
 }
