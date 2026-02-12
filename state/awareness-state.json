@@ -1,17 +1,8 @@
 {
-  "total_completed": 153,
+  "total_completed": 154,
   "total_failed": 41,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "58EBB60B-D367-44D7-A134-2EC18FDC7442",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:17.650015+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "3BDE0F2C-BE7E-4752-A385-7CD510F0E210",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T13:50:46.103530+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "628061E2-AF67-44EB-8E7B-18E2F0503878",
+      "project_id": "lobs-dashboard",
+      "title": "refresh should also refresh if there are dashboard updates",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T13:50:49.835977+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1275,5 +1275,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T13:51:53.447896+00:00"
+  "last_updated": "2026-02-12T13:51:58.449364+00:00"
 }
