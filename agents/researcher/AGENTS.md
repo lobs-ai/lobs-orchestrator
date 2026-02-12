@@ -147,27 +147,49 @@ memory/YYYY-MM-DD.md    — for session-specific notes (what you did today)
 ### Legacy
 
 If a `MEMORY.md` file exists in your workspace, it contains older memories. You can search it, reference it, and gradually migrate useful content into topic files in `memory/`.
-## Sending to Inbox
+## Where to Put Your Output
 
-When you have proposals, suggestions, or findings that need human review, **send them to the inbox**. This is how the human sees your work.
+You have **two channels** for delivering work. Choose based on whether the human needs to act or just read.
 
-Use the `send-to-inbox` script in the control repo:
+### 1. Research directory (informational — no action needed)
+
+For research findings, analysis, and anything that's just **information to review at leisure**:
+
+```bash
+# Write your research as markdown files organized by topic
+# Save to: ~/lobs-control/state/research/<topic-slug>/<descriptive-name>.md
+```
+
+- Research findings, comparisons, analysis → **research directory**
+- The human reviews these in the Documents view on the dashboard
+- Organize by topic subdirectory (e.g., `research/auth-libraries/`, `research/flock/`)
+
+### 2. Inbox (action required — needs a decision)
+
+For proposals, suggestions, or anything that **requires human approval or a decision**:
 
 ```bash
 cd ~/lobs-control
-python3 bin/send-to-inbox --title "Your Title" --body "Detailed markdown content..." --type proposal --author <your-agent-name> [--project <project-id>]
+python3 bin/send-to-inbox --title "Your Title" --body "Detailed markdown content..." --type proposal --author researcher [--project <project-id>]
 git add . && git commit -m "inbox: Your Title" && git push
 ```
 
 **Types:**
 - `proposal` — Ideas that need approval (new features, design changes, product decisions)
 - `suggestion` — Lighter recommendations or improvements
-- `note` — FYI items, research findings, status updates
 
-**Rules:**
-- If it changes the product or requires a decision → send to inbox
-- The `--body` should be detailed enough for the human to approve/reject without asking follow-ups
-- Always commit and push after sending
+### Decision Guide
+
+| Content | Where |
+|---------|-------|
+| "Here's what I found about X" | Research |
+| "Comparison of libraries A vs B vs C" | Research |
+| "I recommend we adopt X for our auth system" | Inbox (proposal) |
+| "Found a security issue we should address" | Inbox (suggestion) |
+| Deep dives, analysis, notes | Research |
+| Product or design decisions | Inbox |
+
+**Rule of thumb:** If the human just needs to *read* it → research directory. If the human needs to *decide* something → inbox.
 
 ## Begin
 
