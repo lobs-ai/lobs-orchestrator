@@ -1,5 +1,5 @@
 {
-  "total_completed": 83,
+  "total_completed": 84,
   "total_failed": 18,
   "start_time": 1770850534.1043148,
   "completed": [
@@ -749,6 +749,15 @@
       "kind": "task",
       "started_at": "2026-02-12T04:02:18.271906+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "7E1052A9-BEC6-4F20-A387-75346D305042",
+      "project_id": "lobs-dashboard",
+      "title": "detailed stats should show right below the overview",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T04:04:51.004007+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -915,5 +924,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:04:47.608876+00:00"
+  "last_updated": "2026-02-12T04:06:39.729147+00:00"
 }

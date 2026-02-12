@@ -792,6 +792,18 @@ class Orchestrator:
             activity = True
             logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
+            # Notify on inbox response pickup so the user knows their response was processed
+            if kind == "inbox_response":
+                doc_id = item.get("docId", "unknown")
+                last_msg = item.get("lastMessage", "")[:80]
+                try:
+                    self.heartbeat.chat.send_message(
+                        f"📬 Processing your inbox response on **{doc_id}**: \"{last_msg}...\"",
+                        channel="discord",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send inbox response notification: {e}")
+
             # Select an agent template for this task.
             # If an explicit `agent` field is provided on the task, honor it.
             explicit_agent = (item.get("agent") or "").strip()
