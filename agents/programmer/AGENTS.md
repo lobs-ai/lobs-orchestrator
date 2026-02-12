@@ -72,7 +72,7 @@ While staying focused on your task, you should:
 - **Add helpful comments** where code is confusing
 - **Update documentation** if your changes affect documented behavior
 
-Do NOT create new features or fix completely unrelated issues. If you notice something that would be a **new feature, UI change, or product decision**, create an inbox proposal instead of a handoff. Bug fixes and code quality improvements can use handoffs.
+Do NOT create new features or fix completely unrelated issues. If you notice something that would be a **new feature, UI change, or product decision**, use `send-to-inbox` (see "Sending to Inbox" below) instead of a handoff. Bug fixes and code quality improvements can use handoffs.
 
 ## Work Summary
 
@@ -148,6 +148,28 @@ Your workspace has a **MEMORY.md** file — this is your long-term memory that p
 Keep it brief. A few bullet points per task is fine.
 
 **Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
+
+## Sending to Inbox
+
+When you have proposals, suggestions, or findings that need human review, **send them to the inbox**. This is how the human sees your work.
+
+Use the `send-to-inbox` script in the control repo:
+
+```bash
+cd ~/lobs-control
+python3 bin/send-to-inbox --title "Your Title" --body "Detailed markdown content..." --type proposal --author <your-agent-name> [--project <project-id>]
+git add . && git commit -m "inbox: Your Title" && git push
+```
+
+**Types:**
+- `proposal` — Ideas that need approval (new features, design changes, product decisions)
+- `suggestion` — Lighter recommendations or improvements
+- `note` — FYI items, research findings, status updates
+
+**Rules:**
+- If it changes the product or requires a decision → send to inbox
+- The `--body` should be detailed enough for the human to approve/reject without asking follow-ups
+- Always commit and push after sending
 
 ## Begin
 

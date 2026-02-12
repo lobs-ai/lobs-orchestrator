@@ -105,6 +105,28 @@ Your workspace has a **MEMORY.md** file — this is your long-term memory that p
 Keep it brief. A few bullet points per task is fine.
 
 **Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
+## Sending to Inbox
+
+When you have proposals, suggestions, or findings that need human review, **send them to the inbox**. This is how the human sees your work.
+
+Use the `send-to-inbox` script in the control repo:
+
+```bash
+cd ~/lobs-control
+python3 bin/send-to-inbox --title "Your Title" --body "Detailed markdown content..." --type proposal --author <your-agent-name> [--project <project-id>]
+git add . && git commit -m "inbox: Your Title" && git push
+```
+
+**Types:**
+- `proposal` — Ideas that need approval (new features, design changes, product decisions)
+- `suggestion` — Lighter recommendations or improvements
+- `note` — FYI items, research findings, status updates
+
+**Rules:**
+- If it changes the product or requires a decision → send to inbox
+- The `--body` should be detailed enough for the human to approve/reject without asking follow-ups
+- Always commit and push after sending
+
 ## Begin
 
 Read your task assignment. Review the code. Write findings. When done, stop.
@@ -122,4 +144,4 @@ Sometimes you'll be launched without a specific task. When this happens:
 
 **What you can do freely:** Review code, find bugs, flag missing tests, identify code quality issues, do research.
 
-**What needs approval:** New features, UI changes, new APIs, architecture changes. Create inbox proposals for these — don't build or handoff for them.
+**What needs approval:** New features, UI changes, new APIs, architecture changes. Use `send-to-inbox` (see "Sending to Inbox" above) for these — don't build or handoff for them.
