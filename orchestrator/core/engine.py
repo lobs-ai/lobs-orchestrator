@@ -784,21 +784,22 @@ class Orchestrator:
 
     def _launch_autonomous_agents(self, eligible_work: list[dict[str, Any]]) -> None:
         """Launch idle agents to do autonomous work (their standing mission)."""
-        # Determine which agent types are active or have queued work
+        # Determine which agent types are active
         active_types = set(self.worker_manager.agent_locks.keys())
         
-        # Figure out which agent types have queued tasks
+        # Only count explicitly-assigned tasks as queued for that agent type.
+        # Router-inferred types shouldn't block autonomous launches — most tasks
+        # default to programmer anyway.
         queued_types: set[str] = set()
         for item in eligible_work:
             explicit = (item.get("agent") or "").strip()
             if explicit:
                 queued_types.add(explicit)
-            else:
-                try:
-                    routed = self.router.route(item)
-                    queued_types.add(routed)
-                except Exception:
-                    queued_types.add("programmer")  # default
+        
+        logger.debug(
+            f"[AUTONOMOUS] active={active_types}, queued={queued_types}, "
+            f"eligible_work={len(eligible_work)}"
+        )
 
         idle_agents = self.autonomous.get_idle_agents(active_types, queued_types)
         

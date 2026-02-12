@@ -17,12 +17,6 @@
       "retry_count": 3,
       "skip_until_ts": 1770855022.469861,
       "streak": 3
-    },
-    "BE59BFEB-45B3-463D-85F1-D6C1E285EF34": {
-      "last_failure_ts": 1770854122.456053,
-      "retry_count": 2,
-      "skip_until_ts": 1770854422.456053,
-      "streak": 2
     }
   },
   "version": 1
