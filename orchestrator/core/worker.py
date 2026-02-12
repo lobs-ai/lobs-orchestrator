@@ -2866,6 +2866,7 @@ class WorkerManager:
             )
             updates = {
                 "workState": "not_started",
+                "status": "active",  # Ensure status stays active on infra failure
                 "failureReason": f"infra:{self.circuit_breaker.state.last_failure_type}",
                 "failedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 # Don't increment failureCount — not the task's fault
@@ -2883,6 +2884,7 @@ class WorkerManager:
             "failureReason": failure_reason,
             "failedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "failureCount": new_failure_count,
+            "status": "active",  # Always keep status active on failure (prevent stale "completed")
         }
         
         if new_failure_count <= MAX_RETRIES:
