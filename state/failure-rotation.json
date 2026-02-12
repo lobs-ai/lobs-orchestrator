@@ -1,10 +1,10 @@
 {
   "tasks": {
     "23E85C41-2999-4DF5-B4FB-2817D146A0AB": {
-      "last_failure_ts": 1770867469.15649,
-      "retry_count": 1,
-      "skip_until_ts": 1770867529.15649,
-      "streak": 1
+      "last_failure_ts": 1770868024.014134,
+      "retry_count": 2,
+      "skip_until_ts": 1770868324.014134,
+      "streak": 2
     },
     "29B8E0FE-26E4-485C-ACF5-B5E372403A2F": {
       "last_failure_ts": 1770856703.981139,
