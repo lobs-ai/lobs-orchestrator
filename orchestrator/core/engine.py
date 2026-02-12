@@ -818,11 +818,14 @@ class Orchestrator:
             task_id = str(uuid.uuid4()).upper()
             project_id = config["project"]
             
+            from orchestrator.core.autonomous import AUTONOMOUS_PROMPT
+            prompt = AUTONOMOUS_PROMPT.format(agent_type=agent_type)
+            
             task = {
                 "id": task_id,
-                "title": config.get("title", f"Autonomous: {agent_type}"),
-                "prompt": config["prompt"],
-                "notes": config["prompt"],
+                "title": f"Autonomous: {agent_type}",
+                "prompt": prompt,
+                "notes": prompt,
                 "projectId": project_id,
                 "kind": "task",
                 "agent": agent_type,
