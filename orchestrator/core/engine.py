@@ -793,22 +793,18 @@ class Orchestrator:
             activity = True
             logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-            # Notify on inbox response pickup so the user knows their response was processed
+            # Notify via system event so the main agent can relay to Discord
             if kind == "inbox_response":
                 doc_id = item.get("docId", "unknown")
                 last_msg = item.get("lastMessage", "")[:80]
                 try:
-                    notify_cmd = [
-                        self.heartbeat.chat.executable, "message", "send",
-                        "--channel", "discord",
-                        "--target", "644578016298795010",
-                        "--message", f"📬 Processing your inbox response on **{doc_id}**\n> {last_msg}",
-                    ]
-                    result = subprocess.run(notify_cmd, capture_output=True, text=True, timeout=15, check=False)
-                    if result.returncode != 0:
-                        logger.warning(f"Inbox notification failed: {result.stderr[:200]}")
-                    else:
-                        logger.info(f"Sent inbox processing notification for {doc_id}")
+                    self.heartbeat.chat.send_system_event(
+                        f"[INBOX_PROCESSING] Inbox response picked up for processing. "
+                        f"Doc: {doc_id}. Response: \"{last_msg}\". "
+                        f"Routed to {agent_type} agent. "
+                        f"Send a brief Discord message to Rafe confirming his inbox response is being handled."
+                    )
+                    logger.info(f"Sent inbox processing system event for {doc_id}")
                 except Exception as e:
                     logger.warning(f"Failed to send inbox response notification: {e}")
 
