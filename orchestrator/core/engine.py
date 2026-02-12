@@ -793,21 +793,6 @@ class Orchestrator:
             activity = True
             logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
-            # Notify via system event so the main agent can relay to Discord
-            if kind == "inbox_response":
-                doc_id = item.get("docId", "unknown")
-                last_msg = item.get("lastMessage", "")[:80]
-                try:
-                    self.heartbeat.chat.send_system_event(
-                        f"[INBOX_PROCESSING] Inbox response picked up for processing. "
-                        f"Doc: {doc_id}. Response: \"{last_msg}\". "
-                        f"Routed to {agent_type} agent. "
-                        f"Send a brief Discord message to Rafe confirming his inbox response is being handled."
-                    )
-                    logger.info(f"Sent inbox processing system event for {doc_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to send inbox response notification: {e}")
-
             # Select an agent template for this task.
             # If an explicit `agent` field is provided on the task, honor it.
             explicit_agent = (item.get("agent") or "").strip()
@@ -824,6 +809,21 @@ class Orchestrator:
                     f"[ROUTER] Failed to select agent for {work_id[:8]} ({work_title}): {e}. Falling back to 'programmer'."
                 )
                 agent_type = "programmer"
+
+            # Notify via system event so the main agent can relay to Discord
+            if kind == "inbox_response":
+                doc_id = item.get("docId", "unknown")
+                last_msg = item.get("lastMessage", "")[:80]
+                try:
+                    self.heartbeat.chat.send_system_event(
+                        f"[INBOX_PROCESSING] Inbox response picked up for processing. "
+                        f"Doc: {doc_id}. Response: \"{last_msg}\". "
+                        f"Routed to {agent_type} agent. "
+                        f"Send a brief Discord message to Rafe confirming his inbox response is being handled."
+                    )
+                    logger.info(f"Sent inbox processing system event for {doc_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to send inbox response notification: {e}")
 
             # Get rules from provider
             rules = self.provider.get_engineering_rules()
