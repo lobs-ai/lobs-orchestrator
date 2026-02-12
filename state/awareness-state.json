@@ -1,6 +1,6 @@
 {
-  "total_completed": 86,
-  "total_failed": 19,
+  "total_completed": 88,
+  "total_failed": 20,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -776,6 +776,24 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:17:08.430725+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:16:59.521325+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "386AF1B5-A24C-41D5-812D-18A6A0791F9B",
+      "project_id": "prairielearn",
+      "title": "386AF1B5",
+      "agent_type": "writer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:17:03.832448+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -949,7 +967,16 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:13:59.547202+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:17:34.239558+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:17:29.192255+00:00"
+  "last_updated": "2026-02-12T04:17:35.544065+00:00"
 }
