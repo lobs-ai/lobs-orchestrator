@@ -820,7 +820,7 @@ class Orchestrator:
             
             task = {
                 "id": task_id,
-                "title": f"Autonomous: {agent_type} standing work",
+                "title": config.get("title", f"Autonomous: {agent_type}"),
                 "prompt": config["prompt"],
                 "notes": config["prompt"],
                 "projectId": project_id,

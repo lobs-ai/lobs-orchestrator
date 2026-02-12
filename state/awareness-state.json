@@ -1,6 +1,6 @@
 {
-  "total_completed": 52,
-  "total_failed": 7,
+  "total_completed": 54,
+  "total_failed": 8,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -463,12 +463,30 @@
       "status": "completed"
     },
     {
+      "task_id": "5AD91004-118C-4052-94FD-847FCBBBDC16",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: architect standing work",
+      "agent_type": "architect",
+      "kind": "task",
+      "started_at": "2026-02-12T00:08:16.769399+00:00",
+      "status": "completed"
+    },
+    {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
       "title": "0E62E1BB",
       "agent_type": "researcher",
       "kind": "research_request",
-      "started_at": "2026-02-12T00:10:05.790921+00:00",
+      "started_at": "2026-02-12T00:08:15.989776+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "58EBB60B-D367-44D7-A134-2EC18FDC7442",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: reviewer standing work",
+      "agent_type": "reviewer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:08:17.650015+00:00",
       "status": "completed"
     }
   ],
@@ -535,7 +553,16 @@
       "kind": "task",
       "started_at": "2026-02-11T23:46:26.342190+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "9399631A-35B9-4FFB-AEB3-84BE0664AC11",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: writer standing work",
+      "agent_type": "writer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:08:17.652505+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T00:10:08.494401+00:00"
+  "last_updated": "2026-02-12T00:12:27.203286+00:00"
 }
