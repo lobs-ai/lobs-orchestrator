@@ -1,6 +1,6 @@
 {
   "total_completed": 146,
-  "total_failed": 39,
+  "total_failed": 40,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -1255,7 +1255,16 @@
       "kind": "task",
       "started_at": "2026-02-12T12:34:33.368501+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "043BB405-0615-4DA0-A30A-367874DBD6DE",
+      "project_id": "lobs-orchestrator",
+      "title": "Investigate and fix orchestrator SIGKILL (OOM)",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T12:34:33.535529+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T12:40:11.210939+00:00"
+  "last_updated": "2026-02-12T12:40:16.104979+00:00"
 }

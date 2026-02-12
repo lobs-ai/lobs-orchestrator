@@ -1,5 +1,11 @@
 {
   "tasks": {
+    "043BB405-0615-4DA0-A30A-367874DBD6DE": {
+      "last_failure_ts": 1770900016.10341,
+      "retry_count": 1,
+      "skip_until_ts": 1770900076.10341,
+      "streak": 1
+    },
     "1AA89AB5-CE56-4C42-9993-FA5284942937": {
       "last_failure_ts": 1770882446.402515,
       "retry_count": 4,
