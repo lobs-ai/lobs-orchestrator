@@ -1,17 +1,8 @@
 {
-  "total_completed": 154,
+  "total_completed": 155,
   "total_failed": 41,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "3BDE0F2C-BE7E-4752-A385-7CD510F0E210",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:16.058453+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T13:50:49.835977+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "29DBCAB8-EFAA-450F-B977-59905E135C67",
+      "project_id": "lobs-dashboard",
+      "title": "Add agent selection to task creation flow",
+      "agent_type": "architect",
+      "kind": "task",
+      "started_at": "2026-02-12T13:51:10.949763+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1275,5 +1275,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T13:51:58.449364+00:00"
+  "last_updated": "2026-02-12T13:52:16.219134+00:00"
 }
