@@ -1,5 +1,5 @@
 {
-  "total_completed": 55,
+  "total_completed": 57,
   "total_failed": 13,
   "start_time": 1770850534.1043148,
   "completed": [
@@ -497,6 +497,24 @@
       "kind": "task",
       "started_at": "2026-02-12T01:46:12.958345+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "42B884C0-F946-4060-9166-D63F14B4A5CD",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: architect",
+      "agent_type": "architect",
+      "kind": "task",
+      "started_at": "2026-02-12T01:50:27.133231+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "F098D101-98B9-4ECB-B93B-F19552D45C87",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher",
+      "agent_type": "researcher",
+      "kind": "task",
+      "started_at": "2026-02-12T01:50:25.567455+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -618,5 +636,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T01:47:15.171090+00:00"
+  "last_updated": "2026-02-12T01:53:42.797111+00:00"
 }
