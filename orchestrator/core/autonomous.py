@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum seconds between autonomous launches for the same agent type.
 # Prevents rapid re-launching if an agent finishes quickly.
-COOLDOWN_SECONDS = 30 * 60  # 30 minutes
+COOLDOWN_SECONDS = 4 * 60 * 60  # 4 hours
 
 # Agent types eligible for autonomous work.
 # Programmer is excluded — it needs specific tasks (code changes without
