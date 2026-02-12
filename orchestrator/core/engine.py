@@ -813,7 +813,7 @@ class Orchestrator:
                 logger.debug(f"[AUTONOMOUS] Skipping {agent_type}: {reason}")
                 break
 
-            # Build a synthetic task for the autonomous run
+            # Create a real task file so it shows on the dashboard
             import uuid
             task_id = str(uuid.uuid4()).upper()
             project_id = config["project"]
@@ -827,7 +827,19 @@ class Orchestrator:
                 "kind": "task",
                 "agent": agent_type,
                 "autonomous": True,
+                "status": "active",
+                "workState": "in_progress",
             }
+            
+            # Write task file to lobs-control so dashboard can see it
+            try:
+                from orchestrator.config import TASKS_DIR
+                import json as _json
+                task_file = TASKS_DIR / f"{task_id}.json"
+                task_file.write_text(_json.dumps(task, indent=2), encoding="utf-8")
+                logger.info(f"[AUTONOMOUS] Created task file for {agent_type}: {task_id[:8]}")
+            except Exception as e:
+                logger.warning(f"[AUTONOMOUS] Failed to write task file: {e}")
             
             rules = self.provider.get_engineering_rules()
             spawned = self.worker_manager.spawn_worker(
