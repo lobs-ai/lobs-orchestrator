@@ -422,6 +422,39 @@ class Orchestrator:
             logger.error(f"Failed to create inbox proposal: {e}", exc_info=True)
             return None
 
+    def _acknowledge_inbox_response(self, item: dict[str, Any]) -> None:
+        """Mark an inbox response as acknowledged directly in its file to prevent re-scanning."""
+        try:
+            source_path = item.get("_source_path")
+            if not source_path:
+                # Find the file by searching for the ID
+                import glob
+                inbox_dir = CONTROL_REPO_PATH / "state" / "inbox-responses"
+                item_id = item.get("id", "")
+                for json_file in inbox_dir.rglob("*.json"):
+                    try:
+                        with open(json_file) as f:
+                            data = json.load(f)
+                        if data.get("id") == item_id:
+                            source_path = str(json_file)
+                            break
+                    except Exception:
+                        continue
+
+            if source_path:
+                from pathlib import Path
+                p = Path(source_path)
+                with open(p) as f:
+                    data = json.load(f)
+                data["acknowledged"] = True
+                with open(p, "w") as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[INBOX] Marked {item.get('id', '?')[:8]} as acknowledged in {p.name}")
+            else:
+                logger.warning(f"[INBOX] Could not find file for inbox response {item.get('id', '?')[:8]}")
+        except Exception as e:
+            logger.warning(f"[INBOX] Failed to acknowledge inbox response: {e}")
+
     def _process_proactive_work(self, projects: list[dict[str, Any]], explicit_work: list[dict[str, Any]]) -> None:
         """Scan for and create proactive work tasks when idle.
         
@@ -850,14 +883,12 @@ class Orchestrator:
                 # Update state to in_progress via provider
                 if kind == "task":
                     self.provider.update_task(work_id, {"workState": "in_progress"})
-                elif kind == "inbox_response":
-                    # Mark inbox responses as acknowledged so they don't get re-scanned
-                    self.provider.update_task(work_id, {"acknowledged": True, "status": "in_progress"})
                 else:
                     self.provider.update_task(work_id, {"status": "in_progress"})
-            elif kind == "inbox_response":
-                # Even if queued (not spawned yet), mark as acknowledged to prevent re-scanning
-                self.provider.update_task(work_id, {"acknowledged": True})
+
+            # Mark inbox responses as acknowledged directly in the file
+            if kind == "inbox_response":
+                self._acknowledge_inbox_response(item)
 
         # 10. Proactive Work Discovery
         self._process_proactive_work(projects, eligible_work)
