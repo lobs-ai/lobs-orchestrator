@@ -112,6 +112,9 @@ class Observer:
         "build",
         ".venv",
         "venv",
+        "env",
+        "test_env",
+        "site-packages",
         "__pycache__",
         ".pytest_cache",
         ".mypy_cache",
@@ -119,6 +122,11 @@ class Observer:
         ".tox",
         ".idea",
         ".vscode",
+        ".eggs",
+        ".nox",
+        "vendor",
+        "third_party",
+        "Pods",
     }
 
     CODE_EXTS = {
