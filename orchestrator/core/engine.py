@@ -818,10 +818,11 @@ class Orchestrator:
                 )
                 agent_type = "programmer"
 
-            # Notify via system event so the main agent can relay to Discord
-            if kind == "inbox_response":
+            # Notify via system event so the main agent can relay to Discord (only once)
+            if kind == "inbox_response" and not item.get("_notified"):
                 doc_id = item.get("docId", "unknown")
                 last_msg = item.get("lastMessage", "")[:80]
+                item["_notified"] = True
                 try:
                     self.heartbeat.chat.send_system_event(
                         f"[INBOX_PROCESSING] Inbox response picked up for processing. "
@@ -849,8 +850,14 @@ class Orchestrator:
                 # Update state to in_progress via provider
                 if kind == "task":
                     self.provider.update_task(work_id, {"workState": "in_progress"})
+                elif kind == "inbox_response":
+                    # Mark inbox responses as acknowledged so they don't get re-scanned
+                    self.provider.update_task(work_id, {"acknowledged": True, "status": "in_progress"})
                 else:
                     self.provider.update_task(work_id, {"status": "in_progress"})
+            elif kind == "inbox_response":
+                # Even if queued (not spawned yet), mark as acknowledged to prevent re-scanning
+                self.provider.update_task(work_id, {"acknowledged": True})
 
         # 10. Proactive Work Discovery
         self._process_proactive_work(projects, eligible_work)
