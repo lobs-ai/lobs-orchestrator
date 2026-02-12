@@ -1,26 +1,8 @@
 {
-  "total_completed": 136,
+  "total_completed": 138,
   "total_failed": 23,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:58:37.123580+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:59:12.368653+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +884,24 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:37:05.861550+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:40:29.560775+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "386AF1B5-A24C-41D5-812D-18A6A0791F9B",
+      "project_id": "prairielearn",
+      "title": "386AF1B5",
+      "agent_type": "writer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:40:09.149913+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1113,5 +1113,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:37:26.887985+00:00"
+  "last_updated": "2026-02-12T04:41:18.540684+00:00"
 }
