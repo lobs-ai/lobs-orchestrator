@@ -1,10 +1,10 @@
 {
   "tasks": {
     "1AA89AB5-CE56-4C42-9993-FA5284942937": {
-      "last_failure_ts": 1770882103.888156,
-      "retry_count": 1,
-      "skip_until_ts": 1770882163.888156,
-      "streak": 1
+      "last_failure_ts": 1770882264.0166972,
+      "retry_count": 2,
+      "skip_until_ts": 1770882564.0166972,
+      "streak": 2
     },
     "23E85C41-2999-4DF5-B4FB-2817D146A0AB": {
       "last_failure_ts": 1770868353.8448179,
@@ -73,10 +73,10 @@
       "streak": 1
     },
     "85B6F5CD-710E-498D-B348-3F0C56AF541D": {
-      "last_failure_ts": 1770882108.5553658,
-      "retry_count": 1,
-      "skip_until_ts": 1770882168.5553658,
-      "streak": 1
+      "last_failure_ts": 1770882263.953769,
+      "retry_count": 2,
+      "skip_until_ts": 1770882563.953769,
+      "streak": 2
     },
     "8D799C4B-2449-4E61-8D02-D37FFECE8371": {
       "last_failure_ts": 1770868339.11571,
@@ -172,6 +172,12 @@
       "last_failure_ts": 1770865845.728226,
       "retry_count": 1,
       "skip_until_ts": 1770865905.728226,
+      "streak": 1
+    },
+    "E2CD5772-C186-4C50-8312-6BC4BE2CB56C": {
+      "last_failure_ts": 1770882266.366164,
+      "retry_count": 1,
+      "skip_until_ts": 1770882326.366164,
       "streak": 1
     },
     "EECF884F-007E-41E4-9BFF-77982AC08A71": {
