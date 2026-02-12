@@ -65,9 +65,8 @@ class ChatService:
         """
         try:
             cmd = [
-                self.executable, "message",
+                self.executable, "message", "send",
                 "--channel", channel,
-                "--action", "send",
                 "--message", message,
             ]
             if target:
