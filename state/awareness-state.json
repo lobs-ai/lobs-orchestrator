@@ -1,17 +1,8 @@
 {
-  "total_completed": 139,
+  "total_completed": 140,
   "total_failed": 25,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:00:21.765937+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:43:01.080128+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "7315A42C-86DC-4A90-B814-7B8BE967E2E3",
+      "project_id": "lobs-dashboard",
+      "title": "onboarding still shows up even though i have a 100%",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T05:14:08.507393+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1131,5 +1131,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T05:14:05.377358+00:00"
+  "last_updated": "2026-02-12T05:18:39.680875+00:00"
 }
