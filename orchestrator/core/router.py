@@ -2,22 +2,44 @@
 
 Task Router
 
-Rule-based agent selection for tasks.
+LLM-based agent selection with regex fallback.
 
-This module inspects a task's title/notes to infer an agent "type" (e.g.
-programmer, researcher). If the task explicitly specifies an agent, routing is
-skipped.
-
-Routing rules are sourced from docs/ARCHITECTURE.md.
+The router uses a cheap/fast LLM call (via openclaw CLI) to determine which
+agent should handle a task based on its content. If the LLM call fails or
+times out, it falls back to keyword-based regex matching.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import re
+import subprocess
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
 from orchestrator.core.registry import AgentRegistry
+from orchestrator.utils.settings import get_setting
+
+logger = logging.getLogger(__name__)
+
+VALID_AGENTS = {"programmer", "researcher", "reviewer", "writer", "architect"}
+
+LLM_ROUTER_PROMPT = """\
+You are a task router. Given a task description, determine which agent should handle it.
+
+Available agents:
+- programmer: Code implementation, bug fixes, testing, refactoring
+- researcher: Investigation, analysis, comparisons, information gathering
+- reviewer: Code review, quality assurance, audits
+- writer: Documentation, write-ups, summaries, content creation
+- architect: System design, technical strategy, planning, restructuring
+
+Task:
+{task_text}
+
+Respond with ONLY a JSON object: {{"agent": "<agent_type>", "confidence": "<high|medium|low>", "reason": "<brief reason>"}}
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,13 +49,10 @@ class _Rule:
 
 
 def _compile_keywords(words: Iterable[str]) -> re.Pattern[str]:
-    # Word-boundary match on any keyword, case-insensitive.
-    # NOTE: We intentionally keep this simple/transparent (no stemming).
     escaped = [re.escape(w) for w in words]
     return re.compile(r"\b(?:" + "|".join(escaped) + r")\b", re.IGNORECASE)
 
 
-# Order matters: first match wins.
 _DEFAULT_RULES: tuple[_Rule, ...] = (
     _Rule(
         agent_type="programmer",
@@ -59,7 +78,7 @@ _DEFAULT_RULES: tuple[_Rule, ...] = (
 
 
 class Router:
-    """Rule-based router that selects an agent type for a task."""
+    """LLM-based router with regex fallback."""
 
     def __init__(
         self,
@@ -75,78 +94,117 @@ class Router:
         else:
             self._rules = tuple(_Rule(agent_type=a, pattern=p) for a, p in rules)
 
-        # Validate the configured default exists.
         self._validate_agent_type(self.default_agent_type)
 
     def route(self, task: dict[str, Any]) -> str:
         """Return an agent type for the given task.
 
-        Behavior:
-        - If task contains a non-empty explicit `agent` field, that is used.
-        - Otherwise, rules are matched against task title + notes.
-        - Defaults to 'programmer' when no rule matches.
-
-        The returned agent type is validated against AgentRegistry.
+        Priority:
+        1. Explicit `agent` field on the task
+        2. LLM-based routing (cheap model call)
+        3. Regex keyword fallback
+        4. Default (programmer)
         """
-
+        # 1. Explicit agent field
         explicit = (task.get("agent") or "").strip()
         if explicit:
             return self._validate_agent_type(explicit)
 
-        # Check inbox response messages for explicit agent mentions
-        # e.g. "architect needs to do it", "send to researcher"
-        mentioned_agent = self._extract_explicit_agent_from_messages(task)
-        if mentioned_agent:
-            return self._validate_agent_type(mentioned_agent)
+        task_text = self._task_text(task)
 
-        haystack = self._task_text(task)
+        # 2. LLM-based routing
+        llm_result = self._route_via_llm(task_text)
+        if llm_result:
+            return self._validate_agent_type(llm_result)
+
+        # 3. Regex fallback
         for rule in self._rules:
-            if rule.pattern.search(haystack):
-                return self._validate_agent_type(rule.agent_type)
+            if rule.pattern.search(task_text):
+                agent = self._validate_agent_type(rule.agent_type)
+                logger.info(f"[ROUTER] Regex fallback matched: {agent}")
+                return agent
 
+        # 4. Default
+        logger.info(f"[ROUTER] No match, defaulting to {self.default_agent_type}")
         return self._validate_agent_type(self.default_agent_type)
+
+    def _route_via_llm(self, task_text: str) -> str | None:
+        """Call a cheap LLM to determine the right agent. Returns agent type or None on failure."""
+        try:
+            executable = get_setting("openclaw_executable", "openclaw")
+            prompt = LLM_ROUTER_PROMPT.format(task_text=task_text[:2000])
+
+            result = subprocess.run(
+                [executable, "agent", "--agent", "worker", "-m", prompt],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=self._get_env(),
+            )
+
+            output = (result.stdout or "").strip()
+            if not output:
+                logger.warning("[ROUTER] LLM returned empty output")
+                return None
+
+            # Extract JSON from response (may have surrounding text)
+            json_match = re.search(r'\{[^}]+\}', output)
+            if not json_match:
+                logger.warning(f"[ROUTER] No JSON in LLM output: {output[:200]}")
+                return None
+
+            parsed = json.loads(json_match.group())
+            agent = parsed.get("agent", "").strip().lower()
+            confidence = parsed.get("confidence", "low")
+            reason = parsed.get("reason", "")
+
+            if agent not in VALID_AGENTS:
+                logger.warning(f"[ROUTER] LLM returned invalid agent: {agent}")
+                return None
+
+            logger.info(f"[ROUTER] LLM selected '{agent}' (confidence={confidence}): {reason}")
+            return agent
+
+        except subprocess.TimeoutExpired:
+            logger.warning("[ROUTER] LLM routing timed out, falling back to regex")
+            return None
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"[ROUTER] Failed to parse LLM routing response: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"[ROUTER] LLM routing failed: {e}")
+            return None
+
+    @staticmethod
+    def _get_env() -> dict[str, str]:
+        """Get environment for subprocess, inheriting current env."""
+        import os
+        env = os.environ.copy()
+        return env
 
     def _validate_agent_type(self, agent_type: str) -> str:
         normalized = agent_type.strip().lower()
         if not normalized:
             raise ValueError("Agent type must be a non-empty string")
-
-        # Uses registry as the source of truth.
         self.registry.get_agent(normalized)
         return normalized
-
-    # Explicit agent mention pattern: "architect should", "send to researcher", etc.
-    _AGENT_MENTION_RE = re.compile(
-        r"\b(programmer|researcher|reviewer|writer|architect)\b\s+"
-        r"(?:should|needs?\s+to|can|will|do|handle|take)",
-        re.IGNORECASE,
-    )
-
-    def _extract_explicit_agent_from_messages(self, task: dict[str, Any]) -> str | None:
-        """Check inbox response messages for explicit agent mentions like 'architect needs to do it'."""
-        messages = task.get("messages", [])
-        for msg in messages:
-            text = msg.get("text", "")
-            m = self._AGENT_MENTION_RE.search(text)
-            if m:
-                return m.group(1).lower()
-        return None
 
     @staticmethod
     def _task_text(task: dict[str, Any]) -> str:
         title = task.get("title") or task.get("prompt") or ""
         notes = task.get("notes") or ""
-        # Include inbox response messages in routing text
         messages = task.get("messages", [])
         msg_text = "\n".join(m.get("text", "") for m in messages)
-        return f"{title}\n{notes}\n{msg_text}".strip()
+        # Include docId for inbox responses (gives context about what was proposed)
+        doc_id = task.get("docId", "")
+        parts = [p for p in [title, notes, doc_id, msg_text] if p]
+        return "\n".join(parts).strip()
 
 
-# Convenience singleton for call-sites that don't want to manage an instance.
 _default_router = Router()
 
 
 def route(task: dict[str, Any]) -> str:
     """Module-level convenience wrapper around the default Router."""
-
     return _default_router.route(task)
