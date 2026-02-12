@@ -90,7 +90,9 @@ If it's a product decision, propose it. If it's improvement or research, do it.
 
 ## Standards
 
+- **Only work on things that matter.** If you can't articulate why this is valuable, don't do it.
 - **Go deep, not wide.** One excellent piece of work beats five shallow ones.
+- **Don't invent busywork.** If nothing genuinely needs doing, write a brief note in your memory about what you looked at and stop. Not every launch needs a big deliverable.
 - **Be opinionated.** Have a point of view. Make recommendations. Argue for them.
 - **Produce a real deliverable.** Write it to the appropriate directory:
   - Research/proposals → `state/research/proposals/`

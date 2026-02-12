@@ -1,5 +1,5 @@
 {
-  "total_completed": 66,
+  "total_completed": 63,
   "total_failed": 13,
   "start_time": 1770850534.1043148,
   "completed": [
@@ -288,313 +288,286 @@
       "title": "0E62E1BB",
       "agent_type": "researcher",
       "kind": "research_request",
-      "started_at": "2026-02-11T23:55:48.741571+00:00",
+      "started_at": "2026-02-11T23:55:28.425931+00:00",
       "status": "completed"
     },
     {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:56:22.610798+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:56:54.783758+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:57:27.797617+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:58:03.011779+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:58:37.123580+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:59:12.368653+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:59:46.215856+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:00:21.765937+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:01:28.130769+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:02:01.964396+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:02:46.665826+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:03:20.482843+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:03:55.285783+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:04:40.302883+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:05:24.715878+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:06:12.077060+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:06:54.611683+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:07:28.698503+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:08:11.213428+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:10:05.790921+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "6AF13C3D-5B12-4AA7-813D-C3A9F4E35FA1",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T00:45:53.735164+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "EABE7797-0FAF-4AA6-81B5-4B8AE554AF6E",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T01:16:03.324283+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "1124D616-CA9D-4F05-8730-6B91E8F9C60E",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T01:46:12.958345+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "42B884C0-F946-4060-9166-D63F14B4A5CD",
+      "task_id": "0CBE7E31-BAE2-4455-A7CD-11BCCD35F63B",
       "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T01:50:27.133231+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "F098D101-98B9-4ECB-B93B-F19552D45C87",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T01:50:25.567455+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "D7CD7B1F-931D-464C-9024-E996BD374B54",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T01:50:27.132304+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "4E70B643-0A31-4E43-9085-5CD8CA330CA2",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T02:20:31.429029+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "D01A0969-AF9B-406B-8255-9A9842B7C57B",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T02:20:33.081555+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "3C69976A-B1F1-4D60-9D8E-A6223EE31CC1",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T02:20:33.013852+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "FB0C0D32-B03E-4581-B368-E9A8681BBE92",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer",
-      "agent_type": "writer",
-      "kind": "task",
-      "started_at": "2026-02-12T02:20:33.051760+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "85B28F6D-AF0D-4F47-B65F-5BBBEFFD3481",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T02:51:07.100334+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "A01F39DB-1728-46E6-9856-2F60ADA981F3",
-      "project_id": "lobs-dashboard",
-      "title": "fuzzy finder should be able to take me \"Home\"",
+      "title": "Remove orchestrator start/stop UI from dashboard",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T02:59:08.437128+00:00",
+      "started_at": "2026-02-11T23:55:18.268008+00:00",
       "status": "completed"
     },
     {
-      "task_id": "98C90CA9-D329-4403-B4D5-CBD761D17828",
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:56:00.598708+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:56:33.979876+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:57:07.156702+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:57:39.353657+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:58:14.838943+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:58:48.536013+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:59:23.348738+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-11T23:59:57.569860+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:00:32.404237+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:01:38.454317+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:02:13.736959+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:02:57.175844+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:03:31.332737+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "73A5F3C5-82D4-46D2-ADF0-CE7F63547760",
       "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect",
+      "title": "onboarding does not go away even though i am done",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-11T23:56:34.798249+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:04:17.773463+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:05:00.852839+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:05:36.673219+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:06:22.275630+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "BE59BFEB-45B3-463D-85F1-D6C1E285EF34",
+      "project_id": "lobs-dashboard",
+      "title": "Hide artifacts from inbox view",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:03:44.155346+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:07:05.141401+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:07:40.138476+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:08:37.920872+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "D6E457C9-E362-4D0B-9195-C4803935D1B2",
+      "project_id": "lobs-dashboard",
+      "title": "Hide artifacts from inbox view",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:14:05.769242+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
+      "project_id": "self-improvement",
+      "title": "0E62E1BB",
+      "agent_type": "researcher",
+      "kind": "research_request",
+      "started_at": "2026-02-12T00:14:25.321666+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "775CE1B3-8D71-4665-8BD7-CA2A685B63DA",
+      "project_id": "lobs-dashboard",
+      "title": "Fix paste text notification - make it dismissible",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:14:05.718843+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "930C51F4-93DA-41A1-914C-492291939CF1",
+      "project_id": "lobs-dashboard",
+      "title": "i do not like the shortcut keys on the icons in the top right",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:14:05.751095+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "41D2E1DB-34A3-48FD-A6C7-585979D3E8AC",
+      "project_id": "lobs-dashboard",
+      "title": "Detailed status panel opens way below other UI - fix positioning",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:14:05.725119+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
+      "project_id": "lobs-dashboard",
+      "title": "Move push notification UI to top left near updates area",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T00:17:34.908850+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "71394EB5-0B94-4424-9DBC-82B71C6D910B",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: architect standing work",
       "agent_type": "architect",
       "kind": "task",
-      "started_at": "2026-02-12T03:21:39.841649+00:00",
+      "started_at": "2026-02-12T01:11:37.548177+00:00",
       "status": "completed"
     },
     {
-      "task_id": "9DF3AF07-C0FC-4B99-ACE1-0C4654DF77B9",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher",
-      "agent_type": "researcher",
+      "task_id": "41B3F35E-4BD7-4830-BF8A-FB5E3BDDC1B8",
+      "project_id": "lobs-dashboard",
+      "title": "move the \"pushed just now\" ui to the top left of the top page",
+      "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T03:21:38.841716+00:00",
+      "started_at": "2026-02-12T02:55:41.345076+00:00",
       "status": "completed"
     }
   ],
@@ -663,12 +636,12 @@
       "status": "failed"
     },
     {
-      "task_id": "13AED9AA-FA31-4184-87F8-77598F68D270",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
+      "task_id": "6272FF61-622D-4B48-8A6A-DBB4DD19FC62",
+      "project_id": "lobs-dashboard",
+      "title": "Fix paste text notification - make it dismissible",
+      "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T00:15:24.460586+00:00",
+      "started_at": "2026-02-12T00:03:44.304481+00:00",
       "status": "failed"
     },
     {
@@ -677,16 +650,7 @@
       "title": "Resolve TODO in availability.py:52",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T00:29:19.606728+00:00",
-      "status": "failed"
-    },
-    {
-      "task_id": "3D5038B9-C250-44DA-91FB-87BD17E9FE32",
-      "project_id": "flock",
-      "title": "Resolve TODO in availability.py:52",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:35:01.912611+00:00",
+      "started_at": "2026-02-12T00:35:14.155418+00:00",
       "status": "failed"
     },
     {
@@ -695,27 +659,36 @@
       "title": "Autonomous: researcher standing work",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:10:44.818326+00:00",
+      "started_at": "2026-02-12T01:12:14.291554+00:00",
       "status": "failed"
     },
     {
-      "task_id": "5F6BAF40-209D-4334-A8CA-2537F6E8267F",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
+      "task_id": "D4E817D7-7718-4527-A578-412398BC47C6",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: reviewer standing work",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:13:15.946843+00:00",
+      "started_at": "2026-02-12T01:13:50.740477+00:00",
       "status": "failed"
     },
     {
-      "task_id": "5F6BAF40-209D-4334-A8CA-2537F6E8267F",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
+      "task_id": "41B3F35E-4BD7-4830-BF8A-FB5E3BDDC1B8",
+      "project_id": "lobs-dashboard",
+      "title": "move the \"pushed just now\" ui to the top left of the top page",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T01:14:03.548546+00:00",
+      "started_at": "2026-02-12T02:49:50.561559+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "AD80B1ED-4695-41D6-8263-BEF472913D55",
+      "project_id": "lobs-dashboard",
+      "title": "Documents View - Agent Work Feed",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T03:20:11.701657+00:00",
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T03:23:19.022102+00:00"
+  "last_updated": "2026-02-12T03:25:28.416824+00:00"
 }
