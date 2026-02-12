@@ -38,9 +38,7 @@ def worker_manager(tmp_path, mock_provider):
                     # Create empty projects.json
                     (tmp_path / "projects.json").write_text('{"projects": []}')
                     
-                    wm = WorkerManager(tmp_path / "state", mock_provider)
-                    wm._cleanup_orphaned_workers = Mock()  # Skip cleanup on init
-                    return wm
+                    return WorkerManager(tmp_path / "state", mock_provider)
 
 
 def test_single_project_lock(worker_manager, mock_provider):

@@ -39,6 +39,7 @@ from orchestrator.core.agent_tracker import AgentTracker
 from orchestrator.core.agent_memory import AgentMemoryManager
 from orchestrator.core.llm_factory import create_backends
 from orchestrator.core.llm_backend import HaikuBackend
+from orchestrator.core.governance import GovernanceManager
 from orchestrator.services.agent_meta import AgentMetaBrain
 from orchestrator.services.messages import MessageProcessor
 from orchestrator.utils.settings import get_setting
@@ -85,6 +86,7 @@ class Orchestrator:
 
         # Workflow engine for initiative tracking
         self.workflow = WorkflowEngine(state_path=STATE_DIR / "workflow-state.json")
+        self.governance = GovernanceManager(provider, state_dir=STATE_DIR, tasks_dir=TASKS_DIR)
 
         # Pick the first available backend for worker diagnostic tasks
         worker_backend = backends[0] if backends else None
@@ -99,6 +101,7 @@ class Orchestrator:
             agent_meta=self.agent_meta,
             max_workers=MAX_WORKERS,
             llm_backend=worker_backend,
+            governance_manager=self.governance,
         )
         self.router = Router()
         self.reconciler = Reconciler(provider)
@@ -109,6 +112,7 @@ class Orchestrator:
         from orchestrator.core.autonomous import AutonomousLauncher
         self.autonomous = AutonomousLauncher()
         self.message_processor = MessageProcessor(provider)
+        self.message_processor.set_governance(self.governance)
         self.observer = Observer()
 
         # Cron-like recurring tasks
@@ -375,6 +379,60 @@ class Orchestrator:
             logger.error(f"Failed to create task from opportunity: {e}", exc_info=True)
             return None
 
+    def _create_architect_proposal_task(self, opp: Opportunity, *, strategic: bool = False) -> str | None:
+        """Create a routed architect proposal task for non-local proactive work."""
+        try:
+            task_id = f"PROPOSAL-{uuid.uuid4().hex[:10].upper()}"
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            proposal_payload = {
+                "opportunityId": opp.opportunity_id,
+                "projectId": opp.project_id,
+                "title": opp.title,
+                "description": opp.description,
+                "priority": opp.priority.name,
+                "score": opp.score,
+                "strategic": strategic,
+            }
+            task = {
+                "id": task_id,
+                "title": f"Proposal Review: {opp.title}",
+                "notes": (
+                    "Evaluate this proactive proposal. Reply with APPROVED or REJECTED and rationale.\n\n"
+                    f"Proposal JSON:\n```json\n{json.dumps(proposal_payload, indent=2)}\n```"
+                ),
+                "projectId": "lobs-control",
+                "status": "active",
+                "workState": "not_started",
+                "createdAt": now,
+                "updatedAt": now,
+                "agent": "architect",
+                "tags": ["proposal", "proactive", "strategic" if strategic else "cross"],
+                "governance": {
+                    "bypass": True,
+                    "tier": 3 if strategic else 2,
+                    "impactScope": "strategic" if strategic else "cross",
+                    "riskLevel": "high" if strategic else "medium",
+                    "confidence": 0.5 if strategic else 0.7,
+                    "requiresHumanApproval": strategic,
+                },
+                "proactiveMeta": {
+                    "opportunityId": opp.opportunity_id,
+                    "kind": opp.kind,
+                    "priority": opp.priority.name,
+                    "score": opp.score,
+                },
+            }
+
+            TASKS_DIR.mkdir(parents=True, exist_ok=True)
+            with open(TASKS_DIR / f"{task_id}.json", "w") as f:
+                json.dump(task, f, indent=2)
+                f.write("\n")
+            self.governance.record_proposal_event("created", proactive=True)
+            return task_id
+        except Exception as e:
+            logger.error(f"Failed to create architect proposal task: {e}", exc_info=True)
+            return None
+
     def _create_inbox_proposal(self, opp: Opportunity) -> str | None:
         """Create an inbox proposal from an AI suggestion. Returns proposal_id if successful."""
         try:
@@ -457,6 +515,10 @@ class Orchestrator:
         Code-quality opportunities (TODOs, missing tests, etc.) become tasks directly.
         AI-suggested features/ideas become inbox proposals for human approval.
         """
+        if self.governance.should_pause_proactive():
+            logger.info("[PROACTIVE] Skipped due to active safety pause")
+            return
+
         if not self._should_scan_proactive(explicit_work):
             return
 
@@ -478,29 +540,60 @@ class Orchestrator:
             if remaining > 0 and filtered:
                 created_count = 0
                 for opp in filtered[:remaining]:
-                    task_id = self._create_task_from_opportunity(opp)
-                    if task_id:
-                        self._increment_proactive_count()
-                        created_count += 1
+                    assessment = self.governance.assess_task(
+                        {
+                            "id": f"opp:{opp.opportunity_id or opp.kind}",
+                            "title": opp.title,
+                            "notes": opp.description,
+                            "tags": ["proactive", opp.kind],
+                        }
+                    )
+                    if assessment.tier <= 1:
+                        task_id = self._create_task_from_opportunity(opp)
+                        if task_id:
+                            self._increment_proactive_count()
+                            created_count += 1
+                    else:
+                        proposal_id = self._create_architect_proposal_task(
+                            opp, strategic=(assessment.tier >= 3)
+                        )
+                        if proposal_id:
+                            created_count += 1
 
                 if created_count > 0:
                     logger.info(
-                        f"[PROACTIVE] Created {created_count} code-quality task(s). "
+                        f"[PROACTIVE] Created {created_count} proactive item(s). "
                         f"Today: {self._get_proactive_count_today()}/{max_daily}"
                     )
                     self._prune_old_daily_counts()
 
-            # Phase 2: AI-powered suggestions → inbox proposals (need human approval)
+            # Phase 2: AI-powered suggestions → architect proposals, strategic also alerts human inbox
             ai_opportunities = self._get_ai_suggestions(projects, opportunities)
             if ai_opportunities:
                 proposal_count = 0
                 for opp in ai_opportunities:
-                    proposal_id = self._create_inbox_proposal(opp)
-                    if proposal_id:
-                        proposal_count += 1
+                    assessment = self.governance.assess_task(
+                        {
+                            "id": f"ai:{opp.opportunity_id or opp.kind}",
+                            "title": opp.title,
+                            "notes": opp.description,
+                            "tags": ["proactive", "ai", opp.kind],
+                        }
+                    )
+                    if assessment.tier <= 1:
+                        task_id = self._create_task_from_opportunity(opp)
+                        if task_id:
+                            proposal_count += 1
+                    else:
+                        strategic = assessment.tier >= 3
+                        proposal_id = self._create_architect_proposal_task(opp, strategic=strategic)
+                        if strategic:
+                            self._create_inbox_proposal(opp)
+                        if proposal_id:
+                            proposal_count += 1
                 if proposal_count > 0:
                     logger.info(
-                        f"[PROACTIVE] Created {proposal_count} inbox proposal(s) for review"
+                        f"[PROACTIVE] Created {proposal_count} AI proactive item(s)"
                     )
 
         except Exception as e:
@@ -835,6 +928,15 @@ class Orchestrator:
             activity = True
             logger.info(f"Assigning {kind} {work_id} to project {project_id}")
 
+            if kind == "inbox_response":
+                try:
+                    if self.governance.process_inbox_response(item):
+                        logger.info("[GOVERNANCE] Applied approval decision from inbox response %s", work_id[:8])
+                        self._acknowledge_inbox_response(item)
+                        continue
+                except Exception as e:
+                    logger.warning(f"[GOVERNANCE] Failed processing inbox approval response {work_id[:8]}: {e}")
+
             # Select an agent template for this task.
             # If an explicit `agent` field is provided on the task, honor it.
             explicit_agent = (item.get("agent") or "").strip()
@@ -851,6 +953,19 @@ class Orchestrator:
                     f"[ROUTER] Failed to select agent for {work_id[:8]} ({work_title}): {e}. Falling back to 'programmer'."
                 )
                 agent_type = "programmer"
+
+            allow_execution, assessment, gate_reason = self.governance.evaluate_and_gate(item, project_id)
+            if not allow_execution:
+                logger.info(
+                    "[GOVERNANCE] Blocked %s (tier=%d impact=%s risk=%s conf=%.2f): %s",
+                    work_id[:8],
+                    assessment.tier,
+                    assessment.impact_scope,
+                    assessment.risk_level,
+                    assessment.confidence,
+                    gate_reason,
+                )
+                continue
 
             # Notify via system event so the main agent can relay to Discord (only once)
             if kind == "inbox_response" and not item.get("_notified"):
@@ -894,6 +1009,14 @@ class Orchestrator:
         # 10. Proactive Work Discovery
         self._process_proactive_work(projects, eligible_work)
 
+        # 10.5 Periodic learning pass (creates meta-improvement tasks from recurring failures)
+        try:
+            created_learning = self.governance.run_learning_pass()
+            if created_learning:
+                logger.info("[LEARNING] Created %d meta-improvement task(s)", len(created_learning))
+        except Exception as e:
+            logger.error(f"[LEARNING] Learning pass failed: {e}", exc_info=True)
+
         # 11. Autonomous Agent Launches
         # When agents have no queued tasks, launch them to do their standing work
         self._launch_autonomous_agents(eligible_work)
@@ -903,7 +1026,7 @@ class Orchestrator:
     def _launch_autonomous_agents(self, eligible_work: list[dict[str, Any]]) -> None:
         """Launch idle agents to do autonomous work (their standing mission)."""
         # Determine which agent types are active
-        active_types = set(self.worker_manager.agent_locks.keys())
+        active_types = set(getattr(self.worker_manager, "agent_locks", {}).keys())
         
         # Only count explicitly-assigned tasks as queued for that agent type.
         # Router-inferred types shouldn't block autonomous launches — most tasks

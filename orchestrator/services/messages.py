@@ -23,6 +23,11 @@ class MessageProcessor:
         self.provider = provider
         # Lazy to avoid circular imports during early initialization.
         self._collaboration = None
+        self._governance = None
+
+    def set_governance(self, governance: Any) -> None:
+        """Wire optional governance manager for comms logging."""
+        self._governance = governance
 
     def process_messages(self, messages: list[dict[str, Any]]):
         for msg in messages:
@@ -49,6 +54,25 @@ class MessageProcessor:
             self._handoff(payload, msg)
         else:
             logger.warning(f"Unknown message action: {msg_type}")
+
+        # Structured communication logging.
+        if self._governance:
+            try:
+                channel = "initiative" if msg_type in {"broadcast", "system_request"} else "work"
+                sender = str(payload.get("sender", "worker-llm"))
+                recipient = str(payload.get("to", "orchestrator"))
+                body = str(payload.get("content") or payload.get("title") or payload)
+                self._governance.log_communication(
+                    channel=channel,
+                    sender=sender,
+                    recipient=recipient,
+                    message_type=str(msg_type),
+                    content=body,
+                    related_task_id=msg.get("parentTaskId"),
+                    initiative=payload.get("initiative"),
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log communication event: {e}")
 
     def _system_request(self, payload: Any):
         """Create a request for the system monitor to handle."""

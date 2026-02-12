@@ -1,0 +1,2 @@
+{"timestamp": "2026-02-12T14:19:08Z", "channel": "initiative", "sender": "rafe", "recipient": "orchestrator", "messageType": "approval_approved", "content": "Approved. Please proceed with task-approve", "relatedTaskId": "task-approve", "initiative": null}
+{"timestamp": "2026-02-12T14:19:08Z", "channel": "initiative", "sender": "human", "recipient": "orchestrator", "messageType": "approval_rejected", "content": "I reject this change for now. Do not approve task-reject", "relatedTaskId": "task-reject", "initiative": null}

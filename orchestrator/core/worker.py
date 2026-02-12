@@ -118,6 +118,7 @@ class WorkerManager:
         agent_tracker: Any | None = None,
         agent_memory: Any | None = None,
         agent_meta: Any | None = None,
+        governance_manager: Any | None = None,
         max_workers: int = 5,
         llm_backend: Any | None = None,
     ):
@@ -138,6 +139,11 @@ class WorkerManager:
         """
         self.state_dir = state_dir
         self.state_dir.mkdir(parents=True, exist_ok=True)
+        state_file_override = os.getenv("OPENCLAW_WORKER_STATE_FILE", "").strip()
+        if state_file_override:
+            self.state_file = Path(state_file_override)
+        else:
+            self.state_file = self.STATE_FILE
         self.provider = provider
         self.escalation = EscalationManager(provider)
         self.failure_rotation = failure_rotation or FailureRotation(state_dir)
@@ -156,6 +162,7 @@ class WorkerManager:
 
         # Ollama-powered meta-brain for agent self-awareness.
         self.agent_meta = agent_meta
+        self.governance = governance_manager
 
         # In-memory tracking (primary source of truth while running)
         # task_id -> (process, project_id, log_file, start_time, agent_id, task_title, agent_template, worker_id, session_label, last_heartbeat)
@@ -202,12 +209,12 @@ class WorkerManager:
 
     def _load_state(self) -> dict[str, Any]:
         """Load persisted worker state from disk."""
-        if not self.STATE_FILE.exists():
+        if not self.state_file.exists():
             return {"active": False}
         try:
-            with open(self.STATE_FILE, "r") as f:
+            with open(self.state_file, "r") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (json.JSONDecodeError, IOError, OSError) as e:
             logger.warning(f"Failed to load worker state: {e}")
             return {"active": False}
 
@@ -222,7 +229,7 @@ class WorkerManager:
         agent_template: str = "programmer",
     ):
         """Save worker state to disk for crash recovery."""
-        self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "active": True,
             "task_id": task_id,
@@ -234,17 +241,20 @@ class WorkerManager:
             "agent_template": agent_template,
             "task_title": task_title,
         }
-        with open(self.STATE_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-        logger.debug(f"Saved worker state: {state} for {task_id}")
+        try:
+            with open(self.state_file, "w") as f:
+                json.dump(data, f, indent=2)
+            logger.debug(f"Saved worker state: {state} for {task_id}")
+        except (IOError, OSError) as e:
+            logger.warning(f"Failed to persist worker state for {task_id}: {e}")
 
     def _clear_state(self):
         """Clear persisted worker state."""
-        if self.STATE_FILE.exists():
+        if self.state_file.exists():
             try:
-                self.STATE_FILE.unlink()
+                self.state_file.unlink()
                 logger.debug("Cleared worker state file")
-            except IOError as e:
+            except (IOError, OSError) as e:
                 logger.warning(f"Failed to clear worker state: {e}")
 
     def _is_process_alive(self, pid: int) -> bool:
@@ -286,7 +296,8 @@ class WorkerManager:
                     # We can't get the original Popen object, but we can monitor the PID
                     # Re-acquire project and agent locks
                     self.project_locks[project_id] = task_id
-                    agent_template = _normalize_agent_template_type(agent_type) if agent_type else agent_id
+                    restored_type = agent_template or agent_id
+                    agent_template = _normalize_agent_template_type(restored_type)
                     self.agent_locks[agent_template] = task_id
                     # Generate worker_id and session_label for re-adopted worker
                     worker_id = f"{agent_id}-{int(time.time())}-{task_id[:8]}-readopted"
@@ -513,12 +524,16 @@ class WorkerManager:
                 f"[MEMORY] Spawn blocked for {task_id[:8]}: {memory_reason}. "
                 f"Will retry on next poll."
             )
+            if self.governance:
+                self.governance.record_spawn_block("memory")
             return False
 
         # Check circuit breaker — pause if infrastructure is broken
         allowed, cb_reason = self.circuit_breaker.should_allow_spawn()
         if not allowed:
             logger.info(f"[CIRCUIT] Spawn blocked for {task_id[:8]}: {cb_reason}")
+            if self.governance:
+                self.governance.record_spawn_block("circuit_breaker")
             return False
 
         # Check global worker capacity
@@ -528,6 +543,8 @@ class WorkerManager:
                 f"[CAPACITY] At max capacity ({active_count}/{self.max_workers} workers). "
                 f"Queueing task {task_id[:8]}."
             )
+            if self.governance:
+                self.governance.record_spawn_block("capacity")
             return False
 
         # Check if project already has an active worker
@@ -537,6 +554,8 @@ class WorkerManager:
                 f"[PROJECT-LOCK] Project {project_id} already has active worker (task {existing_task[:8]}). "
                 f"Queueing task {task_id[:8]}."
             )
+            if self.governance:
+                self.governance.record_spawn_block("project_lock")
             return False
 
         # Check if this agent type already has an active worker (1 instance per agent type)
@@ -547,6 +566,8 @@ class WorkerManager:
                 f"[AGENT-LOCK] Agent type '{template_type}' already has active worker (task {existing_task[:8]}). "
                 f"Queueing task {task_id[:8]}."
             )
+            if self.governance:
+                self.governance.record_spawn_block("agent_lock")
             return False
 
         # Mark as pending and save state
@@ -1714,6 +1735,16 @@ class WorkerManager:
                     f"({from_norm} → {payload['to']}) "
                     f"for '{payload['work']['title']}'"
                 )
+                if self.governance:
+                    self.governance.log_communication(
+                        channel="work",
+                        sender=from_norm,
+                        recipient=str(payload["to"]),
+                        message_type="handoff",
+                        content=str(payload["work"]["title"]),
+                        related_task_id=new_task_id,
+                        initiative=str(payload["initiative"]),
+                    )
 
             except Exception as e:
                 logger.error(f"[HANDOFF] Failed to process {handoff_file.name}: {e}", exc_info=True)
@@ -2681,6 +2712,15 @@ class WorkerManager:
         # Get task data to check for GitHub integration
         task = self.provider.get_task(task_id)
 
+        # Governance approval tasks unblock their target task once architect completes.
+        try:
+            if self.governance and task and isinstance(task.get("governance"), dict):
+                gov_meta = task.get("governance") or {}
+                if gov_meta.get("approvalForTaskId"):
+                    self.governance.process_approval_task_completion(task)
+        except Exception as e:
+            logger.warning(f"[GOVERNANCE] Failed to process approval completion for {task_id[:8]}: {e}")
+
         # If this was a reviewer failure-analysis task spawned by escalation level 2,
         # process its recommendation before marking it complete.
         try:
@@ -2733,13 +2773,30 @@ class WorkerManager:
         if task:
             self._close_github_issue_if_needed(task, project_id, task_id)
 
+        duration = time.time() - start_time if start_time else 0
+
         # Track completion in awareness monitor
         if self.awareness:
-            duration = time.time() - start_time if start_time else None
             self.awareness.track_work_completed(task_id, duration)
 
+        if self.governance:
+            attempts = 1
+            try:
+                fr_entry = self.failure_rotation.get_entry(task_id)
+                if fr_entry:
+                    attempts = max(1, int(fr_entry.get("retry_count", 0)) + 1)
+            except Exception:
+                pass
+            self.governance.record_task_outcome(
+                task_id=task_id,
+                project_id=project_id,
+                success=True,
+                attempts=attempts,
+                duration_seconds=duration,
+                proactive=bool(task and task.get("proactiveMeta")),
+            )
+
         # Track per-agent status and memory
-        duration = time.time() - start_time if start_time else 0
         if self.agent_tracker:
             self.agent_tracker.mark_completed(agent_template, task_id, duration)
             self.agent_tracker.mark_idle(agent_template)
@@ -2854,11 +2911,26 @@ class WorkerManager:
         current_failure_count = 0
         if current_task:
             current_failure_count = current_task.get("failureCount", 0)
+
+        duration = time.time() - start_time if start_time else 0
+        if self.governance:
+            self.governance.record_task_outcome(
+                task_id=task_id,
+                project_id=project_id,
+                success=False,
+                attempts=max(1, retry_count + 1),
+                duration_seconds=duration,
+                failure_reason=failure_reason,
+                error_log=error_log,
+                proactive=bool(current_task and current_task.get("proactiveMeta")),
+            )
         
         now = datetime.now(timezone.utc)
         
         if is_infra:
             # Infrastructure failure — don't count against the task, just re-queue
+            if self.governance:
+                self.governance.record_circuit_activation()
             logger.warning(
                 f"[INFRA-FAIL] Task {task_id[:8]} failed due to infrastructure "
                 f"({self.circuit_breaker.state.last_failure_type}). "

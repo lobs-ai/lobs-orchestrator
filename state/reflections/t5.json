@@ -1,0 +1,13 @@
+{
+  "taskId": "t5",
+  "projectId": "p",
+  "timestamp": "2026-02-12T14:19:08Z",
+  "succeeded": true,
+  "attempts": 1,
+  "durationSeconds": 10,
+  "whatSucceeded": "Task completed and finalized cleanly.",
+  "whatFailed": "",
+  "retriesRequired": 0,
+  "missedSignals": "",
+  "patternCategory": "delivery_success"
+}

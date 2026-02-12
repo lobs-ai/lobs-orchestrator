@@ -7,7 +7,6 @@ Prevents OOM kills by tracking memory usage and enforcing limits.
 import logging
 import os
 import platform
-import psutil
 import subprocess
 import threading
 import time
@@ -15,6 +14,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+try:
+    import psutil  # type: ignore[import-not-found]
+except ImportError:
+    psutil = None
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +67,8 @@ class MemoryMonitor:
             enable_watchdog: Whether to run background watchdog thread
             watchdog_interval: Watchdog check interval (seconds)
         """
-        self.process = psutil.Process(os.getpid())
+        self._psutil_available = psutil is not None
+        self.process = psutil.Process(os.getpid()) if self._psutil_available else None
         self.min_free_mb_for_spawn = min_free_mb_for_spawn
         self.critical_free_mb = critical_free_mb
         
@@ -81,9 +86,36 @@ class MemoryMonitor:
         # Iteration counter for periodic logging
         self._iteration_count = 0
         self._log_every_n_iterations = 10  # Log every 10th iteration
+
+        if not self._psutil_available:
+            logger.warning("[MEMORY] psutil not installed; memory safety checks are disabled.")
+
+    @staticmethod
+    def _fallback_total_mb() -> float:
+        """Best-effort total memory when psutil is unavailable."""
+        if hasattr(os, "sysconf"):
+            try:
+                pages = os.sysconf("SC_PHYS_PAGES")
+                page_size = os.sysconf("SC_PAGE_SIZE")
+                if isinstance(pages, int) and pages > 0 and isinstance(page_size, int) and page_size > 0:
+                    return (pages * page_size) / (1024 * 1024)
+            except (ValueError, OSError):
+                pass
+        return 8192.0
         
     def get_snapshot(self) -> MemorySnapshot:
         """Get current memory usage snapshot."""
+        if not self._psutil_available or self.process is None:
+            total_mb = self._fallback_total_mb()
+            return MemorySnapshot(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                rss_mb=0.0,
+                vms_mb=0.0,
+                percent=0.0,
+                available_mb=total_mb,
+                total_mb=total_mb,
+            )
+
         mem_info = self.process.memory_info()
         sys_mem = psutil.virtual_memory()
         
@@ -146,6 +178,9 @@ class MemoryMonitor:
         Returns:
             (can_spawn, reason) tuple
         """
+        if not self._psutil_available:
+            return True, "Memory checks disabled (psutil unavailable)"
+
         snapshot = self.get_snapshot()
         
         if snapshot.available_mb < self.min_free_mb_for_spawn:
@@ -176,13 +211,15 @@ class MemoryMonitor:
     def log_startup_info(self):
         """Log system memory info at startup."""
         snapshot = self.get_snapshot()
-        sys_mem = psutil.virtual_memory()
-        
+        sys_mem_percent = 0.0
+        if self._psutil_available and psutil is not None:
+            sys_mem_percent = psutil.virtual_memory().percent
+
         logger.info("=" * 60)
         logger.info("[MEMORY] System Memory Report")
         logger.info("-" * 60)
         logger.info(f"Total RAM: {snapshot.total_mb:.1f}MB")
-        logger.info(f"Available: {snapshot.available_mb:.1f}MB ({sys_mem.percent}% used)")
+        logger.info(f"Available: {snapshot.available_mb:.1f}MB ({sys_mem_percent}% used)")
         logger.info(f"Orchestrator Process: RSS {snapshot.rss_mb:.1f}MB, VMS {snapshot.vms_mb:.1f}MB")
         logger.info(f"Platform: {platform.system()} {platform.release()}")
         logger.info("-" * 60)
@@ -295,6 +332,8 @@ class MemoryMonitor:
         Returns:
             RSS in MB, or None if process not found
         """
+        if not self._psutil_available:
+            return None
         try:
             proc = psutil.Process(pid)
             mem_info = proc.memory_info()

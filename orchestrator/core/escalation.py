@@ -88,6 +88,9 @@ class EscalationManager:
     def escalate(self, alert_id: str):
         """Move an alert to the next escalation level."""
         alerts = self.provider.get_active_alerts()
+        if not isinstance(alerts, list):
+            logger.warning("Provider returned non-list active alerts; skipping escalation step")
+            return
         alert = next((a for a in alerts if a["id"] == alert_id), None)
         
         if not alert:

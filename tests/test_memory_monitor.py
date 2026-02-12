@@ -70,8 +70,12 @@ class TestMemoryMonitor:
         snapshot = monitor.get_snapshot()
         
         # Basic validation - should return real values
-        assert snapshot.rss_mb > 0
-        assert snapshot.vms_mb > 0
+        if monitor._psutil_available:
+            assert snapshot.rss_mb > 0
+            assert snapshot.vms_mb > 0
+        else:
+            assert snapshot.rss_mb >= 0
+            assert snapshot.vms_mb >= 0
         assert snapshot.total_mb > 0
         assert snapshot.available_mb >= 0
         assert 0 <= snapshot.percent <= 100
@@ -108,7 +112,10 @@ class TestMemoryMonitor:
         
         # Should allow spawn with such a low threshold
         assert can_spawn is True
-        assert "passed" in reason.lower()
+        if monitor._psutil_available:
+            assert "passed" in reason.lower()
+        else:
+            assert "disabled" in reason.lower()
     
     def test_check_can_spawn_worker_insufficient_memory(self):
         """Test worker spawn check with insufficient memory."""
@@ -121,8 +128,12 @@ class TestMemoryMonitor:
         can_spawn, reason = monitor.check_can_spawn_worker()
         
         # Should block spawn with such a high threshold
-        assert can_spawn is False
-        assert "insufficient memory" in reason.lower()
+        if monitor._psutil_available:
+            assert can_spawn is False
+            assert "insufficient memory" in reason.lower()
+        else:
+            assert can_spawn is True
+            assert "disabled" in reason.lower()
     
     def test_check_can_spawn_worker_memory_pressure(self):
         """Test worker spawn check with memory pressure."""
@@ -137,8 +148,12 @@ class TestMemoryMonitor:
         can_spawn, reason = monitor.check_can_spawn_worker()
         
         # Should block spawn due to memory pressure
-        assert can_spawn is False
-        assert "memory pressure" in reason.lower()
+        if monitor._psutil_available:
+            assert can_spawn is False
+            assert "memory pressure" in reason.lower()
+        else:
+            assert can_spawn is True
+            assert "disabled" in reason.lower()
     
     def test_log_snapshot(self):
         """Test logging a memory snapshot."""
@@ -148,7 +163,10 @@ class TestMemoryMonitor:
         snapshot = monitor.log_snapshot("TEST")
         
         assert snapshot is not None
-        assert snapshot.rss_mb > 0
+        if monitor._psutil_available:
+            assert snapshot.rss_mb > 0
+        else:
+            assert snapshot.rss_mb >= 0
     
     def test_log_snapshot_forced(self):
         """Test forcing a log snapshot."""
@@ -285,12 +303,19 @@ class TestMemoryMonitorIntegration:
         
         # All snapshots should have valid data
         for snapshot in snapshots:
-            assert snapshot.rss_mb > 0
+            if monitor._psutil_available:
+                assert snapshot.rss_mb > 0
+            else:
+                assert snapshot.rss_mb >= 0
             assert snapshot.total_mb > 0
         
         # High-water marks should be set
-        assert monitor.max_rss_mb > 0
-        assert monitor.max_vms_mb > 0
+        if monitor._psutil_available:
+            assert monitor.max_rss_mb > 0
+            assert monitor.max_vms_mb > 0
+        else:
+            assert monitor.max_rss_mb >= 0
+            assert monitor.max_vms_mb >= 0
     
     def test_periodic_logging_reduces_spam(self):
         """Test that periodic logging doesn't log every iteration."""

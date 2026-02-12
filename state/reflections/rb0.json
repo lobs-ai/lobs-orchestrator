@@ -1,0 +1,13 @@
+{
+  "taskId": "rb0",
+  "projectId": "p",
+  "timestamp": "2026-02-12T14:19:08Z",
+  "succeeded": false,
+  "attempts": 2,
+  "durationSeconds": 8,
+  "whatSucceeded": "",
+  "whatFailed": "rollback_after_failure",
+  "retriesRequired": 1,
+  "missedSignals": "git",
+  "patternCategory": "git"
+}

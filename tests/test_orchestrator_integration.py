@@ -382,18 +382,14 @@ def test_stuck_worker_runtime_detection(tmp_path, mock_provider):
                         old_start_time,  # last_heartbeat (also old)
                     )
                     
-                    # Mock finalize to avoid real git operations
-                    wm.finalize_worker = Mock()
-                    
                     # Check workers - should detect stuck worker
                     with patch('time.time', return_value=current_time):
                         wm.check_workers()
-                    
+
                     # Verify process was terminated
                     assert mock_process.terminate.called or mock_process.kill.called
-                    
-                    # Verify finalize was called with failure
-                    assert wm.finalize_worker.called
+                    assert "task-stuck" not in wm.active_workers
+                    assert "project-a" not in wm.project_locks
 
 
 def test_stuck_worker_heartbeat_detection(tmp_path, mock_provider):
@@ -436,15 +432,14 @@ def test_stuck_worker_heartbeat_detection(tmp_path, mock_provider):
                         stale_heartbeat,  # last_heartbeat (way in the past)
                     )
                     
-                    wm.finalize_worker = Mock()
-                    
                     # Check workers - should detect stale heartbeat
                     with patch('time.time', return_value=current_time):
                         wm.check_workers()
-                    
+
                     # Verify process was terminated
                     assert mock_process.terminate.called or mock_process.kill.called
-                    assert wm.finalize_worker.called
+                    assert "task-no-heartbeat" not in wm.active_workers
+                    assert "project-a" not in wm.project_locks
 
 
 # ============================================================================

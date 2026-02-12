@@ -379,6 +379,11 @@ def make_handler(orchestrator: Any = None) -> type[DashboardAPIHandler]:
             "recentCompletions": recent_completions,
             "recentFailures": recent_failures,
             "metrics": metrics,
+            "governance": (
+                orchestrator.governance.get_dashboard_metrics()
+                if hasattr(orchestrator, "governance") and orchestrator.governance
+                else {}
+            ),
             "alerts": alerts,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
