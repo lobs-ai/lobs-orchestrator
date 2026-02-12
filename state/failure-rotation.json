@@ -1,10 +1,10 @@
 {
   "tasks": {
     "1AA89AB5-CE56-4C42-9993-FA5284942937": {
-      "last_failure_ts": 1770882264.0166972,
-      "retry_count": 2,
-      "skip_until_ts": 1770882564.0166972,
-      "streak": 2
+      "last_failure_ts": 1770882446.402515,
+      "retry_count": 4,
+      "skip_until_ts": 1770885146.402515,
+      "streak": 4
     },
     "23E85C41-2999-4DF5-B4FB-2817D146A0AB": {
       "last_failure_ts": 1770868353.8448179,
@@ -19,9 +19,9 @@
       "streak": 1
     },
     "314FEF75-1D24-4B20-A8C0-9F53638C808B": {
-      "last_failure_ts": 1770882106.312308,
+      "last_failure_ts": 1770882275.3072782,
       "retry_count": 1,
-      "skip_until_ts": 1770882166.312308,
+      "skip_until_ts": 1770882335.3072782,
       "streak": 1
     },
     "386AF1B5-A24C-41D5-812D-18A6A0791F9B": {
@@ -73,10 +73,10 @@
       "streak": 1
     },
     "85B6F5CD-710E-498D-B348-3F0C56AF541D": {
-      "last_failure_ts": 1770882263.953769,
-      "retry_count": 2,
-      "skip_until_ts": 1770882563.953769,
-      "streak": 2
+      "last_failure_ts": 1770882422.3101141,
+      "retry_count": 4,
+      "skip_until_ts": 1770885122.3101141,
+      "streak": 4
     },
     "8D799C4B-2449-4E61-8D02-D37FFECE8371": {
       "last_failure_ts": 1770868339.11571,
@@ -145,10 +145,10 @@
       "streak": 1
     },
     "BD9E95AF-2A91-4999-8F96-2BB397430F4C": {
-      "last_failure_ts": 1770882153.4554381,
-      "retry_count": 2,
-      "skip_until_ts": 1770882453.4554381,
-      "streak": 2
+      "last_failure_ts": 1770882396.5341508,
+      "retry_count": 4,
+      "skip_until_ts": 1770885096.5341508,
+      "streak": 4
     },
     "D4E817D7-7718-4527-A578-412398BC47C6": {
       "last_failure_ts": 1770858935.5585191,
@@ -157,10 +157,10 @@
       "streak": 3
     },
     "D589ADBA-178D-4D12-9913-1CAB6DD9DCD5": {
-      "last_failure_ts": 1770882099.255727,
-      "retry_count": 1,
-      "skip_until_ts": 1770882159.255727,
-      "streak": 1
+      "last_failure_ts": 1770882774.2126741,
+      "retry_count": 2,
+      "skip_until_ts": 1770883074.2126741,
+      "streak": 2
     },
     "D693EEE5-3EA8-4A55-9CAB-44431866AC01": {
       "last_failure_ts": 1770882101.595681,

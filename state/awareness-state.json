@@ -1,17 +1,8 @@
 {
-  "total_completed": 144,
-  "total_failed": 31,
+  "total_completed": 145,
+  "total_failed": 38,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:03:55.285783+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T07:42:33.176643+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "314FEF75-1D24-4B20-A8C0-9F53638C808B",
+      "project_id": "flock",
+      "title": "Resolve FIXME in build_env.py:559",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:44:20.696721+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1183,7 +1183,70 @@
       "kind": "task",
       "started_at": "2026-02-12T07:41:51.409707+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "BD9E95AF-2A91-4999-8F96-2BB397430F4C",
+      "project_id": "flock",
+      "title": "Resolve HACK in logging.py:78",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:44:31.919678+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "85B6F5CD-710E-498D-B348-3F0C56AF541D",
+      "project_id": "flock",
+      "title": "Resolve FIXME in unpacking.py:353",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:45:04.206016+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1AA89AB5-CE56-4C42-9993-FA5284942937",
+      "project_id": "flock",
+      "title": "Resolve TODO in build_env.py:312",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:45:25.312993+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "BD9E95AF-2A91-4999-8F96-2BB397430F4C",
+      "project_id": "flock",
+      "title": "Resolve HACK in logging.py:78",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:45:47.680840+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "85B6F5CD-710E-498D-B348-3F0C56AF541D",
+      "project_id": "flock",
+      "title": "Resolve FIXME in unpacking.py:353",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:46:29.443987+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "1AA89AB5-CE56-4C42-9993-FA5284942937",
+      "project_id": "flock",
+      "title": "Resolve TODO in build_env.py:312",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:47:01.901424+00:00",
+      "status": "failed"
+    },
+    {
+      "task_id": "D589ADBA-178D-4D12-9913-1CAB6DD9DCD5",
+      "project_id": "lobs-dashboard",
+      "title": "escape doesn't work when trying to exit the agent information",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:44:19.883616+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T07:44:24.803415+00:00"
+  "last_updated": "2026-02-12T07:52:54.214547+00:00"
 }
