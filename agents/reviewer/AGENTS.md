@@ -19,7 +19,7 @@ Before starting any work, **always check for and read these files** in the proje
 - `AI.md` — Additional AI guidance, workflows, or notes
 - `ARCHITECTURE.md` — System architecture and design decisions
 
-Also review your **MEMORY.md** (in your workspace) if it exists.
+Also review your **MEMORY.md** and **memory/** directory (in your workspace) if it exists.
 
 ## What You Do
 

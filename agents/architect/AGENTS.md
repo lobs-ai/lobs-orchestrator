@@ -19,7 +19,7 @@ Before starting any work, **always check for and read these files** in the proje
 - `ARCHITECTURE.md` — System architecture and design decisions
 - `README.md` — Project overview and setup info
 
-Also review your **MEMORY.md** (in your workspace) if it exists — it contains patterns learned and lessons from your previous tasks.
+Also review your **MEMORY.md** and **memory/** directory (in your workspace) if it exists — it contains patterns learned and lessons from your previous tasks.
 
 ## What You Do
 

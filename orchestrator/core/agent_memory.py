@@ -116,7 +116,9 @@ class AgentMemoryManager:
     # ------------------------------------------------------------------
 
     # Files that agents may evolve and that should be preserved across runs.
-    PERSONAL_FILES = ("SOUL.md", "IDENTITY.md", "MEMORY.md")
+    # Only recover memory files — template files (SOUL.md, IDENTITY.md, AGENTS.md,
+    # USER.md, TOOLS.md) are owned by the human and should not be modified by agents.
+    PERSONAL_FILES = ("MEMORY.md",)
 
     def load_personal_file(self, agent_type: str, filename: str) -> str | None:
         """Load a personal file from memory/<type>/<filename>.
@@ -147,11 +149,13 @@ class AgentMemoryManager:
     def recover_personal_files_from_workspace(
         self, agent_type: str, workspace_dir: Path
     ) -> None:
-        """Copy personal files from agent workspace to lobs-control after a run.
+        """Copy memory files from agent workspace to lobs-control after a run.
 
-        The workspace is the source of truth. We mirror MEMORY.md, SOUL.md,
-        and IDENTITY.md to lobs-control for dashboard display.
+        Only recovers MEMORY.md and files in the memory/ directory.
+        Template files (SOUL.md, IDENTITY.md, AGENTS.md, etc.) are owned by
+        the human and are NOT recovered — agents should not modify them.
         """
+        # Recover MEMORY.md
         for filename in self.PERSONAL_FILES:
             workspace_file = workspace_dir / filename
             if not workspace_file.exists():
@@ -166,6 +170,26 @@ class AgentMemoryManager:
                     "[AGENT_MEMORY] Failed to recover %s/%s: %s",
                     agent_type, filename, e,
                 )
+
+        # Recover memory/ directory files
+        workspace_memory_dir = workspace_dir / "memory"
+        if workspace_memory_dir.is_dir():
+            agent_memory_dir = self._agent_dir(agent_type) / "daily"
+            agent_memory_dir.mkdir(parents=True, exist_ok=True)
+            for f in workspace_memory_dir.iterdir():
+                if f.is_file() and f.suffix == ".md":
+                    try:
+                        content = f.read_text(encoding="utf-8")
+                        dest = agent_memory_dir / f.name
+                        if not dest.exists() or dest.read_text(encoding="utf-8").strip() != content.strip():
+                            dest.write_text(content, encoding="utf-8")
+                            logger.info("[AGENT_MEMORY] Recovered memory/%s for %s", f.name, agent_type)
+                    except Exception as e:
+                        logger.warning(
+                            "[AGENT_MEMORY] Failed to recover memory/%s for %s: %s",
+                            f.name, agent_type, e,
+                        )
+            self._git_commit_memory(agent_type, f"memory: {agent_type} daily notes")
 
     # ------------------------------------------------------------------
     # Context building (for prompt injection)

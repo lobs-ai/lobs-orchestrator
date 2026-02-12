@@ -425,12 +425,26 @@ class WorkerManager:
         return "openclaw"
 
     def _write_memory_to_workspace(self, workspace_dir: Path, agent_type: str) -> None:
-        """No-op. The workspace IS the agent's home — files persist there between runs.
-        
-        We don't overwrite workspace files. The agent owns them.
-        After runs, we copy workspace files to lobs-control for dashboard display.
+        """Ensure agent memory files are present in the workspace.
+
+        Template files (AGENTS.md, SOUL.md, etc.) are always overwritten from
+        the registry — they are owned by the human. Memory files (MEMORY.md,
+        memory/*.md) are owned by the agent and persist across runs.
         """
-        pass
+        if not self.agent_memory:
+            return
+
+        # Ensure memory/ dir exists
+        memory_dir = workspace_dir / "memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+
+        # Seed MEMORY.md from lobs-control if workspace doesn't have one yet
+        workspace_memory = workspace_dir / "MEMORY.md"
+        if not workspace_memory.exists():
+            saved = self.agent_memory.load_memory(agent_type)
+            if saved:
+                workspace_memory.write_text(saved, encoding="utf-8")
+                logger.info("[WORKER] Seeded MEMORY.md for %s from lobs-control", agent_type)
 
     def _sync_workspace_for_agent_template(self, agent_template_type: str) -> str:
         """Prepare the per-agent workspace for a task.
@@ -454,7 +468,16 @@ class WorkerManager:
                 logger.error("[WORKER] No agent workspace found. Run bin/setup-agents first.")
                 workspace_dir.mkdir(parents=True, exist_ok=True)
 
-        # Only write memory context — template files are read-only
+        # Refresh template files from registry (human-owned, always overwritten)
+        try:
+            from orchestrator.core import registry
+            cfg = registry.get_agent(requested)
+            _write_agent_template_files(workspace_dir, cfg)
+            logger.debug("[WORKER] Refreshed template files for %s", requested)
+        except Exception as e:
+            logger.warning("[WORKER] Could not refresh template files for %s: %s", requested, e)
+
+        # Write memory context (agent-owned, preserved across runs)
         self._write_memory_to_workspace(workspace_dir, requested)
         logger.info(f"[WORKER] Prepared workspace for agent template: {requested}")
         return requested

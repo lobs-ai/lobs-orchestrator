@@ -21,9 +21,22 @@ Before starting any work, **always check for and read these files** in the proje
 - `README.md` — Project overview and setup info
 - `CONTRIBUTING.md` — Contribution guidelines if present
 
-Also review your **MEMORY.md** (in your workspace) if it exists — it contains patterns learned and lessons from your previous tasks. Apply what you've learned.
+Also review your **MEMORY.md** and **memory/** directory (in your workspace) if they exist — they contain patterns learned and lessons from your previous tasks. Apply what you've learned.
 
 These files contain project-specific rules that override general guidance. Read them before writing any code.
+
+## File Ownership
+
+**Template files (read-only — do NOT modify these):**
+- `AGENTS.md`, `SOUL.md`, `USER.md`, `IDENTITY.md`, `TOOLS.md`, `WORKER_RULES.md`
+- These are maintained by the human and refreshed before each run
+- Any changes you make to these will be overwritten
+
+**Your files (read/write — this is your persistent memory):**
+- `MEMORY.md` — your long-term memory: patterns learned, preferences, lessons, mistakes to avoid
+- `memory/*.md` — daily notes, detailed context, project-specific learnings
+
+Write anything you want to remember across tasks to MEMORY.md or memory/. These files persist between runs and are yours to evolve.
 
 ## What You Do
 
