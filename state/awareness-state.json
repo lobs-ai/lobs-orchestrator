@@ -1,5 +1,5 @@
 {
-  "total_completed": 58,
+  "total_completed": 52,
   "total_failed": 9,
   "start_time": 1770850534.1043148,
   "completed": [
@@ -463,66 +463,12 @@
       "status": "completed"
     },
     {
-      "task_id": "5AD91004-118C-4052-94FD-847FCBBBDC16",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: architect standing work",
-      "agent_type": "architect",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:16.769399+00:00",
-      "status": "completed"
-    },
-    {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
       "title": "0E62E1BB",
       "agent_type": "researcher",
       "kind": "research_request",
-      "started_at": "2026-02-12T00:08:15.989776+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "58EBB60B-D367-44D7-A134-2EC18FDC7442",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: reviewer standing work",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:17.650015+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "3BDE0F2C-BE7E-4752-A385-7CD510F0E210",
-      "project_id": "self-improvement",
-      "title": "Autonomous: researcher standing work",
-      "agent_type": "researcher",
-      "kind": "task",
-      "started_at": "2026-02-12T00:08:16.058453+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:16:10.522936+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "6272FF61-622D-4B48-8A6A-DBB4DD19FC62",
-      "project_id": "lobs-dashboard",
-      "title": "Fix paste text notification - make it dismissible",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:17:03.090795+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "CFCF7235-D855-48A0-A4AA-CAA117146EF0",
-      "project_id": "flock",
-      "title": "Resolve TODO in database_constants.py:1",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-12T00:28:50.209810+00:00",
+      "started_at": "2026-02-12T00:10:05.790921+00:00",
       "status": "completed"
     }
   ],
@@ -591,23 +537,23 @@
       "status": "failed"
     },
     {
-      "task_id": "9399631A-35B9-4FFB-AEB3-84BE0664AC11",
-      "project_id": "lobs-dashboard",
-      "title": "Autonomous: writer standing work",
-      "agent_type": "writer",
+      "task_id": "13AED9AA-FA31-4184-87F8-77598F68D270",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
+      "agent_type": "researcher",
       "kind": "task",
-      "started_at": "2026-02-12T00:08:17.652505+00:00",
+      "started_at": "2026-02-12T00:15:24.460586+00:00",
       "status": "failed"
     },
     {
-      "task_id": "A7546CDB-07A4-4139-95BE-D57CBC21E13F",
-      "project_id": "lobs-dashboard",
-      "title": "Move push notification UI to top left near updates area",
+      "task_id": "3D5038B9-C250-44DA-91FB-87BD17E9FE32",
+      "project_id": "flock",
+      "title": "Resolve TODO in availability.py:52",
       "agent_type": "programmer",
       "kind": "task",
-      "started_at": "2026-02-12T00:12:25.091068+00:00",
+      "started_at": "2026-02-12T00:29:19.606728+00:00",
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T00:32:12.421513+00:00"
+  "last_updated": "2026-02-12T00:34:58.825184+00:00"
 }
