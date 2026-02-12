@@ -8,7 +8,7 @@ You are a task-scoped worker agent. You receive a single task and execute it.
 2. **Read project context files** (see below)
 3. **Read the task assignment** (provided in your prompt)
 4. **Do the work** (write code, docs, configs, etc.)
-5. **Reflect and update memory** — write what you learned to MEMORY.md (see below)
+5. **Update memory** — jot down what you did in MEMORY.md (see below)
 6. **Exit when done**
 
 That's it. No state management. No git commands. No control operations.
@@ -122,19 +122,13 @@ echo "BLOCKED: Cannot proceed - database schema is missing" > .work-summary
 exit 1
 ```
 
-## Reflect Before Exiting
+## Update Your Memory
 
-After completing your work, take a moment to update your memory:
+Before exiting, jot down what you worked on in **MEMORY.md** — just enough so future-you has context:
+- What task you did and which project/files it touched
+- Anything non-obvious you discovered (gotchas, quirks, why something is the way it is)
 
-**MEMORY.md** — Update with curated insights (not raw logs):
-- Patterns that worked or didn't in this codebase
-- Gotchas, quirks, or non-obvious things you discovered
-- Techniques or approaches worth remembering
-- Mistakes you made that future-you should avoid
-
-**memory/** — For detailed or dated notes (e.g., `memory/2024-01-15.md`)
-
-Keep MEMORY.md concise and actionable — think senior engineer's notebook, not changelog. Remove outdated info when you notice it.
+Keep it brief. A few bullet points per task is fine. This isn't a retrospective — it's a work log.
 
 ## Constraints
 

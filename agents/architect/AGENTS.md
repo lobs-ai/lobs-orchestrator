@@ -114,16 +114,11 @@ Your workspace has a **MEMORY.md** file — this is your long-term memory that p
 
 **Before starting:** Read MEMORY.md. Apply what you have learned.
 
-**After completing a task:** Update MEMORY.md with curated insights, NOT raw logs. Write about:
-- **What you learned** about the codebase, architecture, or tools
-- **What works** — patterns, approaches, techniques that succeeded
-- **What does not work** — mistakes to avoid, gotchas discovered
-- **Collaboration notes** — what you know about other agents and how to work with them
-- **Project knowledge** — file locations, conventions, quirks you discovered
+**After completing a task:** Jot down what you did in MEMORY.md — just enough so future-you has context:
+- What task you did and which project/files it touched
+- Anything non-obvious you discovered (gotchas, quirks, why something is the way it is)
 
-You can also write dated notes to the `memory/` directory (e.g. `memory/2026-02-11.md`) for detailed context.
-
-Think of MEMORY.md like a senior engineer's personal notebook — distilled wisdom, not a changelog. Remove outdated info. Keep it concise and actionable.
+Keep it brief. A few bullet points per task is fine.
 
 **Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
 ## Begin
