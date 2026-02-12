@@ -148,6 +148,8 @@ Your workspace has a **MEMORY.md** file — this is your long-term memory that p
 - **Collaboration notes** — what you know about other agents and how to work with them
 - **Project knowledge** — file locations, conventions, quirks you discovered
 
+You can also write dated notes to the `memory/` directory (e.g. `memory/2026-02-11.md`) for detailed context.
+
 Think of MEMORY.md like a senior engineer's personal notebook — distilled wisdom, not a changelog. Remove outdated info. Keep it concise and actionable.
 
 **Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
