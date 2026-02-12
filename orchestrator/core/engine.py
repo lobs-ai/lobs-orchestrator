@@ -775,7 +775,15 @@ class Orchestrator:
             # Default project mapping for certain kinds
             if not project_id:
                 if kind == "inbox_response":
-                    project_id = "lobs-control"
+                    # Try to infer project from docId (e.g. "inbox/flock-..." or "artifacts/flock-...")
+                    doc_id = item.get("docId", "")
+                    doc_lower = doc_id.lower()
+                    inferred_project = None
+                    for pid in project_ids:
+                        if pid in doc_lower:
+                            inferred_project = pid
+                            break
+                    project_id = inferred_project or "lobs-control"
                 else:
                     project_id = "default"
 

@@ -149,13 +149,22 @@ class Router:
                 logger.warning("[ROUTER] LLM returned empty output for inbox routing")
                 return None
 
-            # If --json flag worked, parse the wrapper
+            # If --json flag worked, extract reply text from wrapper
             try:
                 wrapper = json.loads(output)
-                if isinstance(wrapper, dict) and "reply" in wrapper:
-                    output = wrapper["reply"]
+                if isinstance(wrapper, dict):
+                    # Navigate: result.payloads[0].text or result.reply
+                    payloads = (wrapper.get("result") or {}).get("payloads", [])
+                    if payloads and isinstance(payloads[0], dict):
+                        output = payloads[0].get("text", output)
+                    elif "reply" in wrapper:
+                        output = wrapper["reply"]
             except json.JSONDecodeError:
                 pass
+
+            # Strip markdown code fences if present
+            output = re.sub(r'```json\s*', '', output)
+            output = re.sub(r'```\s*', '', output)
 
             # Extract JSON from response
             json_match = re.search(r'\{[^}]+\}', output)
