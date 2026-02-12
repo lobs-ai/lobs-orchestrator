@@ -250,6 +250,9 @@ class AgentMetaBrain:
     # 3. Post-Task Reflection
     # ------------------------------------------------------------------
 
+    _reflect_counts: dict[str, int] = {}
+    REFLECT_EVERY = 3  # Only reflect every N task completions
+
     def reflect_on_task(
         self,
         agent_type: str,
@@ -259,8 +262,19 @@ class AgentMetaBrain:
         duration_seconds: float,
         log_path: Path,
     ) -> None:
-        """Generate a reflection after task completion. Non-blocking."""
+        """Generate a reflection after task completion. Non-blocking.
+        
+        Only runs every REFLECT_EVERY completions. Skipped for 'main'.
+        """
+        if agent_type == "main":
+            return
+
         if not self._any_backend_available():
+            return
+
+        count = self._reflect_counts.get(agent_type, 0) + 1
+        self._reflect_counts[agent_type] = count
+        if count % self.REFLECT_EVERY != 0:
             return
 
         self._executor.submit(
@@ -305,9 +319,25 @@ class AgentMetaBrain:
     # 4. Memory Synthesis
     # ------------------------------------------------------------------
 
+    _synthesize_counts: dict[str, int] = {}
+    SYNTHESIZE_EVERY = 5  # Only synthesize memory every N task completions
+
     def synthesize_memory(self, agent_type: str) -> None:
-        """Update Patterns Learned and Preferences from task outcomes. Non-blocking."""
+        """Update Patterns Learned and Preferences from task outcomes. Non-blocking.
+        
+        Only runs every SYNTHESIZE_EVERY completions to reduce LLM cost.
+        Skipped for 'main' agent (main session manages its own memory via heartbeats).
+        """
+        if agent_type == "main":
+            return
+
         if not self._any_backend_available():
+            return
+
+        count = self._synthesize_counts.get(agent_type, 0) + 1
+        self._synthesize_counts[agent_type] = count
+        if count % self.SYNTHESIZE_EVERY != 0:
+            logger.debug("[AGENT_META] Skipping memory synthesis for %s (count=%d, every=%d)", agent_type, count, self.SYNTHESIZE_EVERY)
             return
 
         self._executor.submit(self._do_synthesize_memory, agent_type)
