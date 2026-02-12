@@ -1,17 +1,8 @@
 {
-  "total_completed": 140,
+  "total_completed": 141,
   "total_failed": 25,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:01:28.130769+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T05:14:08.507393+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "7776F488-60B4-486A-B5C9-B21344CAEAF5",
+      "project_id": "lobs-dashboard",
+      "title": "Fix AI Usage Tracking - Aggregate from Worker History",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T05:18:34.878872+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1131,5 +1131,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T05:18:39.680875+00:00"
+  "last_updated": "2026-02-12T05:20:12.378853+00:00"
 }

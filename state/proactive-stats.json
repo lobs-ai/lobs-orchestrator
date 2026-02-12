@@ -1,5 +1,7 @@
 {
-  "daily_counts": {},
-  "total_created": 5,
+  "daily_counts": {
+    "2026-02-12": 5
+  },
+  "total_created": 10,
   "total_completed": 0
 }
