@@ -2733,15 +2733,22 @@ class WorkerManager:
                 agent_template, workspace_dir,
             )
 
-        # Ollama meta-brain: reflection, memory synthesis, trait evolution
-        if self.agent_meta:
-            log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
-            self.agent_meta.reflect_on_task(
-                agent_template, task_title, project_id, True, duration, log_path,
-            )
-            self.agent_meta.synthesize_memory(agent_template)
-            if self.agent_tracker:
-                count = self.agent_tracker.get_completion_count(agent_template)
+        # Ollama meta-brain: deep reflection, memory synthesis, trait evolution
+        # Only run periodically (every N tasks) — agents do their own lightweight
+        # memory updates during task execution.
+        if self.agent_meta and self.agent_tracker:
+            count = self.agent_tracker.get_completion_count(agent_template)
+            deep_reflection_interval = int(get_setting("deep_reflection_interval", 5))
+            if count > 0 and count % deep_reflection_interval == 0:
+                logger.info(
+                    "[WORKER] Running deep reflection for %s (task #%d)",
+                    agent_template, count,
+                )
+                log_path = WORKER_RESULTS_DIR / f"{task_id}.log"
+                self.agent_meta.reflect_on_task(
+                    agent_template, task_title, project_id, True, duration, log_path,
+                )
+                self.agent_meta.synthesize_memory(agent_template)
                 self.agent_meta.evolve_traits(agent_template, count)
 
         self._cleanup_worker_session(agent_id, session_label)
