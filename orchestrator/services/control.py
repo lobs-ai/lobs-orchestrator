@@ -146,6 +146,32 @@ class ControlManager:
                     logger.error(f"Unable to recover from stuck git state in control repo")
                     return
         
+        # Stash any uncommitted changes before pulling to avoid
+        # "cannot pull with rebase: You have unstaged changes" errors.
+        stashed = False
+        try:
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=CONTROL_REPO_PATH,
+                capture_output=True,
+                timeout=10.0,
+                text=True,
+            )
+            if status_result.stdout.strip():
+                logger.debug("Stashing uncommitted changes before pull")
+                stash_result = subprocess.run(
+                    ["git", "stash", "--include-untracked"],
+                    cwd=CONTROL_REPO_PATH,
+                    capture_output=True,
+                    timeout=30.0,
+                    text=True,
+                )
+                if stash_result.returncode == 0 and "No local changes" not in stash_result.stdout:
+                    stashed = True
+                    logger.info("Stashed uncommitted changes before pull")
+        except Exception as e:
+            logger.warning(f"Failed to check/stash before pull: {e}")
+
         try:
             subprocess.run(
                 ["git", "pull", "--rebase"],
@@ -158,8 +184,8 @@ class ControlManager:
             stderr = (e.stderr or b"").decode()
             logger.error(f"Git pull failed in control repo: {stderr}")
             
-            # Check if this is a "cannot rebase onto multiple branches" error
-            if "cannot rebase" in stderr.lower() or "multiple branches" in stderr.lower():
+            # Check if this is a rebase conflict
+            if "cannot rebase" in stderr.lower() or "multiple branches" in stderr.lower() or "unstaged changes" in stderr.lower():
                 logger.warning(f"Rebase conflict detected in control repo, attempting recovery")
                 # Abort the failed rebase
                 self._abort_git_rebase(CONTROL_REPO_PATH)
@@ -170,6 +196,23 @@ class ControlManager:
                     logger.error(f"Failed to recover control repo from git pull failure")
         except subprocess.TimeoutExpired:
             logger.error(f"Git pull timed out in control repo after 60s")
+        finally:
+            # Pop stash if we stashed earlier
+            if stashed:
+                try:
+                    pop_result = subprocess.run(
+                        ["git", "stash", "pop"],
+                        cwd=CONTROL_REPO_PATH,
+                        capture_output=True,
+                        timeout=30.0,
+                        text=True,
+                    )
+                    if pop_result.returncode == 0:
+                        logger.debug("Restored stashed changes after pull")
+                    else:
+                        logger.warning(f"Stash pop failed: {pop_result.stderr}")
+                except Exception as e:
+                    logger.warning(f"Failed to pop stash after pull: {e}")
 
     def push(self, message: str) -> None:
         """Push changes to control repo with timeouts and error handling."""
