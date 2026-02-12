@@ -1,17 +1,8 @@
 {
-  "total_completed": 155,
+  "total_completed": 156,
   "total_failed": 41,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:16:10.522936+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "6272FF61-622D-4B48-8A6A-DBB4DD19FC62",
       "project_id": "lobs-dashboard",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T13:51:10.949763+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "D693EEE5-3EA8-4A55-9CAB-44431866AC01",
+      "project_id": "lobs-dashboard",
+      "title": "inbox still shows artifacts as unread even though i can't click on them",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T13:50:52.656053+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1275,5 +1275,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T13:52:16.219134+00:00"
+  "last_updated": "2026-02-12T13:56:25.063925+00:00"
 }
