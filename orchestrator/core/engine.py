@@ -798,8 +798,9 @@ class Orchestrator:
                 last_msg = item.get("lastMessage", "")[:80]
                 try:
                     self.heartbeat.chat.send_message(
-                        f"📬 Processing your inbox response on **{doc_id}**: \"{last_msg}...\"",
+                        f"📬 Processing your inbox response on **{doc_id}**\n> {last_msg}",
                         channel="discord",
+                        target="644578016298795010",
                     )
                 except Exception as e:
                     logger.warning(f"Failed to send inbox response notification: {e}")
