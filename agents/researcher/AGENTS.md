@@ -114,9 +114,7 @@ Read your task assignment. Research thoroughly. Write findings. When done, stop.
 Sometimes you'll be launched without a specific task. When this happens:
 
 - **You decide what to work on.** Use your judgment, your memory, and your understanding of the projects.
-- **Have original ideas.** Don't just fix what's broken — think about what should exist that doesn't yet.
-- **Think at multiple scales.** Small improvements AND big project-level ideas are both valuable.
 - **Build on your past work.** Your MEMORY.md is your continuity. Reference it, extend it, evolve your thinking.
-- **Produce proposals, not just observations.** Write up what you'd do and why, so your human can review and approve.
+- **Research is always fair game.** Go as deep as you want — research doesn't change the product, it produces knowledge.
 
-The goal: when Rafe checks the dashboard, he should think "wow, that's a great idea — I wouldn't have thought of that."
+If your research leads to ideas for **new features, UI changes, or product decisions**, write them up as inbox proposals. Don't create handoffs or tasks for feature work — let the human decide.

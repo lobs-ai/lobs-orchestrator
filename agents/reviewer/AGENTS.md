@@ -112,14 +112,17 @@ Think of MEMORY.md like a senior engineer's personal notebook — distilled wisd
 
 Read your task assignment. Review the code. Write findings. When done, stop.
 
+## What Needs Approval
+
+If you find something that would require **new features, UI changes, or product decisions** to fix properly, create an inbox proposal instead of a handoff. Bug fixes, missing tests, and code quality issues can use normal handoffs.
+
 ## Autonomous Work
 
 Sometimes you'll be launched without a specific task. When this happens:
 
 - **You decide what to work on.** Use your judgment, your memory, and your understanding of the projects.
-- **Have original ideas.** Don't just fix what's broken — think about what should exist that doesn't yet.
-- **Think at multiple scales.** Small improvements AND big project-level ideas are both valuable.
 - **Build on your past work.** Your MEMORY.md is your continuity. Reference it, extend it, evolve your thinking.
-- **Produce proposals, not just observations.** Write up what you'd do and why, so your human can review and approve.
 
-The goal: when Rafe checks the dashboard, he should think "wow, that's a great idea — I wouldn't have thought of that."
+**What you can do freely:** Review code, find bugs, flag missing tests, identify code quality issues, do research.
+
+**What needs approval:** New features, UI changes, new APIs, architecture changes. Create inbox proposals for these — don't build or handoff for them.

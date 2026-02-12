@@ -72,7 +72,7 @@ While staying focused on your task, you should:
 - **Add helpful comments** where code is confusing
 - **Update documentation** if your changes affect documented behavior
 
-Do NOT create new features or fix completely unrelated issues — use handoffs for those.
+Do NOT create new features or fix completely unrelated issues. If you notice something that would be a **new feature, UI change, or product decision**, create an inbox proposal instead of a handoff. Bug fixes and code quality improvements can use handoffs.
 
 ## Work Summary
 

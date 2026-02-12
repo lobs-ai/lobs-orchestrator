@@ -367,56 +367,102 @@ class Orchestrator:
             logger.error(f"Failed to create task from opportunity: {e}", exc_info=True)
             return None
 
+    def _create_inbox_proposal(self, opp: Opportunity) -> str | None:
+        """Create an inbox proposal from an AI suggestion. Returns proposal_id if successful."""
+        try:
+            from orchestrator.config import CONTROL_REPO_PATH
+            proposal_id = f"proposal_{opp.opportunity_id or str(uuid.uuid4()).upper()[:8]}"
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            body_parts = [opp.description]
+            if opp.evidence:
+                body_parts.append(f"\n**Evidence:**\n```\n{opp.evidence}\n```")
+            if opp.file_path:
+                body_parts.append(f"\n**File:** `{opp.file_path}`")
+                if opp.line_number:
+                    body_parts.append(f" (line {opp.line_number})")
+
+            proposal = {
+                "id": proposal_id,
+                "title": f"💡 Proposal: {opp.title}",
+                "body": "\n".join(body_parts),
+                "type": "proposal",
+                "severity": "low",
+                "projectId": opp.project_id,
+                "agent": opp.agent_type,
+                "createdAt": now,
+                "proactiveMeta": {
+                    "opportunityId": opp.opportunity_id,
+                    "kind": opp.kind,
+                    "priority": opp.priority.name,
+                    "score": opp.score,
+                }
+            }
+
+            inbox_dir = CONTROL_REPO_PATH / "state" / "inbox"
+            inbox_dir.mkdir(parents=True, exist_ok=True)
+            proposal_path = inbox_dir / f"{proposal_id}.json"
+            with open(proposal_path, "w") as f:
+                json.dump(proposal, f, indent=2)
+                f.write("\n")
+
+            logger.info(
+                f"[PROACTIVE] Created inbox proposal {proposal_id}: {opp.title}"
+            )
+            return proposal_id
+        except Exception as e:
+            logger.error(f"Failed to create inbox proposal: {e}", exc_info=True)
+            return None
+
     def _process_proactive_work(self, projects: list[dict[str, Any]], explicit_work: list[dict[str, Any]]) -> None:
-        """Scan for and create proactive work tasks when idle."""
+        """Scan for and create proactive work tasks when idle.
+        
+        Code-quality opportunities (TODOs, missing tests, etc.) become tasks directly.
+        AI-suggested features/ideas become inbox proposals for human approval.
+        """
         if not self._should_scan_proactive(explicit_work):
             return
 
         try:
-            # Phase 1: Deterministic Observer (fast, free)
+            # Phase 1: Deterministic Observer (code quality — auto-create tasks)
             opportunities = self.observer.scan_for_opportunities(projects)
-
-            # Phase 2: AI-powered suggestions
-            ai_opportunities = self._get_ai_suggestions(projects, opportunities)
-            opportunities.extend(ai_opportunities)
-
-            if not opportunities:
-                logger.debug("[PROACTIVE] No opportunities found")
-                return
 
             # Filter by minimum priority
             min_priority = self._get_proactive_min_priority()
             filtered = [opp for opp in opportunities if opp.priority <= min_priority]
 
-            if not filtered:
-                logger.debug(f"[PROACTIVE] No opportunities above min priority {min_priority.name}")
-                return
-
-            # Respect daily limit
+            # Respect daily limit for auto-created tasks
             max_daily = self._get_proactive_max_daily()
             today_count = self._get_proactive_count_today()
             remaining = max_daily - today_count
 
-            if remaining <= 0:
-                logger.debug(f"[PROACTIVE] Daily limit reached ({today_count}/{max_daily})")
-                return
+            if remaining > 0 and filtered:
+                created_count = 0
+                for opp in filtered[:remaining]:
+                    task_id = self._create_task_from_opportunity(opp)
+                    if task_id:
+                        self._increment_proactive_count()
+                        created_count += 1
 
-            # Create tasks from top opportunities
-            created_count = 0
-            for opp in filtered[:remaining]:
-                task_id = self._create_task_from_opportunity(opp)
-                if task_id:
-                    self._increment_proactive_count()
-                    created_count += 1
+                if created_count > 0:
+                    logger.info(
+                        f"[PROACTIVE] Created {created_count} code-quality task(s). "
+                        f"Today: {self._get_proactive_count_today()}/{max_daily}"
+                    )
+                    self._prune_old_daily_counts()
 
-            if created_count > 0:
-                logger.info(
-                    f"[PROACTIVE] Created {created_count} proactive task(s). "
-                    f"Today: {self._get_proactive_count_today()}/{max_daily}"
-                )
-
-                # Prune old stats periodically
-                self._prune_old_daily_counts()
+            # Phase 2: AI-powered suggestions → inbox proposals (need human approval)
+            ai_opportunities = self._get_ai_suggestions(projects, opportunities)
+            if ai_opportunities:
+                proposal_count = 0
+                for opp in ai_opportunities:
+                    proposal_id = self._create_inbox_proposal(opp)
+                    if proposal_id:
+                        proposal_count += 1
+                if proposal_count > 0:
+                    logger.info(
+                        f"[PROACTIVE] Created {proposal_count} inbox proposal(s) for review"
+                    )
 
         except Exception as e:
             logger.error(f"Failed to process proactive work: {e}", exc_info=True)
