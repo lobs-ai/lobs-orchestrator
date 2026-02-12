@@ -19,9 +19,9 @@
       "streak": 1
     },
     "5521C2AC-C258-4578-B085-BB898508BDDD": {
-      "last_failure_ts": 1770870160.36988,
+      "last_failure_ts": 1770870183.9705238,
       "retry_count": 1,
-      "skip_until_ts": 1770870220.36988,
+      "skip_until_ts": 1770870243.9705238,
       "streak": 1
     },
     "5FBAF881-C7CA-41B5-9882-668203BAA9A1": {
@@ -115,9 +115,9 @@
       "streak": 1
     },
     "EECF884F-007E-41E4-9BFF-77982AC08A71": {
-      "last_failure_ts": 1770870071.508403,
+      "last_failure_ts": 1770870164.6179688,
       "retry_count": 1,
-      "skip_until_ts": 1770870131.508403,
+      "skip_until_ts": 1770870224.6179688,
       "streak": 1
     }
   },

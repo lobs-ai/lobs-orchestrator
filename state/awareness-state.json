@@ -1,26 +1,8 @@
 {
-  "total_completed": 101,
-  "total_failed": 21,
+  "total_completed": 103,
+  "total_failed": 22,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "3D646DD1-FBD3-4D08-9384-F5A28EB4CFEA",
-      "project_id": "lobs-dashboard",
-      "title": "Refresh should also check for dashboard app updates",
-      "agent_type": "reviewer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:57:51.995964+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "5A598823-6644-42B8-87F8-E6941A734C14",
-      "project_id": "flock",
-      "title": "Design notification system architecture for Flock",
-      "agent_type": "writer",
-      "kind": "task",
-      "started_at": "2026-02-11T22:58:26.219765+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "02FDB822-3B1D-4ADA-A92E-A8CEBF51024B",
       "project_id": "lobs-dashboard",
@@ -902,6 +884,24 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:22:26.097944+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:22:22.046074+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:22:48.826867+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1093,7 +1093,16 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:20:48.264119+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:22:43.975882+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:22:39.249566+00:00"
+  "last_updated": "2026-02-12T04:23:02.776639+00:00"
 }
