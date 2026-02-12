@@ -1,44 +1,8 @@
 {
-  "total_completed": 122,
+  "total_completed": 126,
   "total_failed": 23,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "8575D965-1142-4020-A891-43A671EB6FC2",
-      "project_id": "lobs-dashboard",
-      "title": "Add task count badge to project sidebar items",
-      "agent_type": "programmer",
-      "kind": "task",
-      "started_at": "2026-02-11T23:46:26.206454+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:51:08.287511+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:51:19.307785+00:00",
-      "status": "completed"
-    },
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-11T23:51:30.185819+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +866,42 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:29:38.369701+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "EECF884F-007E-41E4-9BFF-77982AC08A71",
+      "project_id": "flock",
+      "title": "EECF884F",
+      "agent_type": "programmer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:30:00.793332+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "386AF1B5-A24C-41D5-812D-18A6A0791F9B",
+      "project_id": "prairielearn",
+      "title": "386AF1B5",
+      "agent_type": "writer",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:30:05.281072+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:30:28.676599+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "5521C2AC-C258-4578-B085-BB898508BDDD",
+      "project_id": "lobs-control",
+      "title": "5521C2AC",
+      "agent_type": "architect",
+      "kind": "inbox_response",
+      "started_at": "2026-02-12T04:31:04.847110+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1113,5 +1113,5 @@
       "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:29:57.170197+00:00"
+  "last_updated": "2026-02-12T04:31:50.648894+00:00"
 }
