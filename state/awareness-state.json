@@ -1,17 +1,8 @@
 {
-  "total_completed": 145,
-  "total_failed": 38,
+  "total_completed": 146,
+  "total_failed": 39,
   "start_time": 1770850534.1043148,
   "completed": [
-    {
-      "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
-      "project_id": "self-improvement",
-      "title": "0E62E1BB",
-      "agent_type": "researcher",
-      "kind": "research_request",
-      "started_at": "2026-02-12T00:04:40.302883+00:00",
-      "status": "completed"
-    },
     {
       "task_id": "0E62E1BB-05B9-4E9B-8992-EA757B74688D",
       "project_id": "self-improvement",
@@ -902,6 +893,15 @@
       "kind": "task",
       "started_at": "2026-02-12T07:44:20.696721+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "D589ADBA-178D-4D12-9913-1CAB6DD9DCD5",
+      "project_id": "lobs-dashboard",
+      "title": "escape doesn't work when trying to exit the agent information",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T07:53:08.089001+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -1246,7 +1246,16 @@
       "kind": "task",
       "started_at": "2026-02-12T07:44:19.883616+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "1DC771BA-FE77-4FEB-AF81-EF8D8C6B0B68",
+      "project_id": "lobs-dashboard",
+      "title": "documents page is not visible because you can see the things behind it so its impossible to read",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T12:34:33.368501+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T07:52:54.214547+00:00"
+  "last_updated": "2026-02-12T12:40:11.210939+00:00"
 }

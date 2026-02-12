@@ -5,3 +5,6 @@ requests==2.32.3
 
 # Cron parsing for recurring tasks
 croniter==2.0.5
+
+# Memory monitoring and system resource tracking
+psutil==6.1.1

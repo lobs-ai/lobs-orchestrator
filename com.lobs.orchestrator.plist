@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Service Label -->
+    <key>Label</key>
+    <string>com.lobs.orchestrator</string>
+    
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Update these paths to match your Python environment -->
+        <string>/usr/local/bin/python3</string>
+        <string>/Users/lobs/lobs-orchestrator/main.py</string>
+    </array>
+    
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>/Users/lobs/lobs-orchestrator</string>
+    
+    <!-- Run at load (startup) -->
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <!-- Keep alive (restart if crashed) -->
+    <key>KeepAlive</key>
+    <dict>
+        <!-- Only restart if crashed, not on normal exit -->
+        <key>SuccessfulExit</key>
+        <false/>
+        <!-- Don't restart too quickly -->
+        <key>Crashed</key>
+        <true/>
+    </dict>
+    
+    <!-- Throttle restart interval (10 seconds) -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    
+    <!-- Standard output/error logging -->
+    <key>StandardOutPath</key>
+    <string>/Users/lobs/lobs-orchestrator/logs/orchestrator.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lobs/lobs-orchestrator/logs/orchestrator.error.log</string>
+    
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+    
+    <!-- Process type (adaptive for long-running services) -->
+    <key>ProcessType</key>
+    <string>Adaptive</string>
+    
+    <!-- Nice level (lower priority to avoid starving interactive apps) -->
+    <key>Nice</key>
+    <integer>5</integer>
+    
+    <!-- Resource limits (optional, adjust for your system) -->
+    <!-- Soft limit: 2GB, Hard limit: 3GB -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>1024</integer>
+        <!-- RSS limit in bytes (2GB) -->
+        <key>ResidentSetSize</key>
+        <integer>2147483648</integer>
+    </dict>
+    
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>2048</integer>
+        <!-- RSS limit in bytes (3GB) -->
+        <key>ResidentSetSize</key>
+        <integer>3221225472</integer>
+    </dict>
+</dict>
+</plist>

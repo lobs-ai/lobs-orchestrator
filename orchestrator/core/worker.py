@@ -496,12 +496,24 @@ class WorkerManager:
         Enforces:
         1. Global max_workers limit (default: 5 concurrent workers)
         2. One worker per project at a time
+        3. Memory availability checks to prevent OOM kills
         
         When at capacity or project is locked, the engine will queue the task 
         and retry on the next poll cycle.
         """
         task_id = task["id"]
         task_title = task.get("title", task.get("prompt", task_id[:8]))
+
+        # Check memory availability before spawning
+        from orchestrator.utils.memory_monitor import get_memory_monitor
+        memory_monitor = get_memory_monitor()
+        can_spawn, memory_reason = memory_monitor.check_can_spawn_worker()
+        if not can_spawn:
+            logger.warning(
+                f"[MEMORY] Spawn blocked for {task_id[:8]}: {memory_reason}. "
+                f"Will retry on next poll."
+            )
+            return False
 
         # Check circuit breaker — pause if infrastructure is broken
         allowed, cb_reason = self.circuit_breaker.should_allow_spawn()
@@ -547,6 +559,11 @@ class WorkerManager:
             agent_template=agent_type,
         )
 
+        # Log memory before spawning
+        from orchestrator.utils.memory_monitor import get_memory_monitor
+        memory_monitor = get_memory_monitor()
+        memory_monitor.log_before_spawn(task_id)
+
         # Determine runtime and spawn
         runtime = self._determine_runtime(task)
         logger.info(f"[WORKER] Task {task_id[:8]} will use runtime: {runtime}")
@@ -555,6 +572,9 @@ class WorkerManager:
             self.executor.submit(self._async_spawn_ollama_flow, task, project_id, agent_type, rules)
         else:
             self.executor.submit(self._async_spawn_openclaw_flow, task, project_id, agent_type, rules)
+        
+        # Log memory after spawning
+        memory_monitor.log_after_spawn(task_id)
         
         return True
 

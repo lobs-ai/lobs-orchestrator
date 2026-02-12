@@ -685,6 +685,11 @@ class Orchestrator:
         """
         activity = False
 
+        # 0. Memory monitoring (periodic)
+        from orchestrator.utils.memory_monitor import get_memory_monitor
+        memory_monitor = get_memory_monitor()
+        memory_monitor.log_snapshot("ENGINE")
+
         # 0. System Heartbeat
         self._pulse_system_heartbeat()
 
