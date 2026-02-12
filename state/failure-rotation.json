@@ -1,10 +1,10 @@
 {
   "tasks": {
     "23E85C41-2999-4DF5-B4FB-2817D146A0AB": {
-      "last_failure_ts": 1770868024.014134,
-      "retry_count": 2,
-      "skip_until_ts": 1770868324.014134,
-      "streak": 2
+      "last_failure_ts": 1770868353.8448179,
+      "retry_count": 4,
+      "skip_until_ts": 1770871053.8448179,
+      "streak": 4
     },
     "29B8E0FE-26E4-485C-ACF5-B5E372403A2F": {
       "last_failure_ts": 1770856703.981139,
@@ -19,10 +19,10 @@
       "streak": 1
     },
     "8D799C4B-2449-4E61-8D02-D37FFECE8371": {
-      "last_failure_ts": 1770867152.61292,
-      "retry_count": 2,
-      "skip_until_ts": 1770867452.61292,
-      "streak": 2
+      "last_failure_ts": 1770868339.11571,
+      "retry_count": 3,
+      "skip_until_ts": 1770869239.11571,
+      "streak": 3
     },
     "9129FA76-34AD-4D8E-A714-089DAF6851FB": {
       "last_failure_ts": 1770853028.764971,

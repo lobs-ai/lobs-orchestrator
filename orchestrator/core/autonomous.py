@@ -27,9 +27,8 @@ AUTONOMOUS_AGENTS = {
     "researcher": {
         "project": "self-improvement",
     },
-    "reviewer": {
-        "project": "lobs-dashboard",
-    },
+    # Reviewer is NOT autonomous — it runs as a batched review of accumulated
+    # changes rather than per-task or idle self-directed work.
     "architect": {
         "project": "lobs-dashboard",
     },
