@@ -423,35 +423,31 @@ class Orchestrator:
             return None
 
     def _acknowledge_inbox_response(self, item: dict[str, Any]) -> None:
-        """Mark an inbox response as acknowledged directly in its file to prevent re-scanning."""
+        """Mark ALL copies of an inbox response as acknowledged to prevent re-scanning.
+        
+        The same response can exist in both top-level and threads/ subdirectory,
+        so we find and acknowledge all files with the matching ID.
+        """
         try:
-            source_path = item.get("_source_path")
-            if not source_path:
-                # Find the file by searching for the ID
-                import glob
-                inbox_dir = CONTROL_REPO_PATH / "state" / "inbox-responses"
-                item_id = item.get("id", "")
-                for json_file in inbox_dir.rglob("*.json"):
-                    try:
-                        with open(json_file) as f:
-                            data = json.load(f)
-                        if data.get("id") == item_id:
-                            source_path = str(json_file)
-                            break
-                    except Exception:
-                        continue
+            inbox_dir = CONTROL_REPO_PATH / "state" / "inbox-responses"
+            item_id = item.get("id", "")
+            found = 0
 
-            if source_path:
-                from pathlib import Path
-                p = Path(source_path)
-                with open(p) as f:
-                    data = json.load(f)
-                data["acknowledged"] = True
-                with open(p, "w") as f:
-                    json.dump(data, f, indent=2)
-                logger.info(f"[INBOX] Marked {item.get('id', '?')[:8]} as acknowledged in {p.name}")
-            else:
-                logger.warning(f"[INBOX] Could not find file for inbox response {item.get('id', '?')[:8]}")
+            for json_file in inbox_dir.rglob("*.json"):
+                try:
+                    with open(json_file) as f:
+                        data = json.load(f)
+                    if data.get("id") == item_id and not data.get("acknowledged"):
+                        data["acknowledged"] = True
+                        with open(json_file, "w") as f:
+                            json.dump(data, f, indent=2)
+                        found += 1
+                        logger.info(f"[INBOX] Marked {item_id[:8]} as acknowledged in {json_file.name}")
+                except Exception:
+                    continue
+
+            if found == 0:
+                logger.warning(f"[INBOX] No unacknowledged files found for {item_id[:8]}")
         except Exception as e:
             logger.warning(f"[INBOX] Failed to acknowledge inbox response: {e}")
 
