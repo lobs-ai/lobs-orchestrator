@@ -51,26 +51,28 @@ def _compile_keywords(words: Iterable[str]) -> re.Pattern[str]:
     return re.compile(r"\b(?:" + "|".join(escaped) + r")\b", re.IGNORECASE)
 
 
+# Only route AWAY from programmer when there's very strong signal.
+# Most tasks are code work — programmer is the safe default.
+# These patterns should be narrow and unambiguous.
 _DEFAULT_RULES: tuple[_Rule, ...] = (
     _Rule(
-        agent_type="programmer",
-        pattern=_compile_keywords(["fix", "bug", "implement", "add", "update", "refactor"]),
-    ),
-    _Rule(
         agent_type="researcher",
-        pattern=_compile_keywords(["research", "investigate", "explore", "analyze"]),
-    ),
-    _Rule(
-        agent_type="reviewer",
-        pattern=_compile_keywords(["review", "check", "audit"]),
+        pattern=_compile_keywords(["research", "investigate", "explore", "compare alternatives"]),
     ),
     _Rule(
         agent_type="writer",
-        pattern=_compile_keywords(["write", "draft", "document", "doc"]),
+        pattern=re.compile(
+            r"\b(?:write\s+(?:a\s+)?(?:doc|summary|report|guide|readme)|draft\s+(?:doc|summary|report|guide|readme)|write\s+up|documentation\s+for)\b",
+            re.IGNORECASE,
+        ),
     ),
     _Rule(
         agent_type="architect",
-        pattern=_compile_keywords(["design", "architect", "rework", "restructure"]),
+        pattern=_compile_keywords(["design system", "architect", "rework architecture", "restructure"]),
+    ),
+    _Rule(
+        agent_type="reviewer",
+        pattern=_compile_keywords(["code review", "audit code", "review PR"]),
     ),
 )
 
