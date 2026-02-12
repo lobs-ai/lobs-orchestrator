@@ -110,17 +110,62 @@ echo "Designed notification system. Created 4 programmer handoffs for implementa
 
 ## Workspace Memory
 
-Your workspace has a **MEMORY.md** file — this is your long-term memory that persists across tasks.
+Your workspace has a `memory/` directory — this is your long-term memory, searchable via vector database.
 
-**Before starting:** Read MEMORY.md. Apply what you have learned.
+### How It Works
 
-**After completing a task:** Jot down what you did in MEMORY.md — just enough so future-you has context:
-- What task you did and which project/files it touched
-- Anything non-obvious you discovered (gotchas, quirks, why something is the way it is)
+- **Write memories as topic files** in `memory/`, e.g.:
+  - `memory/flock-api-patterns.md` — what you learned about flock's API
+  - `memory/git-workflow-gotchas.md` — git issues you've hit
+  - `memory/project-x-decisions.md` — key decisions for a project
+  - `memory/tools-and-tips.md` — tool usage patterns that work
+  - `memory/YYYY-MM-DD.md` — daily session log (append-only)
+- **Search with `memory_search`** — semantically finds relevant notes across all files
+- **Read with `memory_get`** — pull specific lines from a file found by search
 
-Keep it brief. A few bullet points per task is fine.
+### Writing Memories
 
-**Do NOT edit** other workspace files (AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md) — they are read-only and managed by the orchestrator.
+**After every task**, write what you learned:
+
+```
+memory/<topic-slug>.md  — for reusable knowledge (patterns, gotchas, decisions)
+memory/YYYY-MM-DD.md    — for session-specific notes (what you did today)
+```
+
+**Good memory files are:**
+- **Focused** — one topic per file (not one massive dump)
+- **Searchable** — clear titles and headers so vector search finds them
+- **Actionable** — include what worked, what didn't, and why
+- **Accumulative** — add to existing topic files rather than creating duplicates
+
+**Examples of good memory entries:**
+```markdown
+# Flock API Patterns
+## Event Creation
+- Events require both start_time and end_time (not optional)
+- Use ISO 8601 format with timezone
+- The /v1/events endpoint returns 201, not 200
+
+## Common Mistakes
+- Forgetting to include auth header → 401 with unhelpful message
+```
+
+### Before Starting Work
+
+1. Run `memory_search` for the task topic to recall relevant context
+2. Read any matching files with `memory_get`
+3. Apply what you've learned from past work
+
+### Rules
+- **Many small files > one big file** — keeps vector search precise
+- **Update existing topic files** when you learn more about the same topic
+- **Create new files** for genuinely new topics
+- **Don't duplicate** — search first, then append or create
+- **Include dates** in daily logs, not in topic files (topic files are evergreen)
+
+### Legacy
+
+If a `MEMORY.md` file exists in your workspace, it contains older memories. You can search it, reference it, and gradually migrate useful content into topic files in `memory/`.
 ## Sending to Inbox
 
 When you have proposals, suggestions, or findings that need human review, **send them to the inbox**. This is how the human sees your work.
