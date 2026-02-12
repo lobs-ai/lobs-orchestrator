@@ -4,9 +4,9 @@ Task Router
 
 LLM-based agent selection with regex fallback.
 
-The router uses a cheap/fast LLM call (via openclaw CLI) to determine which
-agent should handle a task based on its content. If the LLM call fails or
-times out, it falls back to keyword-based regex matching.
+Uses a cheap LLM call (haiku via the 'suggester' agent) to determine which
+agent should handle a task. Falls back to keyword-based regex matching if
+the LLM call fails or times out.
 """
 
 from __future__ import annotations
@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 VALID_AGENTS = {"programmer", "researcher", "reviewer", "writer", "architect"}
 
 LLM_ROUTER_PROMPT = """\
-You are a task router. Given a task description, determine which agent should handle it.
+You are a task router for a multi-agent system. Given a task description, pick which agent should handle it.
 
-Available agents:
+Agents:
 - programmer: Code implementation, bug fixes, testing, refactoring
 - researcher: Investigation, analysis, comparisons, information gathering
 - reviewer: Code review, quality assurance, audits
@@ -36,10 +36,11 @@ Available agents:
 - architect: System design, technical strategy, planning, restructuring
 
 Task:
+---
 {task_text}
+---
 
-Respond with ONLY a JSON object: {{"agent": "<agent_type>", "confidence": "<high|medium|low>", "reason": "<brief reason>"}}
-"""
+Respond with ONLY valid JSON, nothing else: {{"agent": "<type>", "reason": "<10 words max>"}}"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,13 +102,14 @@ class Router:
 
         Priority:
         1. Explicit `agent` field on the task
-        2. LLM-based routing (cheap model call)
+        2. LLM-based routing (cheap haiku call via suggester agent)
         3. Regex keyword fallback
         4. Default (programmer)
         """
         # 1. Explicit agent field
         explicit = (task.get("agent") or "").strip()
         if explicit:
+            logger.info(f"[ROUTER] Explicit agent field: {explicit}")
             return self._validate_agent_type(explicit)
 
         task_text = self._task_text(task)
@@ -129,24 +131,31 @@ class Router:
         return self._validate_agent_type(self.default_agent_type)
 
     def _route_via_llm(self, task_text: str) -> str | None:
-        """Call a cheap LLM to determine the right agent. Returns agent type or None on failure."""
+        """Use the suggester agent (haiku) to determine the right agent."""
         try:
             executable = get_setting("openclaw_executable", "openclaw")
             prompt = LLM_ROUTER_PROMPT.format(task_text=task_text[:2000])
 
             result = subprocess.run(
-                [executable, "agent", "--agent", "worker", "-m", prompt],
+                [executable, "agent", "--agent", "suggester", "-m", prompt, "--json"],
                 capture_output=True,
                 text=True,
                 timeout=30,
                 check=False,
-                env=self._get_env(),
             )
 
             output = (result.stdout or "").strip()
             if not output:
                 logger.warning("[ROUTER] LLM returned empty output")
                 return None
+
+            # If --json flag worked, parse the wrapper
+            try:
+                wrapper = json.loads(output)
+                if isinstance(wrapper, dict) and "reply" in wrapper:
+                    output = wrapper["reply"]
+            except json.JSONDecodeError:
+                pass  # output is raw text, that's fine
 
             # Extract JSON from response (may have surrounding text)
             json_match = re.search(r'\{[^}]+\}', output)
@@ -156,32 +165,21 @@ class Router:
 
             parsed = json.loads(json_match.group())
             agent = parsed.get("agent", "").strip().lower()
-            confidence = parsed.get("confidence", "low")
             reason = parsed.get("reason", "")
 
             if agent not in VALID_AGENTS:
-                logger.warning(f"[ROUTER] LLM returned invalid agent: {agent}")
+                logger.warning(f"[ROUTER] LLM returned invalid agent '{agent}'")
                 return None
 
-            logger.info(f"[ROUTER] LLM selected '{agent}' (confidence={confidence}): {reason}")
+            logger.info(f"[ROUTER] LLM selected '{agent}': {reason}")
             return agent
 
         except subprocess.TimeoutExpired:
             logger.warning("[ROUTER] LLM routing timed out, falling back to regex")
             return None
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.warning(f"[ROUTER] Failed to parse LLM routing response: {e}")
-            return None
         except Exception as e:
             logger.warning(f"[ROUTER] LLM routing failed: {e}")
             return None
-
-    @staticmethod
-    def _get_env() -> dict[str, str]:
-        """Get environment for subprocess, inheriting current env."""
-        import os
-        env = os.environ.copy()
-        return env
 
     def _validate_agent_type(self, agent_type: str) -> str:
         normalized = agent_type.strip().lower()
@@ -192,12 +190,15 @@ class Router:
 
     @staticmethod
     def _task_text(task: dict[str, Any]) -> str:
+        """Build searchable text from all task fields including inbox messages."""
         title = task.get("title") or task.get("prompt") or ""
         notes = task.get("notes") or ""
-        messages = task.get("messages", [])
-        msg_text = "\n".join(m.get("text", "") for m in messages)
-        # Include docId for inbox responses (gives context about what was proposed)
         doc_id = task.get("docId", "")
+        messages = task.get("messages", [])
+        msg_text = "\n".join(
+            f"{m.get('author', 'unknown')}: {m.get('text', '')}"
+            for m in messages
+        )
         parts = [p for p in [title, notes, doc_id, msg_text] if p]
         return "\n".join(parts).strip()
 
