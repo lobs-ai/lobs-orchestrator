@@ -1,6 +1,6 @@
 {
   "total_completed": 139,
-  "total_failed": 23,
+  "total_failed": 24,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -1111,7 +1111,16 @@
       "kind": "inbox_response",
       "started_at": "2026-02-12T04:24:58.327182+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "7315A42C-86DC-4A90-B814-7B8BE967E2E3",
+      "project_id": "lobs-dashboard",
+      "title": "onboarding still shows up even though i have a 100%",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T05:02:57.254729+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T04:43:33.615472+00:00"
+  "last_updated": "2026-02-12T05:08:34.011824+00:00"
 }
