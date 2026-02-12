@@ -93,6 +93,12 @@ class Router:
         if explicit:
             return self._validate_agent_type(explicit)
 
+        # Check inbox response messages for explicit agent mentions
+        # e.g. "architect needs to do it", "send to researcher"
+        mentioned_agent = self._extract_explicit_agent_from_messages(task)
+        if mentioned_agent:
+            return self._validate_agent_type(mentioned_agent)
+
         haystack = self._task_text(task)
         for rule in self._rules:
             if rule.pattern.search(haystack):
@@ -109,11 +115,31 @@ class Router:
         self.registry.get_agent(normalized)
         return normalized
 
+    # Explicit agent mention pattern: "architect should", "send to researcher", etc.
+    _AGENT_MENTION_RE = re.compile(
+        r"\b(programmer|researcher|reviewer|writer|architect)\b\s+"
+        r"(?:should|needs?\s+to|can|will|do|handle|take)",
+        re.IGNORECASE,
+    )
+
+    def _extract_explicit_agent_from_messages(self, task: dict[str, Any]) -> str | None:
+        """Check inbox response messages for explicit agent mentions like 'architect needs to do it'."""
+        messages = task.get("messages", [])
+        for msg in messages:
+            text = msg.get("text", "")
+            m = self._AGENT_MENTION_RE.search(text)
+            if m:
+                return m.group(1).lower()
+        return None
+
     @staticmethod
     def _task_text(task: dict[str, Any]) -> str:
         title = task.get("title") or task.get("prompt") or ""
         notes = task.get("notes") or ""
-        return f"{title}\n{notes}".strip()
+        # Include inbox response messages in routing text
+        messages = task.get("messages", [])
+        msg_text = "\n".join(m.get("text", "") for m in messages)
+        return f"{title}\n{notes}\n{msg_text}".strip()
 
 
 # Convenience singleton for call-sites that don't want to manage an instance.
