@@ -1,6 +1,6 @@
 {
   "total_completed": 146,
-  "total_failed": 40,
+  "total_failed": 41,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -1264,7 +1264,16 @@
       "kind": "task",
       "started_at": "2026-02-12T12:34:33.535529+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "CB99A333-5734-43A6-9FE4-B45E2EDDB5B8",
+      "project_id": "lobs-dashboard",
+      "title": "onboarding shows even though i am at 100% complete",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T12:40:18.613623+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T12:40:16.104979+00:00"
+  "last_updated": "2026-02-12T12:45:29.541065+00:00"
 }
