@@ -1,6 +1,6 @@
 {
-  "total_completed": 64,
-  "total_failed": 9,
+  "total_completed": 66,
+  "total_failed": 10,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -578,6 +578,24 @@
       "kind": "task",
       "started_at": "2026-02-12T01:08:32.721834+00:00",
       "status": "completed"
+    },
+    {
+      "task_id": "F4D185A7-9275-4C4F-8F3B-0A2F8869C150",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: writer standing work",
+      "agent_type": "writer",
+      "kind": "task",
+      "started_at": "2026-02-12T01:08:32.754823+00:00",
+      "status": "completed"
+    },
+    {
+      "task_id": "333B97A0-224C-4452-9980-A57933176BAC",
+      "project_id": "self-improvement",
+      "title": "Autonomous: researcher standing work",
+      "agent_type": "researcher",
+      "kind": "task",
+      "started_at": "2026-02-12T01:08:31.133294+00:00",
+      "status": "completed"
     }
   ],
   "failed": [
@@ -661,7 +679,16 @@
       "kind": "task",
       "started_at": "2026-02-12T00:12:25.091068+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "D4E817D7-7718-4527-A578-412398BC47C6",
+      "project_id": "lobs-dashboard",
+      "title": "Autonomous: reviewer standing work",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T01:11:18.915500+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T01:09:37.601022+00:00"
+  "last_updated": "2026-02-12T01:12:46.071730+00:00"
 }
