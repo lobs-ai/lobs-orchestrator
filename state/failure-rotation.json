@@ -42,6 +42,12 @@
       "skip_until_ts": 1770873214.0076852,
       "streak": 2
     },
+    "7776F488-60B4-486A-B5C9-B21344CAEAF5": {
+      "last_failure_ts": 1770873245.37358,
+      "retry_count": 1,
+      "skip_until_ts": 1770873305.37358,
+      "streak": 1
+    },
     "7E1052A9-BEC6-4F20-A387-75346D305042": {
       "last_failure_ts": 1770869200.854517,
       "retry_count": 1,

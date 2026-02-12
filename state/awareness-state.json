@@ -1,6 +1,6 @@
 {
   "total_completed": 139,
-  "total_failed": 24,
+  "total_failed": 25,
   "start_time": 1770850534.1043148,
   "completed": [
     {
@@ -1120,7 +1120,16 @@
       "kind": "task",
       "started_at": "2026-02-12T05:02:57.254729+00:00",
       "status": "failed"
+    },
+    {
+      "task_id": "7776F488-60B4-486A-B5C9-B21344CAEAF5",
+      "project_id": "lobs-dashboard",
+      "title": "Fix AI Usage Tracking - Aggregate from Worker History",
+      "agent_type": "programmer",
+      "kind": "task",
+      "started_at": "2026-02-12T05:08:48.181255+00:00",
+      "status": "failed"
     }
   ],
-  "last_updated": "2026-02-12T05:08:34.011824+00:00"
+  "last_updated": "2026-02-12T05:14:05.377358+00:00"
 }
