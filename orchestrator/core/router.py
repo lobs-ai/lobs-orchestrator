@@ -2,11 +2,8 @@
 
 Task Router
 
-LLM-based agent selection with regex fallback.
-
-Uses a cheap LLM call (haiku via the 'suggester' agent) to determine which
-agent should handle a task. Falls back to keyword-based regex matching if
-the LLM call fails or times out.
+Regex-based routing for regular tasks. LLM-based routing (via suggester/haiku)
+for inbox responses where natural language makes regex unreliable.
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ logger = logging.getLogger(__name__)
 VALID_AGENTS = {"programmer", "researcher", "reviewer", "writer", "architect"}
 
 LLM_ROUTER_PROMPT = """\
-You are a task router for a multi-agent system. Given a task description, pick which agent should handle it.
+You are a task router for a multi-agent system. A human responded to an inbox item. Based on the conversation, pick which agent should handle the follow-up work.
 
 Agents:
 - programmer: Code implementation, bug fixes, testing, refactoring
@@ -35,7 +32,7 @@ Agents:
 - writer: Documentation, write-ups, summaries, content creation
 - architect: System design, technical strategy, planning, restructuring
 
-Task:
+Inbox item:
 ---
 {task_text}
 ---
@@ -79,7 +76,7 @@ _DEFAULT_RULES: tuple[_Rule, ...] = (
 
 
 class Router:
-    """LLM-based router with regex fallback."""
+    """Task router: regex for regular tasks, LLM for inbox responses."""
 
     def __init__(
         self,
@@ -102,8 +99,8 @@ class Router:
 
         Priority:
         1. Explicit `agent` field on the task
-        2. LLM-based routing (cheap haiku call via suggester agent)
-        3. Regex keyword fallback
+        2. For inbox responses: LLM-based routing via suggester (haiku)
+        3. Regex keyword matching
         4. Default (programmer)
         """
         # 1. Explicit agent field
@@ -112,26 +109,29 @@ class Router:
             logger.info(f"[ROUTER] Explicit agent field: {explicit}")
             return self._validate_agent_type(explicit)
 
+        kind = task.get("kind", "task")
         task_text = self._task_text(task)
 
-        # 2. LLM-based routing
-        llm_result = self._route_via_llm(task_text)
-        if llm_result:
-            return self._validate_agent_type(llm_result)
+        # 2. Inbox responses get LLM routing
+        if kind == "inbox_response":
+            llm_result = self._route_inbox_via_llm(task_text)
+            if llm_result:
+                return self._validate_agent_type(llm_result)
+            # Fall through to regex if LLM fails
 
         # 3. Regex fallback
         for rule in self._rules:
             if rule.pattern.search(task_text):
                 agent = self._validate_agent_type(rule.agent_type)
-                logger.info(f"[ROUTER] Regex fallback matched: {agent}")
+                logger.info(f"[ROUTER] Regex matched '{agent}' for {kind}")
                 return agent
 
         # 4. Default
-        logger.info(f"[ROUTER] No match, defaulting to {self.default_agent_type}")
+        logger.info(f"[ROUTER] No match for {kind}, defaulting to {self.default_agent_type}")
         return self._validate_agent_type(self.default_agent_type)
 
-    def _route_via_llm(self, task_text: str) -> str | None:
-        """Use the suggester agent (haiku) to determine the right agent."""
+    def _route_inbox_via_llm(self, task_text: str) -> str | None:
+        """Use the suggester agent (haiku) to route inbox responses."""
         try:
             executable = get_setting("openclaw_executable", "openclaw")
             prompt = LLM_ROUTER_PROMPT.format(task_text=task_text[:2000])
@@ -146,7 +146,7 @@ class Router:
 
             output = (result.stdout or "").strip()
             if not output:
-                logger.warning("[ROUTER] LLM returned empty output")
+                logger.warning("[ROUTER] LLM returned empty output for inbox routing")
                 return None
 
             # If --json flag worked, parse the wrapper
@@ -155,9 +155,9 @@ class Router:
                 if isinstance(wrapper, dict) and "reply" in wrapper:
                     output = wrapper["reply"]
             except json.JSONDecodeError:
-                pass  # output is raw text, that's fine
+                pass
 
-            # Extract JSON from response (may have surrounding text)
+            # Extract JSON from response
             json_match = re.search(r'\{[^}]+\}', output)
             if not json_match:
                 logger.warning(f"[ROUTER] No JSON in LLM output: {output[:200]}")
@@ -171,14 +171,14 @@ class Router:
                 logger.warning(f"[ROUTER] LLM returned invalid agent '{agent}'")
                 return None
 
-            logger.info(f"[ROUTER] LLM selected '{agent}': {reason}")
+            logger.info(f"[ROUTER] LLM routed inbox response to '{agent}': {reason}")
             return agent
 
         except subprocess.TimeoutExpired:
-            logger.warning("[ROUTER] LLM routing timed out, falling back to regex")
+            logger.warning("[ROUTER] LLM inbox routing timed out, falling back to regex")
             return None
         except Exception as e:
-            logger.warning(f"[ROUTER] LLM routing failed: {e}")
+            logger.warning(f"[ROUTER] LLM inbox routing failed: {e}")
             return None
 
     def _validate_agent_type(self, agent_type: str) -> str:
