@@ -15,6 +15,28 @@ from orchestrator.utils.settings import get_setting
 
 logger = logging.getLogger(__name__)
 
+
+INBOX_TRIAGE_PROMPT = """\
+You are an inbox triage router for a multi-agent engineering system.
+Given one inbox item, decide who should respond and whether action is required.
+
+Respond with ONLY JSON:
+{
+  "responder": "system|programmer|researcher|reviewer|writer|architect|human",
+  "actionRequired": true|false,
+  "reason": "<12 words max>"
+}
+
+Guidance:
+- Use "system" for operational/system requests.
+- Use an agent role when a concrete task should be executed now.
+- Use "human" when this needs user/product approval or a human decision.
+- If unsure, choose "human" and actionRequired=false.
+"""
+
+_INBOX_TRIAGE_RESPONDERS = {"system", "programmer", "researcher", "reviewer", "writer", "architect", "human"}
+
+
 class Monitor:
     """
     Observer component that monitors system state, cron jobs, and project health.
@@ -39,7 +61,12 @@ class Monitor:
         # Lightweight agent for proactive analysis.
         template_dir = (STATE_DIR.parent / "worker-template").resolve()
         # STATE_DIR is orchestrator_repo/state, so parent is orchestrator repo.
-        self.agent_manager = AgentManager(template_dir)
+        try:
+            self.agent_manager = AgentManager(template_dir)
+        except Exception as e:
+            # Keep Monitor usable in tests/minimal environments where template path is absent.
+            logger.warning(f"AgentManager unavailable for monitor: {e}")
+            self.agent_manager = None
         self._suggester_provisioned = False
 
     def tick(self) -> None:
@@ -84,9 +111,140 @@ class Monitor:
             if item.get("status") == "resolved":
                 continue
 
+            # Ensure every actionable inbox item is triaged by the LLM at least once.
+            if not item.get("triagedAt"):
+                triage = self._triage_inbox_item(item)
+                if triage:
+                    updates = {
+                        "responder": triage["responder"],
+                        "actionRequired": triage["actionRequired"],
+                        "triageReason": triage.get("reason", ""),
+                        "triagedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "triageSource": "suggester",
+                    }
+                    try:
+                        self.provider.update_inbox_item(item["id"], updates)
+                    except Exception as e:
+                        logger.warning(f"[INBOX-TRIAGE] Failed to persist triage for {item.get('id')}: {e}")
+                    item.update(updates)
+
             # If the item is assigned to the system and needs a response
             if item.get("responder") == "system" and item.get("actionRequired"):
                 self._respond_to_inbox_item(item)
+            elif item.get("actionRequired") and item.get("responder") in {
+                "programmer",
+                "researcher",
+                "reviewer",
+                "writer",
+                "architect",
+            }:
+                self._spawn_agent_task_from_inbox(item)
+
+    def _triage_inbox_item(self, item: dict[str, Any]) -> dict[str, Any] | None:
+        """Route an inbox item via LLM to decide responder and action requirement."""
+        try:
+            from orchestrator.utils.settings import get_setting
+
+            executable = get_setting("openclaw_executable", "openclaw")
+            item_json = json.dumps(
+                {
+                    "id": item.get("id"),
+                    "type": item.get("type"),
+                    "title": item.get("title"),
+                    "body": item.get("body"),
+                    "severity": item.get("severity"),
+                    "projectId": item.get("projectId"),
+                    "sender": item.get("sender"),
+                },
+                ensure_ascii=False,
+            )
+            prompt = f"{INBOX_TRIAGE_PROMPT}\n\nInbox item:\n{item_json}\n"
+
+            result = subprocess.run(
+                [executable, "agent", "--agent", "suggester", "-m", prompt, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            output = (result.stdout or "").strip()
+            if not output:
+                logger.warning("[INBOX-TRIAGE] Empty triage output for inbox item %s", item.get("id"))
+                return None
+
+            # Handle wrapped --json payloads
+            try:
+                wrapper = json.loads(output)
+                if isinstance(wrapper, dict):
+                    payloads = (wrapper.get("result") or {}).get("payloads", [])
+                    if payloads and isinstance(payloads[0], dict):
+                        output = payloads[0].get("text", output)
+                    elif "reply" in wrapper:
+                        output = wrapper["reply"]
+            except json.JSONDecodeError:
+                pass
+
+            output = re.sub(r"```json\s*", "", output)
+            output = re.sub(r"```\s*", "", output)
+            m = re.search(r"\{.*\}", output, flags=re.DOTALL)
+            if not m:
+                logger.warning("[INBOX-TRIAGE] No JSON in triage output for %s", item.get("id"))
+                return None
+
+            parsed = json.loads(m.group())
+            responder = str(parsed.get("responder", "")).strip().lower()
+            action_required = bool(parsed.get("actionRequired", False))
+            reason = str(parsed.get("reason", "")).strip()
+
+            if responder not in _INBOX_TRIAGE_RESPONDERS:
+                logger.warning("[INBOX-TRIAGE] Invalid responder '%s' for %s", responder, item.get("id"))
+                return None
+
+            logger.info(
+                "[INBOX-TRIAGE] %s -> responder=%s actionRequired=%s",
+                item.get("id", "unknown"),
+                responder,
+                action_required,
+            )
+            return {
+                "responder": responder,
+                "actionRequired": action_required,
+                "reason": reason,
+            }
+        except subprocess.TimeoutExpired:
+            logger.warning("[INBOX-TRIAGE] Triage timed out for inbox item %s", item.get("id"))
+            return None
+        except Exception as e:
+            logger.warning(f"[INBOX-TRIAGE] Triage failed for {item.get('id')}: {e}")
+            return None
+
+    def _spawn_agent_task_from_inbox(self, item: dict[str, Any]) -> None:
+        """Create and route a task from an inbox item assigned to an agent."""
+        item_id = item.get("id")
+        if not item_id:
+            return
+        if item.get("taskId"):
+            return
+
+        responder = str(item.get("responder") or "").strip().lower()
+        if responder not in {"programmer", "researcher", "reviewer", "writer", "architect"}:
+            return
+
+        task_id = f"task_from_inbox_{item_id}"
+        new_task = {
+            "id": task_id,
+            "projectId": item.get("projectId", "lobs-control"),
+            "title": item.get("title") or f"Inbox action: {item_id}",
+            "notes": item.get("body") or "",
+            "status": "active",
+            "workState": "not_started",
+            "kind": "task",
+            "agent": responder,
+            "inboxMeta": {"sourceItemId": item_id},
+        }
+        self.provider.update_task(task_id, new_task)
+        self.provider.update_inbox_item(item_id, {"status": "resolved", "taskId": task_id})
+        logger.info("[INBOX-TRIAGE] Spawned %s task %s from inbox item %s", responder, task_id, item_id)
 
     def _respond_to_inbox_item(self, item: dict[str, Any]) -> None:
         """Handle a specific inbox item."""
@@ -818,7 +976,7 @@ class Monitor:
         agent_id = "suggester"
 
         # One-time provisioning/registration.
-        if not self._suggester_provisioned:
+        if self.agent_manager is not None and not self._suggester_provisioned:
             needs_provision = not self.agent_manager.aux_agent_exists(agent_id)
             needs_registration = not self.agent_manager.is_agent_registered_by_id(agent_id)
             if needs_provision or needs_registration:
