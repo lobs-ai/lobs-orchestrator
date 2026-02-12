@@ -832,6 +832,7 @@ class Orchestrator:
                 "autonomous": True,
                 "status": "active",
                 "workState": "in_progress",
+                "owner": "lobs",
             }
             
             # Write task file to lobs-control so dashboard can see it
