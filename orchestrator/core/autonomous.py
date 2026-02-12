@@ -110,7 +110,11 @@ class AutonomousLauncher:
     def __init__(self, cooldown_seconds: float = COOLDOWN_SECONDS):
         self.cooldown_seconds = cooldown_seconds
         # agent_type -> last launch timestamp
-        self._last_launch: dict[str, float] = {}
+        # Initialize all agents as "just launched" so we don't flood on startup
+        now = time.time()
+        self._last_launch: dict[str, float] = {
+            agent_type: now for agent_type in AUTONOMOUS_AGENTS
+        }
 
     def get_idle_agents(
         self,
